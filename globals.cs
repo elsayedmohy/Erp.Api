@@ -1,7 +1,21 @@
 global using Microsoft.EntityFrameworkCore;
-global using ErpDashboard.Api.Data.Enums;
-global using ErpDashboard.Api.Extensions;
+global using Microsoft.AspNetCore.Identity;
+global using Microsoft.Extensions.Options;
+global using Microsoft.IdentityModel.Tokens;
+global using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+global using Microsoft.AspNetCore.Diagnostics;
+global using Microsoft.AspNetCore.Mvc;
+global using Microsoft.AspNetCore.Authentication.JwtBearer;
+global using Microsoft.OpenApi;
 global using System.Text.Json.Serialization;
+global using System.Security.Cryptography;
+global using System.IdentityModel.Tokens.Jwt;
+global using System.Security.Claims;
+global using System.Text;
+global using ErpDashboard.Api.Common;
 global using ErpDashboard.Api.Data;
 global using ErpDashboard.Api.Data.Entities;
-
+global using ErpDashboard.Api.Data.Enums;
+global using ErpDashboard.Api.Auth.Token;
+global using ErpDashboard.Api.Settings;
+global using ErpDashboard.Api.Extensions;

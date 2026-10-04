@@ -3,6 +3,7 @@ using System;
 using ErpDashboard.Api.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace ErpDashboard.Api.Data.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20261004155940_AddAuthTables")]
+    partial class AddAuthTables
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -341,38 +344,6 @@ namespace ErpDashboard.Api.Data.Migrations
                     b.ToTable("PurchaseOrders");
                 });
 
-            modelBuilder.Entity("ErpDashboard.Api.Data.Entities.RefreshToken", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTime>("ExpiresAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("FamilyId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime?>("RevokedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Token")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("UserId");
-
-                    b.ToTable("RefreshToken");
-                });
-
             modelBuilder.Entity("ErpDashboard.Api.Data.Entities.Role", b =>
                 {
                     b.Property<Guid>("Id")
@@ -432,6 +403,7 @@ namespace ErpDashboard.Api.Data.Migrations
                         .HasColumnType("text");
 
                     b.Property<string>("Email")
+                        .IsRequired()
                         .HasMaxLength(256)
                         .HasColumnType("character varying(256)");
 
@@ -567,15 +539,6 @@ namespace ErpDashboard.Api.Data.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("ErpDashboard.Api.Data.Entities.RefreshToken", b =>
-                {
-                    b.HasOne("ErpDashboard.Api.Data.Entities.User", null)
-                        .WithMany("RefreshTokens")
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-                });
-
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserClaim<System.Guid>", b =>
                 {
                     b.HasOne("ErpDashboard.Api.Data.Entities.User", null)
@@ -606,11 +569,6 @@ namespace ErpDashboard.Api.Data.Migrations
             modelBuilder.Entity("ErpDashboard.Api.Data.Entities.Order", b =>
                 {
                     b.Navigation("OrderLines");
-                });
-
-            modelBuilder.Entity("ErpDashboard.Api.Data.Entities.User", b =>
-                {
-                    b.Navigation("RefreshTokens");
                 });
 #pragma warning restore 612, 618
         }
