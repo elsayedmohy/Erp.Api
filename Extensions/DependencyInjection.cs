@@ -1,4 +1,3 @@
-using ErpDashboard.Api.Auth;
 
 namespace ErpDashboard.Api.Extensions;
 
@@ -17,15 +16,7 @@ public static class DependencyInjection
     
     public static WebApplicationBuilder AddAuthentication(this WebApplicationBuilder builder)
     {
-        builder.Services.AddIdentityCore<User>(options =>
-            {
-                // options.Password.RequiredLength = 8;
-                // options.Password.RequireDigit = true;
-                // options.Password.RequireLowercase = true;
-                // options.Password.RequireNonAlphanumeric = true;
-                // options.Password.RequireUppercase = true;
-                // options.Password.RequiredUniqueChars = 1;
-            })
+        builder.Services.AddIdentityCore<User>()
             .AddEntityFrameworkStores<AppDbContext>()
             .AddDefaultTokenProviders();
 
@@ -49,6 +40,13 @@ public static class DependencyInjection
                         Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]!))
                 };
             });
+        
+        builder.Services.AddAuthorization(options =>
+        {
+            options.FallbackPolicy = new AuthorizationPolicyBuilder()
+                .RequireAuthenticatedUser()
+                .Build();
+        });
         return builder;
     }
     

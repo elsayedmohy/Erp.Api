@@ -19,3 +19,5 @@ global using ErpDashboard.Api.Data.Enums;
 global using ErpDashboard.Api.Auth.Token;
 global using ErpDashboard.Api.Settings;
 global using ErpDashboard.Api.Extensions;
+global using ErpDashboard.Api.Auth;
+global using Microsoft.AspNetCore.Authorization;
