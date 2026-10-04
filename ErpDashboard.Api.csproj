@@ -30,7 +30,6 @@
     <ItemGroup>
       <Folder Include="Controllers\" />
       <Folder Include="Data\Configurations\" />
-      <Folder Include="Data\Entities\" />
       <Folder Include="Data\Migrations\" />
       <Folder Include="Features\Finance\Invoices\" />
       <Folder Include="Features\Hr\Departments\" />
