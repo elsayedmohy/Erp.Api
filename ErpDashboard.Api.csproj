@@ -1,0 +1,48 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.12"/>
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.0">
+          <PrivateAssets>all</PrivateAssets>
+          <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="10.0.0">
+          <PrivateAssets>all</PrivateAssets>
+          <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+        <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.0" />
+        <PackageReference Include="Swashbuckle.AspNetCore" Version="10.0.0" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Content Include="..\.dockerignore">
+        <Link>.dockerignore</Link>
+      </Content>
+    </ItemGroup>
+
+    <ItemGroup>
+      <Folder Include="Controllers\" />
+      <Folder Include="Data\Configurations\" />
+      <Folder Include="Data\Entities\" />
+      <Folder Include="Data\Migrations\" />
+      <Folder Include="Features\Finance\Invoices\" />
+      <Folder Include="Features\Hr\Departments\" />
+      <Folder Include="Features\Hr\Employees\" />
+      <Folder Include="Features\Identity\Roles\" />
+      <Folder Include="Features\Identity\Users\" />
+      <Folder Include="Features\Inventory\Categories\" />
+      <Folder Include="Features\Inventory\Products\" />
+      <Folder Include="Features\Purchasing\PurchaseOrders\" />
+      <Folder Include="Features\Purchasing\Suppliers\" />
+      <Folder Include="Features\Sales\Customers\" />
+      <Folder Include="Features\Sales\Orders\" />
+    </ItemGroup>
+
+</Project>
