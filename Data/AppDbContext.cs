@@ -23,8 +23,11 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) :
         base.OnModelCreating(modelBuilder);
 
 
+        modelBuilder.Entity<Customer>().HasQueryFilter(c => !c.IsDeleted);
+        modelBuilder.Entity<Product>().HasQueryFilter(p => !p.IsDeleted);
+        modelBuilder.Entity<Employee>().HasQueryFilter(e => !e.IsDeleted);
         modelBuilder.Entity<Role>()
-            .Property(n => n.permissions)
+            .Property(n => n.Permissions)
             .HasColumnType("jsonb");
     }
 }

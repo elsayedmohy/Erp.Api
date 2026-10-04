@@ -8,5 +8,5 @@ public class PurchaseOrder
  public DateOnly  ExpectedDelivery { get; set; }
  public decimal  TotalAmount { get; set; }
  public PurchaseOrderStatus  Status { get; set; }
- 
+ public ICollection<PurchaseLine>  PurchaseLines { get; set; } =   new List<PurchaseLine>();
 }

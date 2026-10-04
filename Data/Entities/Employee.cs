@@ -1,6 +1,6 @@
 namespace ErpDashboard.Api.Data.Entities;
 
-public class Employee
+public class Employee :ISoftDelete
 {
     public Guid Id { get; set; }
     public string FirstName { get; set; }
@@ -11,6 +11,6 @@ public class Employee
     public string Position { get; set; }
     public DateOnly HireDate { get; set; }
     public decimal Salary { get; set; }
-    public bool? IsDeleted { get; set; }
-    public DateOnly? DeletedAt { get; set; }
+    public bool IsDeleted { get; set; }
+    public DateTime? DeletedAt { get; set; }
 }

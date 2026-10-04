@@ -7,4 +7,5 @@ public class PurchaseLine
     public Guid ProductId { get; set; }
     public int Quantity { get; set; }
     public decimal UnitCost { get; set; }
+    public Product Product { get; set; } = null!;
 }

@@ -9,6 +9,8 @@ public class Invoice
     public DateOnly DueDate { get; set; }
     public InvoiceStatus  Status { get; set; }
     public decimal TotalAmount { get; set; }
-    public DateOnly PaidAt { get; set; }
+    public DateTime? PaidAt { get; set; }
+    
+    public ICollection<InvoiceLine> InvoiceLines { get; set; }  = new List<InvoiceLine>();
 }
 
