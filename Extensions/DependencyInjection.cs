@@ -99,6 +99,9 @@ public static class DependencyInjection
         builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("Jwt"));
         builder.Services.AddScoped<IAuthService,AuthService>();
         builder.Services.AddScoped<ITokenService,TokenService>();
+        builder.Services.AddScoped<IUserService,UserService>();
+        builder.Services.AddScoped<ICustomerService,CustomerService>();
+        builder.Services.AddScoped<IOrderService,OrderService>();
 
         return builder;
     }
