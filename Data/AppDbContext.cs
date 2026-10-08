@@ -21,13 +21,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) :
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
-
+        modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
 
         modelBuilder.Entity<Customer>().HasQueryFilter(c => !c.IsDeleted);
         modelBuilder.Entity<Product>().HasQueryFilter(p => !p.IsDeleted);
         modelBuilder.Entity<Employee>().HasQueryFilter(e => !e.IsDeleted);
-        modelBuilder.Entity<Role>()
-            .Property(n => n.Permissions)
-            .HasColumnType("jsonb");
     }
 }

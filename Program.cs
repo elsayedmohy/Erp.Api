@@ -9,6 +9,7 @@ builder.AddPersistence()
     .AddApiDocs()
     .AddFeatureServices();
 var app = builder.Build();
+await DbSeeder.SeedAsync(app.Services);
 
 app.UseSwagger();
 app.UseSwaggerUI();
