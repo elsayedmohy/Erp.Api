@@ -1,6 +1,3 @@
 namespace ErpDashboard.Api.Common;
 
-public class PagedResult
-{
-    
-}
+public sealed record PagedResult<T>(IReadOnlyList<T> Items, int Page, int PageSize, int Total);

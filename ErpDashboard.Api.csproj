@@ -30,20 +30,16 @@
     </ItemGroup>
 
     <ItemGroup>
-      <Folder Include="Controllers\" />
       <Folder Include="Data\Configurations\" />
       <Folder Include="Data\Migrations\" />
       <Folder Include="Features\Finance\Invoices\" />
       <Folder Include="Features\Hr\Departments\" />
       <Folder Include="Features\Hr\Employees\" />
       <Folder Include="Features\Identity\Roles\" />
-      <Folder Include="Features\Identity\Users\" />
       <Folder Include="Features\Inventory\Categories\" />
       <Folder Include="Features\Inventory\Products\" />
       <Folder Include="Features\Purchasing\PurchaseOrders\" />
       <Folder Include="Features\Purchasing\Suppliers\" />
-      <Folder Include="Features\Sales\Customers\" />
-      <Folder Include="Features\Sales\Orders\" />
     </ItemGroup>
 
 </Project>

@@ -9,6 +9,7 @@ public class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logger) : IE
             NotFoundException     => (404, "Not Found"),
             ForbiddenException    => (403, "Forbidden"),
             UnauthorizedException    => (401, "Unauthorized"),
+            BadRequestException    => (400, "Bad Request"),
             _                     => (500, "Server error")
         };
 
@@ -31,3 +32,4 @@ public class NotFoundException(string entity, object id)
 
 public class UnauthorizedException(string message =  "401 Unauthorized") : AppException(message);
 public class ForbiddenException(string message = "403 Forbidden") : AppException(message); 
+public class BadRequestException(string message) : AppException(message);
