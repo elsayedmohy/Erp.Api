@@ -1,4 +1,3 @@
-
 namespace ErpDashboard.Api.Extensions;
 
 public static class DependencyInjection
@@ -7,14 +6,14 @@ public static class DependencyInjection
     {
         builder.Services.AddControllers(options => { options.ReturnHttpNotAcceptable = true; })
             .AddJsonOptions(options =>
-                { options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()); })
-            .AddXmlSerializerFormatters();
-
+            {
+                options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+            });
         builder.Services.AddDbContext<AppDbContext>(options =>
             options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
         return builder;
     }
-    
+
     public static WebApplicationBuilder AddAuthentication(this WebApplicationBuilder builder)
     {
         builder.Services.AddIdentityCore<User>()
@@ -41,7 +40,7 @@ public static class DependencyInjection
                         Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]!))
                 };
             });
-        
+
         builder.Services.AddAuthorization(options =>
         {
             options.FallbackPolicy = new AuthorizationPolicyBuilder()
@@ -50,8 +49,8 @@ public static class DependencyInjection
         });
         return builder;
     }
-    
-    public static WebApplicationBuilder AddApiDocs(this WebApplicationBuilder  builder)
+
+    public static WebApplicationBuilder AddApiDocs(this WebApplicationBuilder builder)
     {
         builder.Services.AddEndpointsApiExplorer();
         builder.Services.AddSwaggerGen(options =>
@@ -79,7 +78,7 @@ public static class DependencyInjection
 
         return builder;
     }
-    
+
     public static WebApplicationBuilder AddErrorHandling(this WebApplicationBuilder builder)
     {
         builder.Services.AddProblemDetails(options =>
@@ -93,15 +92,15 @@ public static class DependencyInjection
 
         return builder;
     }
-    
+
     public static WebApplicationBuilder AddFeatureServices(this WebApplicationBuilder builder)
     {
         builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("Jwt"));
-        builder.Services.AddScoped<IAuthService,AuthService>();
-        builder.Services.AddScoped<ITokenService,TokenService>();
-        builder.Services.AddScoped<IUserService,UserService>();
-        builder.Services.AddScoped<ICustomerService,CustomerService>();
-        builder.Services.AddScoped<IOrderService,OrderService>();
+        builder.Services.AddScoped<IAuthService, AuthService>();
+        builder.Services.AddScoped<ITokenService, TokenService>();
+        builder.Services.AddScoped<IUserService, UserService>();
+        builder.Services.AddScoped<ICustomerService, CustomerService>();
+        builder.Services.AddScoped<IOrderService, OrderService>();
 
         return builder;
     }

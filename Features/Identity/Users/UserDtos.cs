@@ -4,8 +4,10 @@ public sealed class UserQuery : PageQuery;
 
 public sealed record UserResponse(
     Guid Id,
-    Guid RoleId,
+    RoleSummeryResponse Role,
     string FirstName,
     string LastName,
     string Email
     );
+    
+public sealed record UserRequest(string FirstName, string LastName, string Email, string Password);
