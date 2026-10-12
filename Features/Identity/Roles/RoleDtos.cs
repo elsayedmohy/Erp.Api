@@ -12,11 +12,11 @@ public record RoleSummeryResponse(
     string Name);
 
 public sealed record CreateRoleRequest(
-    [property: Required, MaxLength(50)] string Name,
+    string Name,
     List<string>? Permissions);
 
 public sealed record UpdateRoleRequest(
-    [property: Required, MaxLength(50)] string Name,
+    string Name,
     List<string>? Permissions);
     
     

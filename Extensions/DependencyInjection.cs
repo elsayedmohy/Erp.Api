@@ -4,7 +4,11 @@ public static class DependencyInjection
 {
     public static WebApplicationBuilder AddPersistence(this WebApplicationBuilder builder)
     {
-        builder.Services.AddControllers(options => { options.ReturnHttpNotAcceptable = true; })
+        builder.Services.AddControllers(options =>
+            {
+                options.ReturnHttpNotAcceptable = true;
+                options.Filters.Add(new ProducesAttribute("application/json"));
+            })
             .AddJsonOptions(options =>
             {
                 options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
@@ -99,6 +103,7 @@ public static class DependencyInjection
         builder.Services.AddScoped<IAuthService, AuthService>();
         builder.Services.AddScoped<ITokenService, TokenService>();
         builder.Services.AddScoped<IUserService, UserService>();
+        builder.Services.AddScoped<IRoleService, RoleService>();
         builder.Services.AddScoped<ICustomerService, CustomerService>();
         builder.Services.AddScoped<IOrderService, OrderService>();
 
