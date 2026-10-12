@@ -33,7 +33,7 @@ public class AuthService(
             throw new ForbiddenException();
 
         var token = tokenService.GenerateToken(user);
-        var refreshToken = tokenService.GenerateRefreshToken();
+        var refreshToken = await IssueRefreshTokenAsync(user);
 
         return new LoginDto(token, refreshToken.Token, "Bearer", refreshToken.ExpiresAt);
     }
@@ -79,4 +79,26 @@ public class AuthService(
         refreshToken.RevokedAt = DateTime.UtcNow;
         await userManager.UpdateAsync(user);
     }
+    
+    private async Task<RefreshToken> IssueRefreshTokenAsync(User user)
+    {
+        var token = tokenService.GenerateRefreshToken();
+        PruneRefreshTokens(user);
+        user.RefreshTokens.Add(token);
+        await userManager.UpdateAsync(user);
+        return token;
+    }
+
+
+    private static void PruneRefreshTokens(User user)
+    {
+        var cutoff = DateTime.UtcNow.AddDays(-7);
+        var stale = user.RefreshTokens!
+            .Where(t => !t.IsActive && (t.RevokedAt ?? t.ExpiresAt) < cutoff)
+            .ToList();
+
+        foreach (var token in stale)
+            user.RefreshTokens!.Remove(token);
+    }
+    
 }
