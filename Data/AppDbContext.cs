@@ -24,4 +24,16 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) :
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
 
     }
+    
+    public override Task<int> SaveChangesAsync(CancellationToken ct = default)
+    {
+        foreach (var entry in ChangeTracker.Entries<ISoftDelete>()
+                     .Where(e => e.State == EntityState.Deleted))
+        {
+            entry.State = EntityState.Modified;   
+            entry.Entity.IsDeleted = true;
+            entry.Entity.DeletedAt = DateTime.UtcNow;
+        }
+        return base.SaveChangesAsync(ct); 
+    }
 }
