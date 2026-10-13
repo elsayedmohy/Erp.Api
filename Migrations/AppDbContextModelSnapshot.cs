@@ -35,7 +35,7 @@ namespace ErpDashboard.Api.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Categories", (string)null);
+                    b.ToTable("Categories");
                 });
 
             modelBuilder.Entity("ErpDashboard.Api.Data.Entities.Customer", b =>
@@ -74,12 +74,13 @@ namespace ErpDashboard.Api.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<Guid>("TaxId")
-                        .HasColumnType("uuid");
+                    b.Property<string>("TaxId")
+                        .IsRequired()
+                        .HasColumnType("text");
 
                     b.HasKey("Id");
 
-                    b.ToTable("Customers", (string)null);
+                    b.ToTable("Customers");
                 });
 
             modelBuilder.Entity("ErpDashboard.Api.Data.Entities.Department", b =>
@@ -94,7 +95,7 @@ namespace ErpDashboard.Api.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Departments", (string)null);
+                    b.ToTable("Departments");
                 });
 
             modelBuilder.Entity("ErpDashboard.Api.Data.Entities.Employee", b =>
@@ -142,7 +143,7 @@ namespace ErpDashboard.Api.Migrations
 
                     b.HasIndex("DepartmentId");
 
-                    b.ToTable("Employees", (string)null);
+                    b.ToTable("Employees");
                 });
 
             modelBuilder.Entity("ErpDashboard.Api.Data.Entities.Invoice", b =>
@@ -179,7 +180,7 @@ namespace ErpDashboard.Api.Migrations
                     b.HasIndex("OrderId")
                         .IsUnique();
 
-                    b.ToTable("Invoices", (string)null);
+                    b.ToTable("Invoices");
                 });
 
             modelBuilder.Entity("ErpDashboard.Api.Data.Entities.InvoiceLine", b =>
@@ -211,7 +212,7 @@ namespace ErpDashboard.Api.Migrations
 
                     b.HasIndex("InvoiceId");
 
-                    b.ToTable("InvoiceLines", (string)null);
+                    b.ToTable("InvoiceLines");
                 });
 
             modelBuilder.Entity("ErpDashboard.Api.Data.Entities.Order", b =>
@@ -243,7 +244,7 @@ namespace ErpDashboard.Api.Migrations
 
                     b.HasIndex("CustomerId");
 
-                    b.ToTable("Orders", (string)null);
+                    b.ToTable("Orders");
                 });
 
             modelBuilder.Entity("ErpDashboard.Api.Data.Entities.OrderLine", b =>
@@ -273,7 +274,7 @@ namespace ErpDashboard.Api.Migrations
 
                     b.HasIndex("ProductId");
 
-                    b.ToTable("OrderLines", (string)null);
+                    b.ToTable("OrderLines");
                 });
 
             modelBuilder.Entity("ErpDashboard.Api.Data.Entities.Product", b =>
@@ -315,7 +316,7 @@ namespace ErpDashboard.Api.Migrations
 
                     b.HasIndex("CategoryId");
 
-                    b.ToTable("Products", (string)null);
+                    b.ToTable("Products");
                 });
 
             modelBuilder.Entity("ErpDashboard.Api.Data.Entities.PurchaseLine", b =>
@@ -342,7 +343,7 @@ namespace ErpDashboard.Api.Migrations
 
                     b.HasIndex("PurchaseOrderId");
 
-                    b.ToTable("PurchaseLines", (string)null);
+                    b.ToTable("PurchaseLines");
                 });
 
             modelBuilder.Entity("ErpDashboard.Api.Data.Entities.PurchaseOrder", b =>
@@ -370,7 +371,7 @@ namespace ErpDashboard.Api.Migrations
 
                     b.HasIndex("SupplierId");
 
-                    b.ToTable("PurchaseOrders", (string)null);
+                    b.ToTable("PurchaseOrders");
                 });
 
             modelBuilder.Entity("ErpDashboard.Api.Data.Entities.RefreshToken", b =>
@@ -402,7 +403,7 @@ namespace ErpDashboard.Api.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("RefreshToken", (string)null);
+                    b.ToTable("RefreshToken");
                 });
 
             modelBuilder.Entity("ErpDashboard.Api.Data.Entities.Role", b =>
@@ -428,7 +429,7 @@ namespace ErpDashboard.Api.Migrations
                     b.HasIndex("Name")
                         .IsUnique();
 
-                    b.ToTable("Roles", (string)null);
+                    b.ToTable("Roles");
                 });
 
             modelBuilder.Entity("ErpDashboard.Api.Data.Entities.Supplier", b =>
@@ -458,7 +459,7 @@ namespace ErpDashboard.Api.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Suppliers", (string)null);
+                    b.ToTable("Suppliers");
                 });
 
             modelBuilder.Entity("ErpDashboard.Api.Data.Entities.User", b =>
