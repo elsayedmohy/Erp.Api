@@ -31,3 +31,6 @@ global using ErpDashboard.Api.Features.Identity.Users;
 global using ErpDashboard.Api.Data.Seed;
 global using ErpDashboard.Api.Features.Identity.Roles;
 global using ErpDashboard.Api.Features.Inventory.Categories;
+global using ErpDashboard.Api.Features.Hr.Departments;
+global using ErpDashboard.Api.Features.Hr.Employees;
+global using ErpDashboard.Api.Features.Inventory.Products;

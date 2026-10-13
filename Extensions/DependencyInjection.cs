@@ -1,5 +1,4 @@
-using ErpDashboard.Api.Features.Inventory.Categories;
-using ErpDashboard.Api.Features.Inventory.Products;
+
 
 namespace ErpDashboard.Api.Extensions;
 
@@ -111,6 +110,8 @@ public static class DependencyInjection
         builder.Services.AddScoped<IOrderService, OrderService>();
         builder.Services.AddScoped<ICategoryService, CategoryService>();
         builder.Services.AddScoped<IProductService, ProductService>();
+        builder.Services.AddScoped<IEmployeeService, EmployeeService>();
+        builder.Services.AddScoped<IDepartmentService, DepartmentService>();
 
         return builder;
     }
