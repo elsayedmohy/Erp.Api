@@ -17,6 +17,9 @@ public class ProductService(AppDbContext dbContext) : IProductService
                 EF.Functions.ILike(product.Sku, p, @"\")
                 );
 
+        if (query.StockQuantity is { } stock)  q = q.Where(o => o.StockQuantity == stock);
+        if (query.UnitPrice is { } price)  q = q.Where(o => o.UnitPrice == price);
+
         return Sorts.Apply(q, query.SortBy, query.SortDir)
             .Select(product => ToResponse(product))
             .ToPagedResultAsync(query, ct);
