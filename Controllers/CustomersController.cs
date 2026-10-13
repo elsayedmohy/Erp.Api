@@ -23,7 +23,7 @@ public class CustomersController(ICustomerService service) : ControllerBase
     }
 
     [HttpPut("{id:guid}")]
-    public async Task<ActionResult<RoleResponse>> Update(Guid id, [FromBody] CustomerRequest request, CancellationToken ct)
+    public async Task<ActionResult<CustomerResponse>> Update(Guid id, [FromBody] CustomerRequest request, CancellationToken ct)
         => Ok(await service.UpdateAsync(id, request, ct));
 
     [HttpDelete("{id:guid}")]
