@@ -7,5 +7,18 @@ public sealed record CustomerResponse(
     string Name,
     string Email,
     string PhoneNumber,
+    string Address,
     string City,
-    string Country);
+    string Country,
+    string TaxId
+);
+
+public sealed record CustomerRequest(
+    string Name,
+    string Email,
+    string PhoneNumber,
+    string Address,
+    string City,
+    string Country,
+    string TaxId
+);

@@ -9,7 +9,7 @@ public class Customer : ISoftDelete
     public string City { get; set; }
     public string Country { get; set; }
     public string PhoneNumber { get; set; }
-    public Guid TaxId { get; set; }
+    public string TaxId { get; set; }
     public ICollection<Order> Orders { get; set; } =  new List<Order>();
     public ICollection<Invoice> Invoices { get; set; } =  new List<Invoice>();
     public bool IsDeleted { get; set; }
