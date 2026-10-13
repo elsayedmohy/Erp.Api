@@ -9,5 +9,15 @@ public sealed record UserResponse(
     string LastName,
     string Email
     );
-    
-public sealed record UserRequest(string FirstName, string LastName, string Email, string Password);
+
+public sealed record UserRequest(
+    string FirstName,
+    string LastName,
+    string Email,
+    Guid RoleId,
+    string? Password = "Erp@222");
+
+public sealed record UpdateUserRequest(
+    string FirstName,
+    string LastName,
+    Guid RoleId);

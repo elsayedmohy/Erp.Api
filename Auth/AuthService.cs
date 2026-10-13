@@ -2,6 +2,7 @@ namespace ErpDashboard.Api.Auth;
 
 public class AuthService(
     UserManager<User> userManager,
+   AppDbContext dbContext,
     ITokenService tokenService
 ) : IAuthService
 {
@@ -24,13 +25,16 @@ public class AuthService(
 
     public async Task<LoginDto> LoginAsync(LoginRequestDto request)
     {
-        var user = await userManager.FindByEmailAsync(request.Email);
+        var user = await dbContext.Users.Include(u => u.Role).SingleOrDefaultAsync(u =>  u.Email == request.Email);
         if (user == null)
             throw new UnauthorizedException("Invalid email or password");
 
         var result = await userManager.CheckPasswordAsync(user, request.Password);
         if (!result)
-            throw new ForbiddenException();
+            throw new UnauthorizedException("Invalid email or password");
+        
+        
+        
 
         var token = tokenService.GenerateToken(user);
         var refreshToken = await IssueRefreshTokenAsync(user);

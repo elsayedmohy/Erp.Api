@@ -2,9 +2,9 @@ namespace ErpDashboard.Api.Data.Seed;
 
 public static class DbSeeder
 {
-    private sealed record SystemRole(Guid Id, string Name, List<string> Permissions);
+    public sealed record SystemRole(Guid Id, string Name, List<string> Permissions);
 
-    private static readonly SystemRole[] SystemRoles =
+    public static readonly SystemRole[] SystemRoles =
     [
         new(RoleIds.Admin, RoleNames.Admin, RolePermissions.Admin),
         new(RoleIds.Manager, RoleNames.Manager, RolePermissions.Manager),

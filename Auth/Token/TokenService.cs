@@ -10,7 +10,7 @@ public class TokenService(IOptions<JwtSettings> settings) : ITokenService
         List<Claim> claims =
         [
             new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
-            new Claim(ClaimTypes.Role, user.RoleId.ToString()),
+            new Claim(ClaimTypes.Role, user.Role.Name),
             new Claim(ClaimTypes.Email, user.Email!)
         ];
 
