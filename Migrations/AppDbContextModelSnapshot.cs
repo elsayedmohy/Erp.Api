@@ -31,9 +31,13 @@ namespace ErpDashboard.Api.Migrations
 
                     b.Property<string>("Name")
                         .IsRequired()
-                        .HasColumnType("text");
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
 
                     b.ToTable("Categories");
                 });
@@ -76,9 +80,14 @@ namespace ErpDashboard.Api.Migrations
 
                     b.Property<string>("TaxId")
                         .IsRequired()
-                        .HasColumnType("text");
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("Email")
+                        .IsUnique()
+                        .HasFilter("\"IsDeleted\" = false");
 
                     b.ToTable("Customers");
                 });
@@ -142,6 +151,10 @@ namespace ErpDashboard.Api.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("DepartmentId");
+
+                    b.HasIndex("Email")
+                        .IsUnique()
+                        .HasFilter("\"IsDeleted\" = false");
 
                     b.ToTable("Employees");
                 });
@@ -297,14 +310,16 @@ namespace ErpDashboard.Api.Migrations
 
                     b.Property<string>("Name")
                         .IsRequired()
-                        .HasColumnType("text");
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
 
                     b.Property<int>("ReorderLevel")
                         .HasColumnType("integer");
 
                     b.Property<string>("Sku")
                         .IsRequired()
-                        .HasColumnType("text");
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
 
                     b.Property<int>("StockQuantity")
                         .HasColumnType("integer");
@@ -315,6 +330,10 @@ namespace ErpDashboard.Api.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("CategoryId");
+
+                    b.HasIndex("Sku")
+                        .IsUnique()
+                        .HasFilter("\"IsDeleted\" = false");
 
                     b.ToTable("Products");
                 });
@@ -609,7 +628,7 @@ namespace ErpDashboard.Api.Migrations
                     b.HasOne("ErpDashboard.Api.Data.Entities.Department", null)
                         .WithMany("Employees")
                         .HasForeignKey("DepartmentId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
 
@@ -618,13 +637,13 @@ namespace ErpDashboard.Api.Migrations
                     b.HasOne("ErpDashboard.Api.Data.Entities.Customer", null)
                         .WithMany("Invoices")
                         .HasForeignKey("CustomerId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.HasOne("ErpDashboard.Api.Data.Entities.Order", null)
                         .WithOne("Invoice")
                         .HasForeignKey("ErpDashboard.Api.Data.Entities.Invoice", "OrderId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
 
@@ -642,7 +661,7 @@ namespace ErpDashboard.Api.Migrations
                     b.HasOne("ErpDashboard.Api.Data.Entities.Customer", null)
                         .WithMany("Orders")
                         .HasForeignKey("CustomerId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
 
@@ -657,7 +676,7 @@ namespace ErpDashboard.Api.Migrations
                     b.HasOne("ErpDashboard.Api.Data.Entities.Product", "Product")
                         .WithMany()
                         .HasForeignKey("ProductId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("Product");
@@ -668,7 +687,7 @@ namespace ErpDashboard.Api.Migrations
                     b.HasOne("ErpDashboard.Api.Data.Entities.Category", null)
                         .WithMany("Products")
                         .HasForeignKey("CategoryId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
 
@@ -677,7 +696,7 @@ namespace ErpDashboard.Api.Migrations
                     b.HasOne("ErpDashboard.Api.Data.Entities.Product", "Product")
                         .WithMany()
                         .HasForeignKey("ProductId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.HasOne("ErpDashboard.Api.Data.Entities.PurchaseOrder", null)
@@ -694,7 +713,7 @@ namespace ErpDashboard.Api.Migrations
                     b.HasOne("ErpDashboard.Api.Data.Entities.Supplier", null)
                         .WithMany("PurchaseOrders")
                         .HasForeignKey("SupplierId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
 
