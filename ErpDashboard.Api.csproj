@@ -37,7 +37,6 @@
     <ItemGroup>
       <Folder Include="Features\Finance\Invoices\" />
       <Folder Include="Features\Purchasing\PurchaseOrders\" />
-      <Folder Include="Features\Purchasing\Suppliers\" />
     </ItemGroup>
 
 </Project>

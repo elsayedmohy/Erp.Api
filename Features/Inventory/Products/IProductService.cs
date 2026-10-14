@@ -1,5 +1,3 @@
-using ErpDashboard.Api.Features.Inventory.Products;
-
 namespace ErpDashboard.Api.Features.Inventory.Products;
 
 public interface IProductService

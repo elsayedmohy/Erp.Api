@@ -1,5 +1,6 @@
 
 
+
 namespace ErpDashboard.Api.Extensions;
 
 public static class DependencyInjection
@@ -112,6 +113,7 @@ public static class DependencyInjection
         builder.Services.AddScoped<IProductService, ProductService>();
         builder.Services.AddScoped<IEmployeeService, EmployeeService>();
         builder.Services.AddScoped<IDepartmentService, DepartmentService>();
+        builder.Services.AddScoped<ISupplierService,SupplierService>();
 
         return builder;
     }
