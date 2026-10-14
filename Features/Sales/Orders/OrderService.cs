@@ -1,3 +1,5 @@
+using ErpDashboard.Api.Features.Finance.Invoices;
+
 namespace ErpDashboard.Api.Features.Sales.Orders;
 
 public class OrderService(AppDbContext dbContext) : IOrderService
@@ -79,9 +81,10 @@ public class OrderService(AppDbContext dbContext) : IOrderService
 
         var orderDate = request.OrderDate ?? DateOnly.FromDateTime(DateTime.UtcNow);
         var orderLines = new List<OrderLine>();
-        var invoiceLines = new List<InvoiceLine>();
+        var invoiceLines = new List<InvoiceLineInput>();
         var insufficient = new List<string>();
         decimal total = 0;
+        decimal taxRate = 14;
 
         foreach (var line in request.Lines)
         {
@@ -109,38 +112,17 @@ public class OrderService(AppDbContext dbContext) : IOrderService
                 Discount = line.Discount
             });
 
-            invoiceLines.Add(new InvoiceLine
-            {
-                ProductId = product.Id,
-                Description = product.Name,
-                Quantity = line.Quantity,
-                UnitPrice = product.UnitPrice,
-                TaxRate = 0
-            });
-
+            invoiceLines.Add(new InvoiceLineInput(product.Id, product.Name, line.Quantity, product.UnitPrice, taxRate));
             if (line.Discount > 0)
-                invoiceLines.Add(new InvoiceLine
-                {
-                    ProductId = product.Id,
-                    Description = $"Discount - {product.Name}",
-                    Quantity = 1,
-                    UnitPrice = -line.Discount,
-                    TaxRate = 0
-                });
+                invoiceLines.Add(new InvoiceLineInput(product.Id, $"Discount - {product.Name}", 1, -line.Discount, taxRate));
+
         }
 
         if (insufficient.Count > 0)
             throw new BadRequestException("Insufficient stock: " + string.Join("; ", insufficient));
 
-        var invoice = new Invoice
-        {
-            CustomerId = request.CustomerId,
-            InvoiceDate = orderDate,
-            DueDate = orderDate.AddDays(InvoiceDueDays),
-            Status = InvoiceStatus.Draft,
-            TotalAmount = total,
-            InvoiceLines = invoiceLines
-        };
+        var invoice = InvoiceFactory.CreateDraft(
+            request.CustomerId, orderDate, orderDate.AddDays(InvoiceDueDays), invoiceLines);
 
         var order = new Order
         {

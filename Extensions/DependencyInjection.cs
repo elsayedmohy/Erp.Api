@@ -1,8 +1,6 @@
 
 
 
-using ErpDashboard.Api.Features.Purchasing.PurchaseOrders;
-
 namespace ErpDashboard.Api.Extensions;
 
 public static class DependencyInjection
@@ -105,6 +103,8 @@ public static class DependencyInjection
     public static WebApplicationBuilder AddFeatureServices(this WebApplicationBuilder builder)
     {
         builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("Jwt"));
+        builder.Services.Configure<FinanceSettings>(builder.Configuration.GetSection(FinanceSettings.SectionName));
+
         builder.Services.AddScoped<IAuthService, AuthService>();
         builder.Services.AddScoped<ITokenService, TokenService>();
         builder.Services.AddScoped<IUserService, UserService>();
@@ -117,6 +117,7 @@ public static class DependencyInjection
         builder.Services.AddScoped<IDepartmentService, DepartmentService>();
         builder.Services.AddScoped<ISupplierService,SupplierService>();
         builder.Services.AddScoped<IPurchaseOrderService,PurchaseOrderService>();
+        builder.Services.AddScoped<IInvoiceService,InvoiceService>();
 
         return builder;
     }

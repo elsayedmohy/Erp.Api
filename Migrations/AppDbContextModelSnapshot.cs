@@ -174,11 +174,14 @@ namespace ErpDashboard.Api.Migrations
                     b.Property<DateOnly>("InvoiceDate")
                         .HasColumnType("date");
 
-                    b.Property<Guid>("OrderId")
+                    b.Property<Guid?>("OrderId")
                         .HasColumnType("uuid");
 
                     b.Property<DateTime?>("PaidAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("PaymentMethod")
+                        .HasColumnType("integer");
 
                     b.Property<int>("Status")
                         .HasColumnType("integer");
@@ -209,7 +212,7 @@ namespace ErpDashboard.Api.Migrations
                     b.Property<Guid>("InvoiceId")
                         .HasColumnType("uuid");
 
-                    b.Property<Guid>("ProductId")
+                    b.Property<Guid?>("ProductId")
                         .HasColumnType("uuid");
 
                     b.Property<int>("Quantity")
@@ -643,8 +646,7 @@ namespace ErpDashboard.Api.Migrations
                     b.HasOne("ErpDashboard.Api.Data.Entities.Order", null)
                         .WithOne("Invoice")
                         .HasForeignKey("ErpDashboard.Api.Data.Entities.Invoice", "OrderId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("ErpDashboard.Api.Data.Entities.InvoiceLine", b =>

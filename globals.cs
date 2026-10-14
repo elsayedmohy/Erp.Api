@@ -36,3 +36,5 @@ global using ErpDashboard.Api.Features.Hr.Employees;
 global using ErpDashboard.Api.Features.Inventory.Products;
 global using ErpDashboard.Api.Features.Purchasing.Suppliers;
 global using ErpDashboard.Api.Features.Purchasing.PurchaseOrders;
+global using ErpDashboard.Api.Features.Finance.Invoices;
+
