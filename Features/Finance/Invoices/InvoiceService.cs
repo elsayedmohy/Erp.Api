@@ -1,6 +1,6 @@
 namespace ErpDashboard.Api.Features.Finance.Invoices;
 
-public sealed class InvoiceService(AppDbContext dbContext, IOptions<FinanceSettings> finance) : IInvoiceService
+public sealed class InvoiceService(AppDbContext dbContext, IOptions<FinanceSettings> finance,IInvoicePdfGenerator pdfGenerator) : IInvoiceService
 {
     private readonly FinanceSettings _finance = finance.Value;
 
@@ -55,6 +55,13 @@ public sealed class InvoiceService(AppDbContext dbContext, IOptions<FinanceSetti
         return ToDetails(invoice, customerName);
     }
 
+    
+    public async Task<(byte[] Content, string FileName)> GetPdfAsync(Guid id, CancellationToken ct)
+    {
+        var details = await GetByIdAsync(id, ct);
+        var bytes = pdfGenerator.Generate(details);
+        return (bytes, $"invoice-{details.Id:N}.pdf");
+    }
 
     public async Task<InvoiceDetailsResponse> CreateAsync(CreateInvoiceRequest request, CancellationToken ct)
     {

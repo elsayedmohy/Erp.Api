@@ -14,6 +14,14 @@ public sealed class InvoicesController(IInvoiceService invoiceService) : Control
     [HttpGet("{id:guid}"), Authorize(Roles = Readers)]
     public async Task<IActionResult> GetById(Guid id, CancellationToken ct)
         => Ok(await invoiceService.GetByIdAsync(id, ct));
+    
+    [HttpGet("{id:guid}/pdf"), Authorize(Roles = Readers)]
+    [Produces("application/pdf")]
+    public async Task<IActionResult> Pdf(Guid id, CancellationToken ct)
+    {
+        var (content, fileName) = await invoiceService.GetPdfAsync(id, ct);
+        return File(content, "application/pdf", fileName);
+    }
 
     [HttpPost, Authorize(Roles = Writers)]
     public async Task<IActionResult> Create(CreateInvoiceRequest request, CancellationToken ct)

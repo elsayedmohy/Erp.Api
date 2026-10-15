@@ -8,6 +8,8 @@ builder.AddPersistence()
     .AddAuthentication()
     .AddApiDocs()
     .AddFeatureServices();
+
+
 var app = builder.Build();
 await DbSeeder.SeedAsync(app.Services);
 
@@ -21,4 +23,5 @@ app.UseAuthorization();
 
 app.MapControllers();
 
+QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
 app.Run();
