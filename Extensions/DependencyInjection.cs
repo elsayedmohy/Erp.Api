@@ -1,6 +1,3 @@
-
-
-
 namespace ErpDashboard.Api.Extensions;
 
 public static class DependencyInjection
@@ -90,9 +87,20 @@ public static class DependencyInjection
     {
         builder.Services.AddProblemDetails(options =>
         {
-            options.CustomizeProblemDetails = context =>
+            options.CustomizeProblemDetails = ctx =>
             {
-                context.ProblemDetails.Extensions.TryAdd("requestId", context.HttpContext.TraceIdentifier);
+                var pd = ctx.ProblemDetails;
+
+                pd.Extensions["traceId"] = Activity.Current?.Id ?? ctx.HttpContext.TraceIdentifier;
+
+                pd.Detail ??= pd.Status switch
+                {
+                    400 => "One or more validation errors occurred.",
+                    401 => "Authentication is required.",
+                    403 => "You do not have permission to perform this action.",
+                    404 => "The requested resource was not found.",
+                    _   => pd.Title
+                };
             };
         });
         builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
@@ -119,6 +127,7 @@ public static class DependencyInjection
         builder.Services.AddScoped<ISupplierService,SupplierService>();
         builder.Services.AddScoped<IPurchaseOrderService,PurchaseOrderService>();
         builder.Services.AddScoped<IInvoiceService,InvoiceService>();
+        builder.Services.AddScoped<IProfileService,ProfileService>();
 
         return builder;
     }

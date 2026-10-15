@@ -17,6 +17,7 @@ await DbSeeder.SeedAsync(app.Services);
 app.UseSwagger();
 app.UseSwaggerUI();
 app.UseExceptionHandler();
+app.UseStatusCodePages();
 
 app.UseHttpsRedirection();
 app.UseCors("ERPPolicy");

@@ -16,6 +16,7 @@ global using System.Security.Cryptography;
 global using System.IdentityModel.Tokens.Jwt;
 global using System.Security.Claims;
 global using System.Text;
+global using System.Diagnostics;
 global using System.Globalization;
 global using QuestPDF.Fluent;
 global using QuestPDF.Helpers;
@@ -41,4 +42,6 @@ global using ErpDashboard.Api.Features.Inventory.Products;
 global using ErpDashboard.Api.Features.Purchasing.Suppliers;
 global using ErpDashboard.Api.Features.Purchasing.PurchaseOrders;
 global using ErpDashboard.Api.Features.Finance.Invoices;
+global using ErpDashboard.Api.Features.Profiles;
+
 
