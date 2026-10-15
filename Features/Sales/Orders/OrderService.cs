@@ -159,7 +159,7 @@ public class OrderService(AppDbContext dbContext) : IOrderService
     public async Task<OrderResponse> UpdateStatusAsync(Guid id, UpdateOrderStatusRequest request, CancellationToken ct)
     {
         
-        Order? order = await dbContext.Orders.AsNoTracking()
+        Order? order = await dbContext.Orders
             .Include(o => o.Invoice)
             .FirstOrDefaultAsync(o => o.Id == id, ct);
         if (order is null)
