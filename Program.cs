@@ -7,7 +7,8 @@ builder.AddPersistence()
     .AddErrorHandling()
     .AddAuthentication()
     .AddApiDocs()
-    .AddFeatureServices();
+    .AddFeatureServices()
+    .AddCors();
 
 
 var app = builder.Build();
@@ -18,6 +19,7 @@ app.UseSwaggerUI();
 app.UseExceptionHandler();
 
 app.UseHttpsRedirection();
+app.UseCors("ERPPolicy");
 app.UseAuthentication();
 app.UseAuthorization();
 
