@@ -42,67 +42,59 @@ public class AuthService(
         return new LoginDto(token, refreshToken.Token, "Bearer", refreshToken.ExpiresAt);
     }
 
-    public async Task<TokensResponseDto> RefreshTokenAsync(string token)
+    public async Task<LoginDto> RefreshTokenAsync(string token)
     {
-        var user = await userManager.Users.SingleOrDefaultAsync(user =>
-            user.RefreshTokens.Any(refreshToken => refreshToken.Token == token));
-        if (user is null)
-            throw new UnauthorizedException();
+        var current = await dbContext.Set<RefreshToken>()
+                          .SingleOrDefaultAsync(t => t.Token == token)
+                      ?? throw new UnauthorizedException("Invalid refresh token.");
 
-        var refreshToken = user.RefreshTokens.SingleOrDefault(refreshToken => refreshToken.Token == token);
-        if (!refreshToken.IsActive)
+        if (current.RevokedAt is not null)
         {
-            throw new UnauthorizedException();
+            await dbContext.Set<RefreshToken>()
+                .Where(t => t.FamilyId == current.FamilyId && t.RevokedAt == null)
+                .ExecuteUpdateAsync(s => s.SetProperty(t => t.RevokedAt, DateTime.UtcNow));
+            throw new UnauthorizedException("Invalid refresh token.");
         }
 
-        refreshToken.RevokedAt = DateTime.UtcNow;
-        var newRefreshToken = tokenService.GenerateRefreshToken();
-        var accessToken = tokenService.GenerateToken(user);
-        user.RefreshTokens.Add(newRefreshToken);
-        await userManager.UpdateAsync(user);
+        if (current.IsExpired)
+            throw new UnauthorizedException("Refresh token expired.");
 
-        return new TokensResponseDto(
-            accessToken: accessToken,
-            RefreshToken: newRefreshToken.Token
-        );
+        var user = await dbContext.Users
+            .Include(u => u.Role)              
+            .SingleAsync(u => u.Id == current.UserId);
+
+        current.RevokedAt = DateTime.UtcNow;
+
+        var next = tokenService.GenerateRefreshToken();
+        next.UserId = user.Id;
+        next.FamilyId = current.FamilyId;             
+        dbContext.Add(next);
+
+        await dbContext.SaveChangesAsync();
+
+        return new LoginDto(tokenService.GenerateToken(user), next.Token, "Bearer", next.ExpiresAt);
     }
 
     public async Task LogoutAsync(string token)
     {
-        var user = await userManager.Users.SingleOrDefaultAsync(user =>
-            user.RefreshTokens.Any(refreshToken => refreshToken.Token == token));
-        if (user is null)
-            throw new UnauthorizedException();
+        var current = await dbContext.Set<RefreshToken>()
+            .SingleOrDefaultAsync(t => t.Token == token);
 
-        var refreshToken = user.RefreshTokens.SingleOrDefault(refreshToken => refreshToken.Token == token);
-        if (!refreshToken.IsActive)
-        {
-            throw new UnauthorizedException();
-        }
+        if (current is null || current.RevokedAt is not null) return;
 
-        refreshToken.RevokedAt = DateTime.UtcNow;
-        await userManager.UpdateAsync(user);
+        current.RevokedAt = DateTime.UtcNow;
+        await dbContext.SaveChangesAsync();
     }
     
     private async Task<RefreshToken> IssueRefreshTokenAsync(User user)
     {
         var token = tokenService.GenerateRefreshToken();
-        PruneRefreshTokens(user);
-        user.RefreshTokens.Add(token);
-        await userManager.UpdateAsync(user);
+        token.UserId = user.Id;
+        token.FamilyId = Guid.NewGuid();        
+        dbContext.Add(token);
+        await dbContext.SaveChangesAsync();
         return token;
     }
 
-
-    private static void PruneRefreshTokens(User user)
-    {
-        var cutoff = DateTime.UtcNow.AddDays(-7);
-        var stale = user.RefreshTokens!
-            .Where(t => !t.IsActive && (t.RevokedAt ?? t.ExpiresAt) < cutoff)
-            .ToList();
-
-        foreach (var token in stale)
-            user.RefreshTokens!.Remove(token);
-    }
     
 }
