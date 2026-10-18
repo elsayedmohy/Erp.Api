@@ -43,5 +43,6 @@ global using ErpDashboard.Api.Features.Purchasing.Suppliers;
 global using ErpDashboard.Api.Features.Purchasing.PurchaseOrders;
 global using ErpDashboard.Api.Features.Finance.Invoices;
 global using ErpDashboard.Api.Features.Profiles;
+global using ErpDashboard.Api.Common.Authorization;
 
 

@@ -1,3 +1,4 @@
+
 namespace ErpDashboard.Api.Controllers;
 
 [ApiController]
@@ -7,6 +8,11 @@ public class RolesController(IRoleService service) : ControllerBase
     [HttpGet]
     public Task<PagedResult<RoleResponse>> List([FromQuery] RoleQuery query, CancellationToken ct)
         => service.ListAsync(query, ct);
+    
+    
+    [HttpGet("{id:guid}")]
+    public Task<RoleResponse> List(Guid id, CancellationToken ct)
+        => service.GetByIdAsync(id, ct);
 
     [HttpPost]
     public async Task<ActionResult<RoleResponse>> Create([FromBody] CreateRoleRequest request, CancellationToken ct)
@@ -26,5 +32,6 @@ public class RolesController(IRoleService service) : ControllerBase
         return NoContent();
     }
 
-
+    [HttpGet("permissions")]
+    public IActionResult GetPermissions() => Ok(PermissionCodes.All);
 }
