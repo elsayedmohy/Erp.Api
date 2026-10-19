@@ -19,19 +19,32 @@ public class ProductService(AppDbContext dbContext) : IProductService
 
         if (query.StockQuantity is { } stock)  q = q.Where(o => o.StockQuantity == stock);
         if (query.UnitPrice is { } price)  q = q.Where(o => o.UnitPrice == price);
+        if (query.CategoryId is { } categoryId)  q = q.Where(o => o.CategoryId == categoryId);
 
         return Sorts.Apply(q, query.SortBy, query.SortDir)
             .Select(product => ToResponse(product))
             .ToPagedResultAsync(query, ct);
     }
 
-    public async Task<ProductResponse> GetByIdAsync(Guid id, CancellationToken ct)
+    public async Task<ProductDetailsResponse> GetByIdAsync(Guid id, CancellationToken ct)
     {
         Product? product = await dbContext.Products.FirstOrDefaultAsync(c => c.Id == id, ct);
         if (product is null)
             throw new NotFoundException("product", id);
+        
+        Category? category = await dbContext.Categories.FirstOrDefaultAsync(c => c.Id == product.CategoryId, ct);
+        if (category is null)
+            throw new NotFoundException("category", id);
 
-        return ToResponse(product);
+        return new ProductDetailsResponse(
+            product.Id,
+            product.Name,
+            new CategoryResponse(category.Id , category.Name),
+            product.Sku,
+            product.CostPrice,
+            product.UnitPrice,
+            product.StockQuantity,
+            product.ReorderLevel);
     }
 
     public async Task<ProductResponse> CreateAsync(ProductRequest request, CancellationToken ct)

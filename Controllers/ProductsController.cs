@@ -12,7 +12,7 @@ public class ProductsController(IProductService service) : ControllerBase
     
     
     [HttpGet("{id:guid}")]
-    public Task<ProductResponse> GetById( Guid id, CancellationToken ct)
+    public Task<ProductDetailsResponse> GetById( Guid id, CancellationToken ct)
         => service.GetByIdAsync(id, ct);
     
     [HttpPost]
