@@ -10,5 +10,6 @@ public class Order
     public string ShippingAddress { get; set; }
     public decimal TotalAmount { get; set; }
     public Invoice? Invoice { get; set; }
+    public Customer? Customer { get; set; }
     public ICollection<OrderLine> OrderLines { get; set; } =  new List<OrderLine>();
 }

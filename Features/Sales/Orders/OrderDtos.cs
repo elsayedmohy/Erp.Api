@@ -11,6 +11,7 @@ public sealed class OrderQuery : PageQuery
 public sealed record OrderResponse(
     Guid Id,
     Guid CustomerId,
+    string CustomerName,
     DateOnly OrderDate,
     OrderStatus Status,
     PaymentMethod PaymentMethod,
@@ -21,6 +22,8 @@ public sealed record OrderResponse(
 public sealed record OrderDetailsResponse(
     Guid Id,
     Guid CustomerId,
+    Guid InvoiceId,
+    string CustomerName,
     DateOnly OrderDate,
     OrderStatus Status,
     PaymentMethod PaymentMethod,
@@ -56,6 +59,7 @@ public sealed record OrderLineRequest(
 public sealed record OrderLineResponse(
     Guid Id,
     Guid ProductId,
+    string ProductName,
     int Quantity,
     decimal UnitPrice,
     decimal Discount

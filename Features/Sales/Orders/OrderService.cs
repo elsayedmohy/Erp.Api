@@ -13,18 +13,23 @@ public class OrderService(AppDbContext dbContext) : IOrderService
 
     private static readonly Dictionary<OrderStatus, OrderStatus> NextStatus = new()
     {
-        [OrderStatus.Pending]   = OrderStatus.Confirmed,
+        [OrderStatus.Pending] = OrderStatus.Confirmed,
         [OrderStatus.Confirmed] = OrderStatus.Shipped,
-        [OrderStatus.Shipped]   = OrderStatus.Delivered,
+        [OrderStatus.Shipped] = OrderStatus.Delivered,
     };
-    
+
     public Task<PagedResult<OrderResponse>> ListAsync(OrderQuery query, CancellationToken ct)
     {
         if (query.From > query.To)
             throw new BadRequestException("'from' must be before or equal to 'to'.");
 
-        var q = dbContext.Orders.AsNoTracking();
+        var q = dbContext.Orders.Include(o => o.Customer).AsNoTracking();
 
+        if (query.GetSearchPattern() is { } p)
+            q = q.Where(o =>
+                EF.Functions.ILike(o.Id.ToString(), p, @"\")
+            );
+        
         if (query.Status is { } status) q = q.Where(o => o.Status == status);
         if (query.CustomerId is { } cid) q = q.Where(o => o.CustomerId == cid);
         if (query.From is { } from) q = q.Where(o => o.OrderDate >= from);
@@ -34,6 +39,7 @@ public class OrderService(AppDbContext dbContext) : IOrderService
             .Select(o => new OrderResponse(
                 o.Id,
                 o.CustomerId,
+                o.Customer.Name,
                 o.OrderDate,
                 o.Status,
                 o.PaymentMethod,
@@ -45,8 +51,10 @@ public class OrderService(AppDbContext dbContext) : IOrderService
 
     public async Task<OrderDetailsResponse> GetByIdAsync(Guid id, CancellationToken ct)
     {
-        Order? order = await dbContext.Orders.AsNoTracking()
+        Order? order = await dbContext.Orders.Include(o => o.Customer).AsNoTracking()
+            .Include(o => o.Invoice)
             .Include(o => o.OrderLines)
+            .ThenInclude((l) => l.Product)
             .FirstOrDefaultAsync(o => o.Id == id, ct);
         if (order is null)
             throw new NotFoundException("Order", id);
@@ -114,8 +122,8 @@ public class OrderService(AppDbContext dbContext) : IOrderService
 
             invoiceLines.Add(new InvoiceLineInput(product.Id, product.Name, line.Quantity, product.UnitPrice, taxRate));
             if (line.Discount > 0)
-                invoiceLines.Add(new InvoiceLineInput(product.Id, $"Discount - {product.Name}", 1, -line.Discount, taxRate));
-
+                invoiceLines.Add(new InvoiceLineInput(product.Id, $"Discount - {product.Name}", 1, -line.Discount,
+                    taxRate));
         }
 
         if (insufficient.Count > 0)
@@ -143,10 +151,12 @@ public class OrderService(AppDbContext dbContext) : IOrderService
 
     public async Task<OrderResponse> UpdateAsync(Guid id, UpdateOrderRequest request, CancellationToken ct)
     {
-        Order? order = await dbContext.Orders.FirstOrDefaultAsync(o => o.Id == id, ct);
+        Order? order = await dbContext.Orders
+            .Include(o => o.Customer)
+            .FirstOrDefaultAsync(o => o.Id == id, ct);
         if (order is null)
             throw new NotFoundException("Order", id);
-        
+
         if (order.Status != OrderStatus.Pending)
             throw new BadRequestException("Only pending orders can be updated.");
 
@@ -158,19 +168,19 @@ public class OrderService(AppDbContext dbContext) : IOrderService
 
     public async Task<OrderResponse> UpdateStatusAsync(Guid id, UpdateOrderStatusRequest request, CancellationToken ct)
     {
-        
         Order? order = await dbContext.Orders
+            .Include(o => o.Customer)
             .Include(o => o.Invoice)
             .FirstOrDefaultAsync(o => o.Id == id, ct);
         if (order is null)
             throw new NotFoundException("Order", id);
-        
+
         if (!NextStatus.TryGetValue(order.Status, out var allowed) || allowed != request.Status)
         {
             throw new BadRequestException(
                 $"Cannot change order status from '{order.Status}' to '{request.Status}'.");
         }
-        
+
         order.Status = request.Status;
 
         if (request.Status == OrderStatus.Confirmed && order.Invoice is { Status: InvoiceStatus.Draft } invoice)
@@ -214,6 +224,8 @@ public class OrderService(AppDbContext dbContext) : IOrderService
         new OrderDetailsResponse(
             o.Id,
             o.CustomerId,
+            o.Invoice.Id,
+            o.Customer.Name,
             o.OrderDate,
             o.Status,
             o.PaymentMethod,
@@ -222,6 +234,7 @@ public class OrderService(AppDbContext dbContext) : IOrderService
             o.OrderLines.Select(l => new OrderLineResponse(
                 l.Id,
                 l.ProductId,
+                l.Product.Name,
                 l.Quantity,
                 l.UnitPrice,
                 l.Discount)).ToList());
@@ -230,6 +243,7 @@ public class OrderService(AppDbContext dbContext) : IOrderService
         new OrderResponse(
             o.Id,
             o.CustomerId,
+            o.Customer.Name,
             o.OrderDate,
             o.Status,
             o.PaymentMethod,

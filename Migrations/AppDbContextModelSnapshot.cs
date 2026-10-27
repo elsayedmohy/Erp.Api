@@ -660,11 +660,13 @@ namespace ErpDashboard.Api.Migrations
 
             modelBuilder.Entity("ErpDashboard.Api.Data.Entities.Order", b =>
                 {
-                    b.HasOne("ErpDashboard.Api.Data.Entities.Customer", null)
+                    b.HasOne("ErpDashboard.Api.Data.Entities.Customer", "Customer")
                         .WithMany("Orders")
                         .HasForeignKey("CustomerId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.Navigation("Customer");
                 });
 
             modelBuilder.Entity("ErpDashboard.Api.Data.Entities.OrderLine", b =>
