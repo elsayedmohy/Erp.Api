@@ -171,6 +171,17 @@ public static class DependencyInjection
         return builder;
     }
     
+    public static WebApplicationBuilder AddHealth(this WebApplicationBuilder builder)
+    {
+        builder.Services.AddHealthChecks()
+            .AddCheck<DatabaseHealthCheck>(
+                "database",
+                tags: ["ready"],
+                timeout: TimeSpan.FromSeconds(3));
+
+        return builder;
+    }
+    
     private static string ToCamelCaseKey(string key) =>
         string.Join('.', key.Split('.').Select(part => JsonNamingPolicy.CamelCase.ConvertName(part)));
     
