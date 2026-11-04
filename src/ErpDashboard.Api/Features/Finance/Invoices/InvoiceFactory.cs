@@ -29,7 +29,7 @@ public static class InvoiceFactory
     public static List<InvoiceLine> BuildLines(IReadOnlyCollection<InvoiceLineInput> lines)
     {
         if (lines.Count == 0)
-            throw new BadRequestException("An invoice must have at least one line.");
+            throw new RequestValidationException("lines", "An invoice must have at least one line.");
 
         return lines.Select(l => new InvoiceLine
         {
@@ -44,7 +44,7 @@ public static class InvoiceFactory
     public static void ValidateDates(DateOnly invoiceDate, DateOnly dueDate)
     {
         if (dueDate < invoiceDate)
-            throw new BadRequestException("Due date cannot be before the invoice date.");
+            throw new RequestValidationException("dueDate", "Due date cannot be before the invoice date.");
     }
 
     public static decimal CalculateTotal(IEnumerable<InvoiceLine> lines) =>

@@ -52,12 +52,12 @@ public class ProductService(AppDbContext dbContext) : IProductService
         var existed = await dbContext.Products.AnyAsync(c => c.Sku == request.Sku, ct);
 
         if (existed)
-            throw new BadRequestException($"Product {request.Name} already exists");
+            throw new ConflictException($"Product {request.Name} already exists");
 
 
         Category? category = await dbContext.Categories.FirstOrDefaultAsync(c => c.Id == request.CategoryId, ct);
         if (category is null)
-            throw new BadRequestException($"Category Id {request.CategoryId} not exists");
+            throw new RequestValidationException("categoryId", $"Category '{request.CategoryId}' does not exist.");
 
         Product product = new Product
         {
@@ -80,7 +80,7 @@ public class ProductService(AppDbContext dbContext) : IProductService
         
         Category? category = await dbContext.Categories.FirstOrDefaultAsync(c => c.Id == request.CategoryId, ct);
         if (category is null)
-            throw new BadRequestException($"Category Id {request.CategoryId} not exists");
+            throw new RequestValidationException("categoryId", $"Category '{request.CategoryId}' does not exist.");
         
         product.Name = request.Name;
         product.CategoryId = request.CategoryId;

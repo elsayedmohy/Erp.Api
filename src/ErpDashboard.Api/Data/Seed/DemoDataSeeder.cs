@@ -129,7 +129,7 @@ public static class DemoDataSeeder
                     orderDate), ct);
                 created++;
             }
-            catch (BadRequestException ex) 
+            catch (AppException ex)
             {
                 logger.LogDebug("Order skipped: {Reason}", ex.Message);
                 skipped++;

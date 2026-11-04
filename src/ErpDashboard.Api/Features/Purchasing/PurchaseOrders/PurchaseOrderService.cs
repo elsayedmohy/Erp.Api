@@ -18,7 +18,7 @@ public class PurchaseOrderService(AppDbContext dbContext) : IPurchaseOrderServic
     public Task<PagedResult<PurchaseOrderResponse>> ListAsync(PurchaseOrderQuery query, CancellationToken ct)
     {
         if (query.From > query.To)
-            throw new BadRequestException("'from' must be before or equal to 'to'.");
+            throw new RequestValidationException("from", "'from' must be before or equal to 'to'.");
 
         var q = dbContext.PurchaseOrders.AsNoTracking();
 
@@ -63,7 +63,7 @@ public class PurchaseOrderService(AppDbContext dbContext) : IPurchaseOrderServic
         var orderDate = request.OrderDate ?? DateOnly.FromDateTime(DateTime.UtcNow);
 
         if (request.ExpectedDelivery < orderDate)
-            throw new BadRequestException("Expected delivery cannot be before the order date.");
+            throw new RequestValidationException("expectedDelivery", "Expected delivery cannot be before the order date.");
 
         var order = new PurchaseOrder()
         {
@@ -89,10 +89,10 @@ public class PurchaseOrderService(AppDbContext dbContext) : IPurchaseOrderServic
                  ?? throw new NotFoundException("Purchase Order", id);
 
         if (po.Status != PurchaseOrderStatus.Pending)
-            throw new BadRequestException("Only pending purchase orders can be updated.");
+            throw new ConflictException("Only pending purchase orders can be updated.");
 
         if (request.ExpectedDelivery < po.OrderDate)
-            throw new BadRequestException("Expected delivery cannot be before the order date.");
+            throw new RequestValidationException("expectedDelivery", "Expected delivery cannot be before the order date.");
 
         var (lines, total) = await BuildLinesAsync(request.Lines, ct);
 
@@ -116,7 +116,7 @@ public class PurchaseOrderService(AppDbContext dbContext) : IPurchaseOrderServic
             throw new NotFoundException("Purchase Order", id);
 
         if (!AllowedTransitions.TryGetValue(po.Status, out var allowed) || !allowed.Contains(request.Status))
-            throw new BadRequestException(
+            throw new ConflictException(
                 $"Cannot change purchase order status from '{po.Status}' to '{request.Status}'.");
 
         if (request.Status == PurchaseOrderStatus.Received)
@@ -167,7 +167,7 @@ public class PurchaseOrderService(AppDbContext dbContext) : IPurchaseOrderServic
         var duplicates = requestLines.GroupBy(l => l.ProductId)
             .Where(g => g.Count() > 1).Select(g => g.Key).ToList();
         if (duplicates.Count > 0)
-            throw new BadRequestException(
+            throw new RequestValidationException("lines",
                 $"Each product can appear only once. Duplicated: {string.Join(", ", duplicates)}");
 
         var ids = requestLines.Select(l => l.ProductId).ToList();
@@ -178,7 +178,7 @@ public class PurchaseOrderService(AppDbContext dbContext) : IPurchaseOrderServic
 
         var missing = ids.Except(existing).ToList();
         if (missing.Count > 0)
-            throw new BadRequestException($"Products not found: {string.Join(", ", missing)}");
+            throw new RequestValidationException("lines", $"Products not found: {string.Join(", ", missing)}");
 
         var lines = requestLines.Select(l => new PurchaseLine
         {

@@ -37,7 +37,7 @@ public sealed class SortMap<T>
                                                    ?? throw new InvalidOperationException($"No default sort configured for {typeof(T).Name}.");
 
         if (!_keys.TryGetValue(name, out var apply))
-            throw new BadRequestException(
+            throw new RequestValidationException("sortBy",
                 $"Invalid sortBy '{sortBy}'. Allowed: {string.Join(", ", _keys.Keys)}.");
 
         var descending = sortDir?.Trim().ToLowerInvariant() switch
@@ -45,7 +45,7 @@ public sealed class SortMap<T>
             null or "" => !userChoseKey && _defaultDescending,
             "asc" => false,
             "desc" => true,
-            _ => throw new BadRequestException("sortDir must be 'asc' or 'desc'.")
+            _ => throw new RequestValidationException("sortDir", "sortDir must be 'asc' or 'desc'.")
         };
 
         return _tieBreaker(apply(query, descending));
