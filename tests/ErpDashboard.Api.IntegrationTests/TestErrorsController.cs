@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using ErpDashboard.Api.Common;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -19,6 +20,13 @@ public sealed class TestErrorsController : ControllerBase
     [HttpPost("dto")]
     public IActionResult Dto(TestDto dto) => Ok();
 
+    [HttpGet("validation")]
+    public IActionResult Validation() =>
+        throw new RequestValidationException("name", "Name is invalid.");
+
+    [HttpGet("conflict")]
+    public IActionResult Conflict_() =>
+        throw new ConflictException("Already exists.");
 }
 
-public sealed record TestDto([property: Required] string? Name);
+public sealed record TestDto([Required] string? Name);

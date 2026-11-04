@@ -1,3 +1,4 @@
+
 namespace ErpDashboard.Api.Extensions;
 
 public static class DependencyInjection
@@ -7,12 +8,13 @@ public static class DependencyInjection
         builder.Services.AddControllers(options =>
             {
                 options.ReturnHttpNotAcceptable = true;
-                options.Filters.Add(new ProducesAttribute("application/json"));
             })
             .AddJsonOptions(options =>
             {
                 options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+                options.AllowInputFormatterExceptionMessages = false;
             });
+
         builder.Services.AddDbContext<AppDbContext>(options =>
             options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
         return builder;
@@ -82,7 +84,7 @@ public static class DependencyInjection
 
         return builder;
     }
-    
+
     public static WebApplicationBuilder AddLogging(this WebApplicationBuilder builder)
     {
         builder.Services.AddSerilog((services, logger) => logger
@@ -103,14 +105,19 @@ public static class DependencyInjection
 
                 // pd.Extensions["traceId"] = Activity.Current?.Id ?? ctx.HttpContext.TraceIdentifier;
                 pd.Extensions["correlationId"] = ctx.HttpContext.TraceIdentifier;
-
+                if (pd is HttpValidationProblemDetails validation)
+                {
+                    validation.Errors = validation.Errors
+                        .GroupBy(e => ToCamelCaseKey(e.Key))
+                        .ToDictionary(g => g.Key, g => g.SelectMany(e => e.Value).ToArray());
+                }
                 pd.Detail ??= pd.Status switch
                 {
                     400 => "One or more validation errors occurred.",
                     401 => "Authentication is required.",
                     403 => "You do not have permission to perform this action.",
                     404 => "The requested resource was not found.",
-                    _   => pd.Title
+                    _ => pd.Title
                 };
             };
         });
@@ -135,14 +142,14 @@ public static class DependencyInjection
         builder.Services.AddScoped<IProductService, ProductService>();
         builder.Services.AddScoped<IEmployeeService, EmployeeService>();
         builder.Services.AddScoped<IDepartmentService, DepartmentService>();
-        builder.Services.AddScoped<ISupplierService,SupplierService>();
-        builder.Services.AddScoped<IPurchaseOrderService,PurchaseOrderService>();
-        builder.Services.AddScoped<IInvoiceService,InvoiceService>();
-        builder.Services.AddScoped<IProfileService,ProfileService>();
+        builder.Services.AddScoped<ISupplierService, SupplierService>();
+        builder.Services.AddScoped<IPurchaseOrderService, PurchaseOrderService>();
+        builder.Services.AddScoped<IInvoiceService, InvoiceService>();
+        builder.Services.AddScoped<IProfileService, ProfileService>();
 
         return builder;
     }
-    
+
     public static WebApplicationBuilder AddCors(this WebApplicationBuilder builder)
     {
         builder.Services.AddCors(options =>
@@ -163,5 +170,8 @@ public static class DependencyInjection
         });
         return builder;
     }
-
+    
+    private static string ToCamelCaseKey(string key) =>
+        string.Join('.', key.Split('.').Select(part => JsonNamingPolicy.CamelCase.ConvertName(part)));
+    
 }
