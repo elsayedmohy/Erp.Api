@@ -4,6 +4,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 
 builder.AddPersistence()
+    .AddLogging()
     .AddErrorHandling()
     .AddAuthentication()
     .AddApiDocs()
@@ -18,6 +19,8 @@ if (app.Environment.IsDevelopment() && app.Configuration.GetValue<bool>("Seed:De
 
 app.UseSwagger();
 app.UseSwaggerUI();
+app.UseMiddleware<CorrelationIdMiddleware>();
+app.UseSerilogRequestLogging();
 app.UseExceptionHandler();
 app.UseStatusCodePages();
 

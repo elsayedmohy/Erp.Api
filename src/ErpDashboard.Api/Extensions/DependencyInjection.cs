@@ -82,6 +82,16 @@ public static class DependencyInjection
 
         return builder;
     }
+    
+    public static WebApplicationBuilder AddLogging(this WebApplicationBuilder builder)
+    {
+        builder.Services.AddSerilog((services, logger) => logger
+            .ReadFrom.Configuration(builder.Configuration)
+            .ReadFrom.Services(services)
+            .Enrich.FromLogContext()
+            .WriteTo.Console(new CompactJsonFormatter()));
+        return builder;
+    }
 
     public static WebApplicationBuilder AddErrorHandling(this WebApplicationBuilder builder)
     {
@@ -91,7 +101,8 @@ public static class DependencyInjection
             {
                 var pd = ctx.ProblemDetails;
 
-                pd.Extensions["traceId"] = Activity.Current?.Id ?? ctx.HttpContext.TraceIdentifier;
+                // pd.Extensions["traceId"] = Activity.Current?.Id ?? ctx.HttpContext.TraceIdentifier;
+                pd.Extensions["correlationId"] = ctx.HttpContext.TraceIdentifier;
 
                 pd.Detail ??= pd.Status switch
                 {
@@ -146,7 +157,8 @@ public static class DependencyInjection
                     .WithOrigins(origins)
                     .AllowAnyHeader()
                     .AllowAnyMethod()
-                    .AllowCredentials();
+                    .AllowCredentials()
+                    .WithExposedHeaders(CorrelationIdMiddleware.HeaderName);
             });
         });
         return builder;
