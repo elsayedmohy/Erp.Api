@@ -1,0 +1,37 @@
+using ErpDashboard.Api.Data;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.EntityFrameworkCore;
+using Testcontainers.PostgreSql;
+
+namespace ErpDashboard.Api.IntegrationTests;
+
+public class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
+{
+    public const string AdminEmail = "admin@tests.local";
+    public const string AdminPassword = "Test-only-Passw0rd!";
+    private readonly PostgreSqlContainer _db = new PostgreSqlBuilder()
+        .WithImage("postgres:17-alpine")
+        .Build();
+
+    public Task InitializeAsync() => _db.StartAsync();
+
+    public new Task DisposeAsync() => _db.DisposeAsync().AsTask();
+
+    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    {
+        builder.UseEnvironment("Testing");
+
+        builder.UseSetting("ConnectionStrings:DefaultConnection", _db.GetConnectionString());
+
+        builder.UseSetting("Jwt:Key", "test-only-key-with-at-least-32-characters");
+        builder.UseSetting("Jwt:Issuer", "erp-tests");
+        builder.UseSetting("Jwt:Audience", "erp-tests");
+        builder.UseSetting("Jwt:DurationInMinutes", "60");
+        builder.UseSetting("Jwt:ExpiryDays", "7");
+        builder.UseSetting("Seed:AdminEmail", AdminEmail);
+        builder.UseSetting("Seed:AdminPassword", AdminPassword);
+        builder.UseSetting("Cors:AllowedOrigins:0", "http://localhost:4200");
+        builder.UseSetting("ApiSettings:BaseUrl", "http://localhost");
+    }
+}
