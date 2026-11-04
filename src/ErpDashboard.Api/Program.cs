@@ -9,7 +9,8 @@ builder.AddPersistence()
     .AddAuthentication()
     .AddApiDocs()
     .AddFeatureServices()
-    .AddCors();
+    .AddCors()
+    .AddHealth();
 
 
 var app = builder.Build();
@@ -20,7 +21,15 @@ if (app.Environment.IsDevelopment() && app.Configuration.GetValue<bool>("Seed:De
 app.UseSwagger();
 app.UseSwaggerUI();
 app.UseMiddleware<CorrelationIdMiddleware>();
-app.UseSerilogRequestLogging();
+app.UseSerilogRequestLogging(options =>
+{
+    options.GetLevel = (context, _, exception) =>
+        exception is not null || context.Response.StatusCode >= 500
+            ? LogEventLevel.Error
+            : context.Request.Path.StartsWithSegments("/health")
+                ? LogEventLevel.Verbose
+                : LogEventLevel.Information;
+});
 app.UseExceptionHandler();
 app.UseStatusCodePages();
 
@@ -30,6 +39,16 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+app.MapHealthChecks("/health/live", new HealthCheckOptions
+{
+    Predicate = _ => false,
+    ResponseWriter = HealthResponseWriter.WriteAsync
+}).AllowAnonymous();
 
+app.MapHealthChecks("/health/ready", new HealthCheckOptions
+{
+    Predicate = registration => registration.Tags.Contains("ready"),
+    ResponseWriter = HealthResponseWriter.WriteAsync
+}).AllowAnonymous();
 QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
 app.Run();
