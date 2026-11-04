@@ -18,6 +18,9 @@ global using System.Security.Claims;
 global using System.Text;
 global using System.Diagnostics;
 global using System.Globalization;
+global using Serilog.Context;
+global using Serilog;
+global using Serilog.Formatting.Compact;
 global using QuestPDF.Fluent;
 global using QuestPDF.Helpers;
 global using QuestPDF.Infrastructure;
@@ -44,5 +47,7 @@ global using ErpDashboard.Api.Features.Purchasing.PurchaseOrders;
 global using ErpDashboard.Api.Features.Finance.Invoices;
 global using ErpDashboard.Api.Features.Profiles;
 global using ErpDashboard.Api.Common.Authorization;
+global using ErpDashboard.Api.Middlewares;
+
 
 

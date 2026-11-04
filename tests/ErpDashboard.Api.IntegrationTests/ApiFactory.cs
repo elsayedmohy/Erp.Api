@@ -1,7 +1,8 @@
 using ErpDashboard.Api.Data;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.DependencyInjection;
 using Testcontainers.PostgreSql;
 
 namespace ErpDashboard.Api.IntegrationTests;
@@ -20,6 +21,9 @@ public class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
+        builder.ConfigureTestServices(services =>
+            services.AddControllers()
+                .AddApplicationPart(typeof(TestErrorsController).Assembly));
         builder.UseEnvironment("Testing");
 
         builder.UseSetting("ConnectionStrings:DefaultConnection", _db.GetConnectionString());
