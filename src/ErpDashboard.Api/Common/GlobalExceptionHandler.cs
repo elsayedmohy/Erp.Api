@@ -12,12 +12,27 @@ public class GlobalExceptionHandler(
             ctx.Response.StatusCode = 499;
             return true;
         }
+
+        if (ex is RequestValidationException validation)
+        {
+            ctx.Response.StatusCode = StatusCodes.Status400BadRequest;
+            return await problemDetailsService.TryWriteAsync(new ProblemDetailsContext
+            {
+                HttpContext = ctx,
+                Exception = ex,
+                ProblemDetails = new HttpValidationProblemDetails(validation.Errors)
+                {
+                    Status = StatusCodes.Status400BadRequest
+                }
+            });
+        }
+
         var (status, title) = ex switch
         {
             NotFoundException => (404, "Not Found"),
             ForbiddenException => (403, "Forbidden"),
             UnauthorizedException => (401, "Unauthorized"),
-            BadRequestException => (400, "Bad Request"),
+            ConflictException => (409, "Conflict"),
             _ => (500, "Server error")
         };
 
@@ -43,4 +58,14 @@ public class UnauthorizedException(string message = "401 Unauthorized") : AppExc
 
 public class ForbiddenException(string message = "403 Forbidden") : AppException(message);
 
-public class BadRequestException(string message) : AppException(message);
+public class ConflictException(string message) : AppException(message);
+
+public class RequestValidationException(IDictionary<string, string[]> errors)
+    : AppException("One or more validation errors occurred.")
+{
+    public IDictionary<string, string[]> Errors { get; } = errors;
+
+    public RequestValidationException(string field, string error)
+        : this(new Dictionary<string, string[]> { [field] = [error] }) { }
+}
+

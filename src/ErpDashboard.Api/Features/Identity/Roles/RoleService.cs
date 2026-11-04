@@ -37,10 +37,10 @@ public class RoleService(AppDbContext dbContext) : IRoleService
 
         var unknownPermissions = role.Permissions.Where(p => !PermissionCodes.IsValid(p)).ToList();
         if (unknownPermissions.Count > 0)
-            throw new BadRequestException($"Unknown permissions: {string.Join(", ", unknownPermissions)}");
+            throw new RequestValidationException("permissions", $"Unknown permissions: {string.Join(", ", unknownPermissions)}");
 
         if (await dbContext.Roles.AnyAsync(r => r.Name == role.Name, ct))
-            throw new BadRequestException($"Role '{role.Name}' already exists.");
+            throw new ConflictException($"Role '{role.Name}' already exists.");
 
         dbContext.Roles.Add(role);
         await dbContext.SaveChangesAsync(ct);
@@ -57,21 +57,21 @@ public class RoleService(AppDbContext dbContext) : IRoleService
         }
 
         if (role.IsSystem)
-            throw new BadRequestException(
+            throw new ConflictException(
                 $"'{role.Name}' is a system role and is managed by the application.");
 
         if (request.Permissions is null)
-            throw new BadRequestException($"Role {request.Name} Permissions not valid");
+            throw new RequestValidationException("permissions", "Permissions are required.");
 
         RoleMappings.ApplyTo(request, role);
 
 
         var invalid = role.Permissions.Where(p => !PermissionCodes.IsValid(p)).ToList();
         if (invalid.Count > 0)
-            throw new BadRequestException($"Unknown permissions: {string.Join(", ", invalid)}");
+            throw new RequestValidationException("permissions", $"Unknown permissions: {string.Join(", ", invalid)}");
 
         if (await dbContext.Roles.AnyAsync(r => r.Id != role.Id && r.Name == role.Name, ct))
-            throw new BadRequestException($"Role '{request.Name}' already exists.");
+            throw new ConflictException($"Role '{request.Name}' already exists.");
 
         await dbContext.SaveChangesAsync(ct);
         return role.ToResponse();
@@ -83,15 +83,15 @@ public class RoleService(AppDbContext dbContext) : IRoleService
         var role = await dbContext.Roles.SingleOrDefaultAsync(r => r.Id == roleId, cancellationToken: ct);
         if (role is null)
         {
-            throw new BadRequestException($"Role does not exists.");
+            throw new NotFoundException("Role", roleId);
         }
 
         if (role.IsSystem)
-            throw new BadRequestException(
+            throw new ConflictException(
                 $"'{role.Name}' is a system role and is managed by the application.");
 
         if (await dbContext.Users.AnyAsync(u => u.RoleId == roleId, ct))
-            throw new BadRequestException($"Role is assigned to users");
+            throw new ConflictException($"Role is assigned to users");
 
 
         dbContext.Roles.Remove(role);

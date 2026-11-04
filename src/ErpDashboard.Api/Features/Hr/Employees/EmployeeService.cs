@@ -51,12 +51,12 @@ public class EmployeeService(AppDbContext dbContext) : IEmployeeService
     {
         bool exists = await dbContext.Employees.AnyAsync(e => e.Email == request.Email.Trim().ToLowerInvariant(), ct);
         if (exists)
-            throw new BadRequestException("The email already exists");
+            throw new ConflictException("The email already exists");
 
 
         bool departmentExists = await dbContext.Departments.AnyAsync(d => d.Id == request.DepartmentId, ct);
         if (!departmentExists)
-            throw new BadRequestException($"Department '{request.DepartmentId}' does not exist.");
+            throw new RequestValidationException("departmentId", $"Department '{request.DepartmentId}' does not exist.");
 
         Employee? employee = new Employee
         {
@@ -85,7 +85,7 @@ public class EmployeeService(AppDbContext dbContext) : IEmployeeService
         {
             bool departmentExists = await dbContext.Departments.AnyAsync(d => d.Id == request.DepartmentId, ct);
             if (!departmentExists)
-                throw new BadRequestException("Department does not exist");
+                throw new RequestValidationException("departmentId", $"Department '{request.DepartmentId}' does not exist.");
         }
 
         employee.FirstName = request.FirstName;

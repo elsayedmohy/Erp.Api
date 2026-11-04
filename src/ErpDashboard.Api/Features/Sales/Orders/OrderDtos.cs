@@ -53,8 +53,8 @@ public sealed record UpdateOrderStatusRequest(
 
 public sealed record OrderLineRequest(
     Guid ProductId,
-    [property: Range(1, int.MaxValue)] int Quantity,
-    [property: Range(typeof(decimal), "0", "79228162514264337593543950335")] decimal Discount);
+    [Range(1, int.MaxValue)] int Quantity,
+    [Range(typeof(decimal), "0", "79228162514264337593543950335")] decimal Discount);
 
 public sealed record OrderLineResponse(
     Guid Id,

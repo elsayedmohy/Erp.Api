@@ -1,5 +1,6 @@
 namespace ErpDashboard.Api.IntegrationTests;
 
+[Collection(ApiCollection.Name)]
 public class CorrelationIdTests(ApiFactory factory) : IClassFixture<ApiFactory>
 {
     private const string HeaderName = "X-Correlation-ID";

@@ -63,7 +63,7 @@ public class DepartmentService(AppDbContext dbContext) : IDepartmentService
 
         bool employeesExist = await dbContext.Employees.IgnoreQueryFilters().AnyAsync(p => p.DepartmentId == id, ct);
         if (employeesExist)
-            throw new BadRequestException("Cannot delete Department contains Employees");
+            throw new ConflictException("Cannot delete Department contains Employees");
 
 
         dbContext.Departments.Remove(department);

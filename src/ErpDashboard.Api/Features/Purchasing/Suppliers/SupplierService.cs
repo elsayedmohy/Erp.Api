@@ -41,7 +41,7 @@ public class SupplierService(AppDbContext dbContext) : ISupplierService
                            c.Phone == request.Phone, cancellationToken: ct);
 
         if (existingSupplier != null)
-            throw new BadRequestException("Supplier already exists");
+            throw new ConflictException("Supplier already exists");
 
         Supplier supplier = new Supplier
         {

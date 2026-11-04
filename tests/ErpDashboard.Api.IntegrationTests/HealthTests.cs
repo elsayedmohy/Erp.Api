@@ -1,7 +1,7 @@
 using System.Net;
 
 namespace ErpDashboard.Api.IntegrationTests;
-
+[Collection(ApiCollection.Name)]
 public class HealthTests(ApiFactory factory) : IClassFixture<ApiFactory>
 {
     private readonly HttpClient _client = factory.CreateClient();

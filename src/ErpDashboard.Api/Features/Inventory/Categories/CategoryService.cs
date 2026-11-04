@@ -33,7 +33,7 @@ public class CategoryService(AppDbContext dbContext) : ICategoryService
         var existed = await dbContext.Categories.AnyAsync(c => c.Name == request.Name, ct);
 
         if (existed)
-            throw new BadRequestException($"Category {request.Name} already exists");
+            throw new ConflictException($"Category {request.Name} already exists");
 
         Category category = new Category
         {
@@ -62,7 +62,7 @@ public class CategoryService(AppDbContext dbContext) : ICategoryService
 
         bool productsExist = await dbContext.Products.IgnoreQueryFilters().AnyAsync(p => p.CategoryId == id, ct);
         if (productsExist)
-            throw new BadRequestException("Cannot delete Category contains products");
+            throw new ConflictException("Cannot delete Category contains products");
 
         dbContext.Categories.Remove(category);
         await dbContext.SaveChangesAsync(ct);

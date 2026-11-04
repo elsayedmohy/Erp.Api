@@ -40,7 +40,7 @@ public class CustomerService(AppDbContext dbContext) : ICustomerService
                            c.TaxId == request.TaxId, cancellationToken: ct);
 
         if (existingCustomer != null)
-            throw new BadRequestException("Customer already exists");
+            throw new ConflictException("Customer already exists");
 
         Customer customer = new Customer
         {

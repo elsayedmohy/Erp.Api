@@ -57,7 +57,7 @@ public class UserService(AppDbContext dbContext, UserManager<User> userManager) 
         var result = await userManager.CreateAsync(user, request.Password);
         if (!result.Succeeded)
         {
-            throw new BadRequestException(result.Errors.First().Description);
+            throw result.ToValidationException();
         }
         return ToResponse(user);
     }
@@ -76,7 +76,7 @@ public class UserService(AppDbContext dbContext, UserManager<User> userManager) 
         
         if (user.Role.Name == RoleNames.Admin && role.Id == RoleIds.Admin &&  count <= 1)
         {
-            throw new BadRequestException("Cannot remove the Admin role from the last administrator");
+            throw new ConflictException("Cannot remove the Admin role from the last administrator");
         }
         
         user.FirstName = request.FirstName;
@@ -86,7 +86,7 @@ public class UserService(AppDbContext dbContext, UserManager<User> userManager) 
         var result = await userManager.UpdateAsync(user);
         if (!result.Succeeded)
         {
-            throw new BadRequestException(result.Errors.First().Description);
+            throw result.ToValidationException();
         }
         return ToResponse(user);
     }

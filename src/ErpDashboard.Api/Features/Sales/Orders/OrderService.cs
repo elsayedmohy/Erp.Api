@@ -21,7 +21,7 @@ public class OrderService(AppDbContext dbContext) : IOrderService
     public Task<PagedResult<OrderResponse>> ListAsync(OrderQuery query, CancellationToken ct)
     {
         if (query.From > query.To)
-            throw new BadRequestException("'from' must be before or equal to 'to'.");
+            throw new RequestValidationException("from", "'from' must be before or equal to 'to'.");
 
         var q = dbContext.Orders.Include(o => o.Customer).AsNoTracking();
 
@@ -72,11 +72,11 @@ public class OrderService(AppDbContext dbContext) : IOrderService
             .Select(g => g.Key)
             .ToList();
         if (duplicates.Count > 0)
-            throw new BadRequestException(
+            throw new RequestValidationException("lines",
                 $"Each product can appear only once. Duplicated: {string.Join(", ", duplicates)}");
 
         if (!await dbContext.Customers.AnyAsync(c => c.Id == request.CustomerId, ct))
-            throw new BadRequestException($"Customer '{request.CustomerId}' does not exist.");
+            throw new RequestValidationException("customerId", $"Customer '{request.CustomerId}' does not exist.");
 
         var ids = request.Lines.Select(l => l.ProductId).ToList();
         var products = await dbContext.Products
@@ -85,7 +85,7 @@ public class OrderService(AppDbContext dbContext) : IOrderService
 
         var missing = ids.Except(products.Keys).ToList();
         if (missing.Count > 0)
-            throw new BadRequestException($"Products not found: {string.Join(", ", missing)}");
+            throw new RequestValidationException("lines", $"Products not found: {string.Join(", ", missing)}");
 
         var orderDate = request.OrderDate ?? DateOnly.FromDateTime(DateTime.UtcNow);
         var orderLines = new List<OrderLine>();
@@ -100,7 +100,7 @@ public class OrderService(AppDbContext dbContext) : IOrderService
             var gross = line.Quantity * product.UnitPrice;
 
             if (line.Discount > gross)
-                throw new BadRequestException(
+                throw new RequestValidationException("lines",
                     $"Discount for '{product.Name}' ({line.Discount}) exceeds the line value ({gross}).");
 
             if (product.StockQuantity < line.Quantity)
@@ -127,7 +127,7 @@ public class OrderService(AppDbContext dbContext) : IOrderService
         }
 
         if (insufficient.Count > 0)
-            throw new BadRequestException("Insufficient stock: " + string.Join("; ", insufficient));
+            throw new ConflictException("Insufficient stock: " + string.Join("; ", insufficient));
 
         var invoice = InvoiceFactory.CreateDraft(
             request.CustomerId, orderDate, orderDate.AddDays(InvoiceDueDays), invoiceLines);
@@ -158,7 +158,7 @@ public class OrderService(AppDbContext dbContext) : IOrderService
             throw new NotFoundException("Order", id);
 
         if (order.Status != OrderStatus.Pending)
-            throw new BadRequestException("Only pending orders can be updated.");
+            throw new ConflictException("Only pending orders can be updated.");
 
         order.ShippingAddress = request.ShippingAddress.Trim();
         order.PaymentMethod = request.PaymentMethod;
@@ -177,7 +177,7 @@ public class OrderService(AppDbContext dbContext) : IOrderService
 
         if (!NextStatus.TryGetValue(order.Status, out var allowed) || allowed != request.Status)
         {
-            throw new BadRequestException(
+            throw new ConflictException(
                 $"Cannot change order status from '{order.Status}' to '{request.Status}'.");
         }
 
@@ -199,10 +199,10 @@ public class OrderService(AppDbContext dbContext) : IOrderService
                     ?? throw new NotFoundException("Order", id);
 
         if (order.Status != OrderStatus.Pending)
-            throw new BadRequestException("Only pending orders can be deleted.");
+            throw new ConflictException("Only pending orders can be deleted.");
 
         if (order.Invoice is { Status: not InvoiceStatus.Draft })
-            throw new BadRequestException("The order's invoice is no longer a draft.");
+            throw new ConflictException("The order's invoice is no longer a draft.");
 
         var ids = order.OrderLines.Select(l => l.ProductId).ToList();
         var products = await dbContext.Products

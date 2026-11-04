@@ -19,7 +19,7 @@ public class AuthService(
         var result = await userManager.CreateAsync(user, request.Password);
         if (!result.Succeeded)
         {
-            throw new ForbiddenException(result.Errors.First().Description);
+            throw result.ToValidationException();
         }
     }
 

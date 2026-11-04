@@ -9,23 +9,23 @@ public sealed class InvoiceQuery : PageQuery
 };
 
 public sealed record CreateInvoiceRequest(
-    [property: Required] Guid? CustomerId,
+    [Required] Guid? CustomerId,
     DateOnly? InvoiceDate,
     DateOnly? DueDate,
-    [property: Required, MinLength(1)] List<InvoiceLineRequest> Lines);
+    [Required, MinLength(1)] List<InvoiceLineRequest> Lines);
 
 public sealed record UpdateInvoiceRequest(
-    [property: Required] Guid? CustomerId,
-    [property: Required] DateOnly? InvoiceDate,
-    [property: Required] DateOnly? DueDate,
-    [property: Required, MinLength(1)] List<InvoiceLineRequest> Lines);
+    [Required] Guid? CustomerId,
+    [Required] DateOnly? InvoiceDate,
+    [Required] DateOnly? DueDate,
+    [Required, MinLength(1)] List<InvoiceLineRequest> Lines);
 
 public sealed record InvoiceLineRequest(
     Guid? ProductId,
-    [property: Required, MaxLength(200)] string Description,
-    [property: Range(1, 1_000_000)] int Quantity,
-    [property: Range(0.01, 1_000_000_000)] decimal UnitPrice,
-    [property: Range(0, 100)] decimal? TaxRate);
+    [Required, MaxLength(200)] string Description,
+    [Range(1, 1_000_000)] int Quantity,
+    [Range(0.01, 1_000_000_000)] decimal UnitPrice,
+    [Range(0, 100)] decimal? TaxRate);
 
 public sealed record InvoiceLineResponse(
     Guid Id,
@@ -65,5 +65,5 @@ public sealed record InvoiceResponse(
 );
 
 public sealed record PayInvoiceRequest(
-    [property: Required, EnumDataType(typeof(PaymentMethod))] PaymentMethod? PaymentMethod,
+    [Required, EnumDataType(typeof(PaymentMethod))] PaymentMethod? PaymentMethod,
     DateOnly? PaymentDate);

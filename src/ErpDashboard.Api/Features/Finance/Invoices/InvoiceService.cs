@@ -24,7 +24,7 @@ public sealed class InvoiceService(AppDbContext dbContext, IOptions<FinanceSetti
     public Task<PagedResult<InvoiceResponse>> ListAsync(InvoiceQuery query, CancellationToken ct)
     {
         if (query.From > query.To)
-            throw new BadRequestException("'from' must be before or equal to 'to'.");
+            throw new RequestValidationException("from", "'from' must be before or equal to 'to'.");
 
         var q = dbContext.Invoices.AsNoTracking();
 
@@ -90,7 +90,7 @@ public sealed class InvoiceService(AppDbContext dbContext, IOptions<FinanceSetti
 
         EnsureManual(invoice, "edited");
         if (invoice.Status != InvoiceStatus.Draft)
-            throw new BadRequestException($"Only draft invoices can be edited. Current status: {invoice.Status}.");
+            throw new ConflictException($"Only draft invoices can be edited. Current status: {invoice.Status}.");
 
         var invoiceDate = request.InvoiceDate!.Value;
         var dueDate = request.DueDate!.Value;
@@ -133,9 +133,9 @@ public sealed class InvoiceService(AppDbContext dbContext, IOptions<FinanceSetti
 
         var paymentDate = request.PaymentDate ?? Today();
         if (paymentDate < invoice.InvoiceDate)
-            throw new BadRequestException("Payment date cannot be before the invoice date.");
+            throw new RequestValidationException("paymentDate", "Payment date cannot be before the invoice date.");
         if (paymentDate > Today())
-            throw new BadRequestException("Payment date cannot be in the future.");
+            throw new RequestValidationException("paymentDate", "Payment date cannot be in the future.");
 
         invoice.Status = InvoiceStatus.Paid;
         invoice.PaymentMethod = request.PaymentMethod!.Value;
@@ -165,7 +165,7 @@ public sealed class InvoiceService(AppDbContext dbContext, IOptions<FinanceSetti
 
         EnsureManual(invoice, "deleted");
         if (invoice.Status != InvoiceStatus.Draft)
-            throw new BadRequestException(
+            throw new ConflictException(
                 $"Only draft invoices can be deleted. Current status: {invoice.Status}. Use cancel for issued invoices.");
 
         dbContext.Invoices.Remove(invoice);
@@ -176,14 +176,14 @@ public sealed class InvoiceService(AppDbContext dbContext, IOptions<FinanceSetti
     private static void EnsureManual(Invoice invoice, string action)
     {
         if (invoice.OrderId is not null)
-            throw new BadRequestException(
+            throw new ConflictException(
                 $"Invoices generated from an order cannot be {action}. Manage it through the order instead.");
     }
 
     private static void EnsureTransition(Invoice invoice, InvoiceStatus target)
     {
         if (!AllowedTransitions[invoice.Status].Contains(target))
-            throw new BadRequestException($"Cannot change invoice status from {invoice.Status} to {target}.");
+            throw new ConflictException($"Cannot change invoice status from {invoice.Status} to {target}.");
     }
 
 
@@ -198,7 +198,7 @@ public sealed class InvoiceService(AppDbContext dbContext, IOptions<FinanceSetti
             .Where(c => c.Id == customerId)
             .Select(c => c.Name)
             .FirstOrDefaultAsync(ct)
-        ?? throw new BadRequestException($"Customer '{customerId}' does not exist.");
+        ?? throw new RequestValidationException("customerId", $"Customer '{customerId}' does not exist.");
 
     private async Task EnsureProductsExistAsync(IEnumerable<InvoiceLineRequest> lines, CancellationToken ct)
     {
@@ -215,7 +215,7 @@ public sealed class InvoiceService(AppDbContext dbContext, IOptions<FinanceSetti
 
         var missing = ids.Except(existing).ToList();
         if (missing.Count > 0)
-            throw new BadRequestException($"Products not found: {string.Join(", ", missing)}");
+            throw new RequestValidationException("lines", $"Products not found: {string.Join(", ", missing)}");
     }
 
     private List<InvoiceLineInput> ToInputs(IEnumerable<InvoiceLineRequest> lines) =>
