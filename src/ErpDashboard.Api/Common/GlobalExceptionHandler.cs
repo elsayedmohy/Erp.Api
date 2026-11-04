@@ -6,6 +6,12 @@ public class GlobalExceptionHandler(
 {
     public async ValueTask<bool> TryHandleAsync(HttpContext ctx, Exception ex, CancellationToken ct)
     {
+        if (ex is OperationCanceledException && ctx.RequestAborted.IsCancellationRequested)
+        {
+            logger.LogInformation("Request was cancelled by the client");
+            ctx.Response.StatusCode = 499;
+            return true;
+        }
         var (status, title) = ex switch
         {
             NotFoundException => (404, "Not Found"),

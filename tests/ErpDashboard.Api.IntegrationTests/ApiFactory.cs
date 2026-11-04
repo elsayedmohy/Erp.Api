@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
+using Serilog.Core;
 using Testcontainers.PostgreSql;
 
 namespace ErpDashboard.Api.IntegrationTests;
@@ -11,6 +12,7 @@ public class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
     public const string AdminEmail = "admin@tests.local";
     public const string AdminPassword = "Test-only-Passw0rd!";
+    public TestLogSink Logs { get; } = new();
     private readonly PostgreSqlContainer _db = new PostgreSqlBuilder()
         .WithImage("postgres:17-alpine")
         .Build();
@@ -22,8 +24,12 @@ public class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.ConfigureTestServices(services =>
+        {
             services.AddControllers()
-                .AddApplicationPart(typeof(TestErrorsController).Assembly));
+                .AddApplicationPart(typeof(TestErrorsController).Assembly);
+            services.AddSingleton<ILogEventSink>(Logs);
+        });
+
         builder.UseEnvironment("Testing");
 
         builder.UseSetting("ConnectionStrings:DefaultConnection", _db.GetConnectionString());
