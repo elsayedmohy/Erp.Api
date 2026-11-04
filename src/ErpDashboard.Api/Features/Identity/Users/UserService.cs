@@ -57,7 +57,7 @@ public class UserService(AppDbContext dbContext, UserManager<User> userManager) 
         var result = await userManager.CreateAsync(user, request.Password);
         if (!result.Succeeded)
         {
-            throw result.ToException();
+            throw result.ToValidationException();
         }
         return ToResponse(user);
     }
@@ -86,7 +86,7 @@ public class UserService(AppDbContext dbContext, UserManager<User> userManager) 
         var result = await userManager.UpdateAsync(user);
         if (!result.Succeeded)
         {
-            throw result.ToException();
+            throw result.ToValidationException();
         }
         return ToResponse(user);
     }

@@ -48,6 +48,8 @@ global using ErpDashboard.Api.Features.Finance.Invoices;
 global using ErpDashboard.Api.Features.Profiles;
 global using ErpDashboard.Api.Common.Authorization;
 global using ErpDashboard.Api.Middlewares;
+global using ErpDashboard.Api.Helper;
+
 
 
 

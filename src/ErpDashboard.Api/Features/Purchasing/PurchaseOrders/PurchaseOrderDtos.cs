@@ -36,7 +36,7 @@ public sealed record CreatePurchaseOrderRequest(
 
 public sealed record UpdatePurchaseOrderRequest(
     DateOnly ExpectedDelivery,
-    [property: MinLength(1)] List<PurchaseLineRequest> Lines);
+    [MinLength(1)] List<PurchaseLineRequest> Lines);
 
 public sealed record UpdatePurchaseOrderStatusRequest(
     [EnumDataType(typeof(PurchaseOrderStatus))]
@@ -46,7 +46,7 @@ public sealed record UpdatePurchaseOrderStatusRequest(
 public sealed record PurchaseLineRequest(
     Guid ProductId,
     decimal UnitCost,
-    [property: Range(1, int.MaxValue)] int Quantity
+    [Range(1, int.MaxValue)] int Quantity
     );
 
 public sealed record PurchaseLineResponse(
