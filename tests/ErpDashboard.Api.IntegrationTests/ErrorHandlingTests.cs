@@ -6,7 +6,7 @@ using Xunit;
 namespace ErpDashboard.Api.IntegrationTests;
 
 [Collection(ApiCollection.Name)]
-public class ErrorHandlingTests(ApiFactory factory) : IClassFixture<ApiFactory>
+public class ErrorHandlingTests(ApiFactory factory)
 {
     private readonly HttpClient _client = factory.CreateClient();
 
