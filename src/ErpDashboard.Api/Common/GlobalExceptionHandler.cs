@@ -33,6 +33,7 @@ public class GlobalExceptionHandler(
             ForbiddenException => (403, "Forbidden"),
             UnauthorizedException => (401, "Unauthorized"),
             ConflictException => (409, "Conflict"),
+            AccountLockedException => (423, "Account is locked."),
             _ => (500, "Server error")
         };
 
@@ -68,4 +69,6 @@ public class RequestValidationException(IDictionary<string, string[]> errors)
     public RequestValidationException(string field, string error)
         : this(new Dictionary<string, string[]> { [field] = [error] }) { }
 }
+
+public sealed class AccountLockedException(string message = "Account is locked. Try again after 15 minutes.") : AppException(message);
 
