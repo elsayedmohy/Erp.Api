@@ -414,6 +414,9 @@ namespace ErpDashboard.Api.Migrations
                     b.Property<DateTime?>("RevokedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<DateTime?>("RotatedAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("Token")
                         .IsRequired()
                         .HasColumnType("text");

@@ -10,5 +10,8 @@ public class RefreshToken
     public bool  IsExpired  => DateTime.UtcNow >= ExpiresAt;
     public DateTime CreatedAt { get; set; }
     public DateTime? RevokedAt { get; set; }
+    
+    public DateTime? RotatedAt { get; set; }
+    
     public bool IsActive => RevokedAt == null &&  !IsExpired;
 }

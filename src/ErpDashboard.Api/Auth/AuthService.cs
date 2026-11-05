@@ -1,13 +1,18 @@
+using ILogger = Serilog.ILogger;
+
 namespace ErpDashboard.Api.Auth;
 
 public class AuthService(
     UserManager<User> userManager,
     SignInManager<User> signInManager,
     AppDbContext dbContext,
-    ITokenService tokenService
+    ITokenService tokenService,
+    ILogger<AuthService> logger
 ) : IAuthService
 {
     private const string InvalidCredentials = "Invalid email or password.";
+    private const string InvalidRefreshToken = "Invalid refresh token.";
+    private static readonly TimeSpan ReuseGracePeriod = TimeSpan.FromSeconds(10);
     public async Task RegisterAsync(RegisterRequestDto request)
     {
         var user = new User
@@ -51,39 +56,84 @@ public class AuthService(
 
         return new LoginDto(accessToken.Token, refreshToken.Token, "Bearer", accessToken.ExpiresAt);
     }
+    
+public async Task<LoginDto> RefreshTokenAsync(string token)
+{
+    var current = await dbContext.Set<RefreshToken>()
+                      .AsNoTracking()
+                      .SingleOrDefaultAsync(t => t.Token == token)
+                  ?? throw new UnauthorizedException(InvalidRefreshToken);
 
-    public async Task<LoginDto> RefreshTokenAsync(string token)
+    if (current.RotatedAt is { } rotatedAt)
     {
-        var current = await dbContext.Set<RefreshToken>()
-                          .SingleOrDefaultAsync(t => t.Token == token)
-                      ?? throw new UnauthorizedException("Invalid refresh token.");
-
-        if (current.RevokedAt is not null)
+        if (DateTime.UtcNow - rotatedAt > ReuseGracePeriod)
         {
-            await dbContext.Set<RefreshToken>()
-                .Where(t => t.FamilyId == current.FamilyId && t.RevokedAt == null)
-                .ExecuteUpdateAsync(s => s.SetProperty(t => t.RevokedAt, DateTime.UtcNow));
-            throw new UnauthorizedException("Invalid refresh token.");
+            logger.LogWarning("Refresh token reuse detected for user {UserId}", current.UserId);
+
+            var owner = await userManager.FindByIdAsync(current.UserId.ToString());
+            if (owner is not null)
+                await RevokeAllSessionsAsync(owner);
         }
 
-        if (current.IsExpired)
-            throw new UnauthorizedException("Refresh token expired.");
-
-        var user = await dbContext.Users
-            .Include(u => u.Role)
-            .SingleAsync(u => u.Id == current.UserId);
-
-        current.RevokedAt = DateTime.UtcNow;
-
-        var next = tokenService.GenerateRefreshToken();
-        next.UserId = user.Id;
-        next.FamilyId = current.FamilyId;
-        dbContext.Add(next);
-
-        await dbContext.SaveChangesAsync();
-        AccessToken accessToken = tokenService.GenerateToken(user);
-        return new LoginDto(accessToken.Token, next.Token, "Bearer", accessToken.ExpiresAt);
+        throw new UnauthorizedException(InvalidRefreshToken);
     }
+
+    if (current.RevokedAt is not null)
+        throw new UnauthorizedException(InvalidRefreshToken);
+
+    if (current.IsExpired)
+        throw new UnauthorizedException("Refresh token expired.");
+
+    var user = await dbContext.Users
+        .Include(u => u.Role)
+        .SingleAsync(u => u.Id == current.UserId);
+
+    await using var transaction = await dbContext.Database.BeginTransactionAsync();
+
+    DateTime? now = DateTime.UtcNow;
+    var claimed = await dbContext.Set<RefreshToken>()
+        .Where(t => t.Id == current.Id && t.RevokedAt == null)
+        .ExecuteUpdateAsync(s => s
+            .SetProperty(t => t.RevokedAt, now)
+            .SetProperty(t => t.RotatedAt, now));
+
+    if (claimed == 0)
+        throw new UnauthorizedException(InvalidRefreshToken);
+
+    var next = tokenService.GenerateRefreshToken();
+    next.UserId = user.Id;
+    next.FamilyId = current.FamilyId;
+    dbContext.Add(next);
+
+    await dbContext.SaveChangesAsync();
+    await transaction.CommitAsync();
+
+    AccessToken accessToken = tokenService.GenerateToken(user);
+    return new LoginDto(accessToken.Token, next.Token, "Bearer", accessToken.ExpiresAt);
+}
+
+public async Task RevokeAllSessionsAsync(ClaimsPrincipal principal)
+{
+    var user = await userManager.GetUserAsync(principal)
+               ?? throw new UnauthorizedException(InvalidCredentials);
+
+    await RevokeAllSessionsAsync(user);
+}
+
+private async Task RevokeAllSessionsAsync(User user)
+{
+    await using var transaction = await dbContext.Database.BeginTransactionAsync();
+
+    var result = await userManager.UpdateSecurityStampAsync(user);
+    if (!result.Succeeded)
+        throw result.ToValidationException();
+
+    await dbContext.Set<RefreshToken>()
+        .Where(t => t.UserId == user.Id && t.RevokedAt == null)
+        .ExecuteUpdateAsync(s => s.SetProperty(t => t.RevokedAt, DateTime.UtcNow));
+
+    await transaction.CommitAsync();
+}
 
     public async Task LogoutAsync(string token)
     {
@@ -96,25 +146,6 @@ public class AuthService(
         await dbContext.SaveChangesAsync();
     }
     
-    
-    public async Task RevokeAllSessionsAsync(ClaimsPrincipal principal)
-    {
-        var user = await userManager.GetUserAsync(principal)
-                   ?? throw new UnauthorizedException(InvalidCredentials);
-
-        await using var transaction = await dbContext.Database.BeginTransactionAsync();
-
-        var result = await userManager.UpdateSecurityStampAsync(user);
-        if (!result.Succeeded)
-            throw result.ToValidationException();
-
-        await dbContext.Set<RefreshToken>()
-            .Where(t => t.UserId == user.Id && t.RevokedAt == null)
-            .ExecuteUpdateAsync(s => s.SetProperty(t => t.RevokedAt, DateTime.UtcNow));
-
-        await transaction.CommitAsync();
-
-    }
 
     private async Task<RefreshToken> IssueRefreshTokenAsync(User user)
     {
