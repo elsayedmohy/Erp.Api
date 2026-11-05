@@ -30,8 +30,6 @@
       Jwt__Key: ${JWT_KEY:?set JWT_KEY in .env}
       Jwt__Issuer: ErpDashboard
       Jwt__Audience: ErpDashboard
-      Jwt__DurationInMinutes: "15"
-      Jwt__ExpiryDays: "7"
       Seed__AdminEmail: ${ADMIN_EMAIL:-admin@company.com}
       Seed__AdminPassword: ${ADMIN_PASSWORD:?set ADMIN_PASSWORD in .env}
       Seed__DemoData: ${SEED_DEMO_DATA:-false}
