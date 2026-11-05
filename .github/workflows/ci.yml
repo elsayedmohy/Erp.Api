@@ -20,7 +20,13 @@ jobs:
           dotnet-version: '10.0.x'
           cache: true
           cache-dependency-path: '**/packages.lock.json'
-
+          
+      - name: Block risky logging
+        run: |
+          if git grep -nE 'EnableSensitiveDataLogging|UseHttpLogging|AddHttpLogging|\{@' -- 'src/*.cs'; then
+            echo "::error::Risky logging found"
+            exit 1
+          fi
       - run: dotnet restore --locked-mode
       - run: dotnet build --no-restore -c Release
       - run: dotnet test --no-build -c Release --logger trx --results-directory TestResults

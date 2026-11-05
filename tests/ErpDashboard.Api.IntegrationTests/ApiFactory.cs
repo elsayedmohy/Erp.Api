@@ -12,6 +12,8 @@ public class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
     public const string AdminEmail = "admin@tests.local";
     public const string AdminPassword = "Test-only-Passw0rd!";
+    public const string JwtKey = "test-only-key-with-at-least-32-characters";
+    public string ConnectionString => _db.GetConnectionString();
     public TestLogSink Logs { get; } = new();
     private readonly PostgreSqlContainer _db = new PostgreSqlBuilder()
         .WithImage("postgres:17-alpine")
@@ -33,8 +35,7 @@ public class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         builder.UseEnvironment("Testing");
 
         builder.UseSetting("ConnectionStrings:DefaultConnection", _db.GetConnectionString());
-
-        builder.UseSetting("Jwt:Key", "test-only-key-with-at-least-32-characters");
+        builder.UseSetting("Jwt:Key", JwtKey);
         builder.UseSetting("Jwt:Issuer", "erp-tests");
         builder.UseSetting("Jwt:Audience", "erp-tests");
         builder.UseSetting("Jwt:DurationInMinutes", "60");
