@@ -31,4 +31,13 @@ public class AuthController(IAuthService service): ControllerBase
         await service.LogoutAsync(dto.RefreshToken);
         return NoContent();
     }
+    
+    [Authorize(Roles = RoleNames.Admin)]
+    [HttpPost("revoke-all-sessions")]
+    public async Task<IActionResult> RevokeAllSessions()
+    {
+        await service.RevokeAllSessionsAsync(User);
+
+        return NoContent();
+    }
 }

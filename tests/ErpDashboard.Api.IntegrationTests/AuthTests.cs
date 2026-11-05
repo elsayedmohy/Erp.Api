@@ -107,6 +107,14 @@ public class AuthTests(ApiFactory factory)
         Assert.True(first.IsSuccessStatusCode);
         Assert.Equal(HttpStatusCode.BadRequest, second.StatusCode);
     }
+    
+    [Fact]
+    public async Task AccessToken_WithoutSecurityStamp_IsRejected()
+    {
+        var token = await CreateAccessTokenAsync(DateTime.UtcNow.AddMinutes(1), includeSecurityStamp: false);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, await GetProfileStatusAsync(token));
+    }
 
     private static void AssertAccessTokenExpiry(AuthTokens tokens)
     {
@@ -149,20 +157,24 @@ public class AuthTests(ApiFactory factory)
             root.GetProperty("expiresAt").GetDateTime().ToUniversalTime());
     }
 
-    private async Task<string> CreateAccessTokenAsync(DateTime expires)
+    private async Task<string> CreateAccessTokenAsync(DateTime expires, bool includeSecurityStamp = true)
     {
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var adminId = await db.Users
+        var admin = await db.Users
             .Where(u => u.Email == ApiFactory.AdminEmail)
-            .Select(u => u.Id)
+            .Select(u => new { u.Id, u.SecurityStamp })
             .SingleAsync();
+
+        List<Claim> claims = [new(ClaimTypes.NameIdentifier, admin.Id.ToString())];
+        if (includeSecurityStamp)
+            claims.Add(new Claim("security_stamp", admin.SecurityStamp!));
 
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(ApiFactory.JwtKey));
         var token = new JwtSecurityToken(
             issuer: "erp-tests",
             audience: "erp-tests",
-            claims: [new Claim(ClaimTypes.NameIdentifier, adminId.ToString())],
+            claims: claims,
             notBefore: DateTime.UtcNow.AddMinutes(-5),
             expires: expires,
             signingCredentials: new SigningCredentials(key, SecurityAlgorithms.HmacSha256));
