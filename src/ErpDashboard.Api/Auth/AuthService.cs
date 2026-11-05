@@ -46,7 +46,6 @@ public class AuthService(
         {
             throw new  UnauthorizedException(InvalidCredentials);
         }
-        await userManager.UpdateSecurityStampAsync(user);
         AccessToken accessToken = tokenService.GenerateToken(user);
         var refreshToken = await IssueRefreshTokenAsync(user);
 
@@ -98,17 +97,22 @@ public class AuthService(
     }
     
     
-    public async Task RevokeAllSessionsAsync(ClaimsPrincipal u)
+    public async Task RevokeAllSessionsAsync(ClaimsPrincipal principal)
     {
-        var user = await userManager.GetUserAsync(u);
+        var user = await userManager.GetUserAsync(principal)
+                   ?? throw new UnauthorizedException(InvalidCredentials);
 
-        if (user is null)
-            throw new UnauthorizedException(InvalidCredentials);
+        await using var transaction = await dbContext.Database.BeginTransactionAsync();
 
         var result = await userManager.UpdateSecurityStampAsync(user);
-
         if (!result.Succeeded)
             throw result.ToValidationException();
+
+        await dbContext.Set<RefreshToken>()
+            .Where(t => t.UserId == user.Id && t.RevokedAt == null)
+            .ExecuteUpdateAsync(s => s.SetProperty(t => t.RevokedAt, DateTime.UtcNow));
+
+        await transaction.CommitAsync();
 
     }
 
