@@ -7,6 +7,7 @@ public class AuthService(
     ITokenService tokenService
 ) : IAuthService
 {
+    private const string InvalidCredentials = "Invalid email or password.";
     public async Task RegisterAsync(RegisterRequestDto request)
     {
         var user = new User
@@ -30,7 +31,7 @@ public class AuthService(
         var user = await dbContext.Users.Include(u => u.Role)
             .SingleOrDefaultAsync(u => u.NormalizedEmail == normalizedEmail);
         if (user == null)
-            throw new UnauthorizedException("Invalid email or password");
+            throw new UnauthorizedException(InvalidCredentials);
         
         var result = await signInManager.CheckPasswordSignInAsync(
             user,
@@ -39,11 +40,11 @@ public class AuthService(
         );
          if (result.IsLockedOut)
         {
-            throw new AccountLockedException("Account is locked. Try again after 5 minutes.");
+            throw new AccountLockedException();
         }
         if (!result.Succeeded)
         {
-            throw new  UnauthorizedException("Invalid email or password.");
+            throw new  UnauthorizedException(InvalidCredentials);
         }
 
         AccessToken accessToken = tokenService.GenerateToken(user);

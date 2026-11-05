@@ -25,7 +25,7 @@ public static class DependencyInjection
         builder.Services.AddIdentityCore<User>(options =>
             {
                 options.Lockout.MaxFailedAccessAttempts = 5;
-                options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(5);
+                options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
                 options.Lockout.AllowedForNewUsers = true;
                 options.User.RequireUniqueEmail = true;
             })
