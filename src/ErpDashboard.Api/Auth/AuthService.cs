@@ -25,7 +25,7 @@ public class AuthService(
 
     public async Task<LoginDto> LoginAsync(LoginRequestDto request)
     {
-        var normalizedEmail = request.Email.Trim().ToUpperInvariant();
+        var normalizedEmail = userManager.NormalizeEmail(request.Email);
         var user = await dbContext.Users.Include(u => u.Role).SingleOrDefaultAsync(u =>  u.NormalizedEmail == normalizedEmail);
         if (user == null)
             throw new UnauthorizedException("Invalid email or password");
