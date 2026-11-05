@@ -25,7 +25,8 @@ public class AuthService(
 
     public async Task<LoginDto> LoginAsync(LoginRequestDto request)
     {
-        var user = await dbContext.Users.Include(u => u.Role).SingleOrDefaultAsync(u =>  u.Email == request.Email);
+        var normalizedEmail = userManager.NormalizeEmail(request.Email);
+        var user = await dbContext.Users.Include(u => u.Role).SingleOrDefaultAsync(u =>  u.NormalizedEmail == normalizedEmail);
         if (user == null)
             throw new UnauthorizedException("Invalid email or password");
 
@@ -36,10 +37,10 @@ public class AuthService(
         
         
 
-        var token = tokenService.GenerateToken(user);
+        AccessToken accessToken = tokenService.GenerateToken(user);
         var refreshToken = await IssueRefreshTokenAsync(user);
 
-        return new LoginDto(token, refreshToken.Token, "Bearer", refreshToken.ExpiresAt);
+        return new LoginDto(accessToken.Token, refreshToken.Token, "Bearer", accessToken.ExpiresAt);
     }
 
     public async Task<LoginDto> RefreshTokenAsync(string token)
@@ -71,8 +72,8 @@ public class AuthService(
         dbContext.Add(next);
 
         await dbContext.SaveChangesAsync();
-
-        return new LoginDto(tokenService.GenerateToken(user), next.Token, "Bearer", next.ExpiresAt);
+        AccessToken accessToken = tokenService.GenerateToken(user);
+        return new LoginDto(accessToken.Token, next.Token, "Bearer", accessToken.ExpiresAt);
     }
 
     public async Task LogoutAsync(string token)

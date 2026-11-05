@@ -38,8 +38,6 @@ public class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         builder.UseSetting("Jwt:Key", JwtKey);
         builder.UseSetting("Jwt:Issuer", "erp-tests");
         builder.UseSetting("Jwt:Audience", "erp-tests");
-        builder.UseSetting("Jwt:DurationInMinutes", "60");
-        builder.UseSetting("Jwt:ExpiryDays", "7");
         builder.UseSetting("Seed:AdminEmail", AdminEmail);
         builder.UseSetting("Seed:AdminPassword", AdminPassword);
         builder.UseSetting("Cors:AllowedOrigins:0", "http://localhost:4200");

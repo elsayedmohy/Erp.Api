@@ -5,7 +5,7 @@ public class TokenService(IOptions<JwtSettings> settings) : ITokenService
 {
     private readonly JwtSettings _settings = settings.Value;
 
-    public string GenerateToken(User user)
+    public AccessToken GenerateToken(User user)
     {
         List<Claim> claims =
         [
@@ -24,7 +24,8 @@ public class TokenService(IOptions<JwtSettings> settings) : ITokenService
             expires: DateTime.UtcNow.AddMinutes(_settings.DurationInMinutes),
             signingCredentials: creds);
 
-        return new JwtSecurityTokenHandler().WriteToken(token);
+        var next = new JwtSecurityTokenHandler().WriteToken(token);
+        return new AccessToken(next,token.ValidTo) ;
     }
     
     public RefreshToken GenerateRefreshToken()

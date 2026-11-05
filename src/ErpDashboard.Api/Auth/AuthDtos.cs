@@ -9,7 +9,7 @@ public record
     string Email,
     string Password);
 
-public record TokensResponseDto(string accessToken,string RefreshToken);
+public record AccessToken(string Token , DateTime ExpiresAt);
 public record RefreshTokenRequestDto(string RefreshToken);
 
 public record LoginDto(
