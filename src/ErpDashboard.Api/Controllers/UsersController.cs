@@ -4,7 +4,10 @@ namespace ErpDashboard.Api.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Authorize(Roles = RoleNames.Admin)]
-public class UsersController(IUserService service) : ControllerBase
+public class UsersController(
+    IUserService service,
+    IAuthService authService,
+    ILogger<UsersController> logger) : ControllerBase
 {
     [HttpGet]
     public Task<PagedResult<UserResponse>> List([FromQuery] UserQuery query, CancellationToken ct)
@@ -29,4 +32,17 @@ public class UsersController(IUserService service) : ControllerBase
     [HttpDelete("{id}")]
     public Task Delete(Guid id, CancellationToken ct)
         => service.DeleteUserAsync(id, ct);
+    
+    [HttpPost("{id:guid}/logout-all")]
+    public async Task<IActionResult> LogoutAll(Guid id)
+    {
+        await authService.RevokeAllSessionsAsync(id);
+
+        logger.LogInformation(
+            "Admin {AdminId} logged out user {TargetUserId} from all devices",
+            User.GetUserId(),
+            id);
+
+        return NoContent();
+    }
 }
