@@ -96,6 +96,21 @@ public class AuthService(
         current.RevokedAt = DateTime.UtcNow;
         await dbContext.SaveChangesAsync();
     }
+    
+    
+    public async Task RevokeAllSessionsAsync(ClaimsPrincipal u)
+    {
+        var user = await userManager.GetUserAsync(u);
+
+        if (user is null)
+            throw new UnauthorizedException(InvalidCredentials);
+
+        var result = await userManager.UpdateSecurityStampAsync(user);
+
+        if (!result.Succeeded)
+            throw result.ToValidationException();
+
+    }
 
     private async Task<RefreshToken> IssueRefreshTokenAsync(User user)
     {
