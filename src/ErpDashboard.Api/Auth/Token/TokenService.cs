@@ -9,9 +9,10 @@ public class TokenService(IOptions<JwtSettings> settings) : ITokenService
     {
         List<Claim> claims =
         [
-            new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
-            new Claim(ClaimTypes.Role, user.Role.Name),
-            new Claim(ClaimTypes.Email, user.Email!)
+            new (ClaimTypes.NameIdentifier, user.Id.ToString()),
+            new (ClaimTypes.Role, user.Role.Name),
+            new (ClaimTypes.Email, user.Email!),
+            new ("security_stamp", user.SecurityStamp!)
         ];
 
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_settings.Key));
