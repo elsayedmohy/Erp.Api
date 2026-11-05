@@ -2,6 +2,6 @@ namespace ErpDashboard.Api.Auth.Token;
 
 public interface ITokenService
 {
-    string GenerateToken(User user);
+    AccessToken GenerateToken(User user);
     RefreshToken GenerateRefreshToken();
 }
