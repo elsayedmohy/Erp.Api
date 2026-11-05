@@ -53,6 +53,46 @@ public static class DependencyInjection
                         Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]!)),
                     ClockSkew = TimeSpan.Zero
                 };
+                options.Events = new JwtBearerEvents
+                {
+                    OnTokenValidated = async context =>
+                    {
+                        var userManager = context.HttpContext.RequestServices
+                            .GetRequiredService<UserManager<User>>();
+
+                        var userId = context.Principal?
+                            .FindFirstValue(ClaimTypes.NameIdentifier);
+
+                        var tokenStamp = context.Principal?
+                            .FindFirstValue("security_stamp");
+
+                        if (string.IsNullOrWhiteSpace(userId) ||
+                            string.IsNullOrWhiteSpace(tokenStamp))
+                        {
+                            context.Fail("Invalid or missing security stamp.");
+                            return;
+                        }
+
+                        var user = await userManager.FindByIdAsync(userId);
+
+                        if (user is null)
+                        {
+                            context.Fail("User is unavailable.");
+                            return;
+                        }
+
+                        var currentStamp =
+                            await userManager.GetSecurityStampAsync(user);
+
+                        if (!string.Equals(
+                                tokenStamp,
+                                currentStamp,
+                                StringComparison.Ordinal))
+                        {
+                            context.Fail("Access token has been revoked.");
+                        }
+                    }
+                };
             });
 
         builder.Services.AddAuthorization(options =>

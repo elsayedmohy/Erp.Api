@@ -46,7 +46,7 @@ public class AuthService(
         {
             throw new  UnauthorizedException(InvalidCredentials);
         }
-
+        await userManager.UpdateSecurityStampAsync(user);
         AccessToken accessToken = tokenService.GenerateToken(user);
         var refreshToken = await IssueRefreshTokenAsync(user);
 
