@@ -2,7 +2,8 @@ namespace ErpDashboard.Api.Auth;
 
 public class AuthService(
     UserManager<User> userManager,
-   AppDbContext dbContext,
+    SignInManager<User> signInManager,
+    AppDbContext dbContext,
     ITokenService tokenService
 ) : IAuthService
 {
@@ -26,16 +27,24 @@ public class AuthService(
     public async Task<LoginDto> LoginAsync(LoginRequestDto request)
     {
         var normalizedEmail = userManager.NormalizeEmail(request.Email);
-        var user = await dbContext.Users.Include(u => u.Role).SingleOrDefaultAsync(u =>  u.NormalizedEmail == normalizedEmail);
+        var user = await dbContext.Users.Include(u => u.Role)
+            .SingleOrDefaultAsync(u => u.NormalizedEmail == normalizedEmail);
         if (user == null)
             throw new UnauthorizedException("Invalid email or password");
-
-        var result = await userManager.CheckPasswordAsync(user, request.Password);
-        if (!result)
-            throw new UnauthorizedException("Invalid email or password");
         
-        
-        
+        var result = await signInManager.CheckPasswordSignInAsync(
+            user,
+            request.Password,
+            lockoutOnFailure: true
+        );
+         if (result.IsLockedOut)
+        {
+            throw new AccountLockedException("Account is locked. Try again after 5 minutes.");
+        }
+        if (!result.Succeeded)
+        {
+            throw new  UnauthorizedException("Invalid email or password.");
+        }
 
         AccessToken accessToken = tokenService.GenerateToken(user);
         var refreshToken = await IssueRefreshTokenAsync(user);
@@ -61,14 +70,14 @@ public class AuthService(
             throw new UnauthorizedException("Refresh token expired.");
 
         var user = await dbContext.Users
-            .Include(u => u.Role)              
+            .Include(u => u.Role)
             .SingleAsync(u => u.Id == current.UserId);
 
         current.RevokedAt = DateTime.UtcNow;
 
         var next = tokenService.GenerateRefreshToken();
         next.UserId = user.Id;
-        next.FamilyId = current.FamilyId;             
+        next.FamilyId = current.FamilyId;
         dbContext.Add(next);
 
         await dbContext.SaveChangesAsync();
@@ -86,16 +95,14 @@ public class AuthService(
         current.RevokedAt = DateTime.UtcNow;
         await dbContext.SaveChangesAsync();
     }
-    
+
     private async Task<RefreshToken> IssueRefreshTokenAsync(User user)
     {
         var token = tokenService.GenerateRefreshToken();
         token.UserId = user.Id;
-        token.FamilyId = Guid.NewGuid();        
+        token.FamilyId = Guid.NewGuid();
         dbContext.Add(token);
         await dbContext.SaveChangesAsync();
         return token;
     }
-
-    
 }

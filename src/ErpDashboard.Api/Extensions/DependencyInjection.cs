@@ -22,8 +22,15 @@ public static class DependencyInjection
 
     public static WebApplicationBuilder AddAuthentication(this WebApplicationBuilder builder)
     {
-        builder.Services.AddIdentityCore<User>()
+        builder.Services.AddIdentityCore<User>(options =>
+            {
+                options.Lockout.MaxFailedAccessAttempts = 5;
+                options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(5);
+                options.Lockout.AllowedForNewUsers = true;
+                options.User.RequireUniqueEmail = true;
+            })
             .AddEntityFrameworkStores<AppDbContext>()
+            .AddSignInManager()
             .AddDefaultTokenProviders();
 
         builder.Services.AddAuthentication(options =>
