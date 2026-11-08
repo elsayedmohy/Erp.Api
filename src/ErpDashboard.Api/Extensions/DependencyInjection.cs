@@ -194,6 +194,7 @@ public static class DependencyInjection
         builder.Services.AddScoped<IPurchaseOrderService, PurchaseOrderService>();
         builder.Services.AddScoped<IInvoiceService, InvoiceService>();
         builder.Services.AddScoped<IProfileService, ProfileService>();
+        builder.Services.AddScoped<IAuthorizationHandler, PermissionHandler>();
 
         return builder;
     }
