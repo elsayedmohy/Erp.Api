@@ -7,4 +7,5 @@ public interface IAuthService
     Task<LoginDto> RefreshTokenAsync(string token);
     Task LogoutAsync(string token);
     Task RevokeAllSessionsAsync(ClaimsPrincipal user);
+    Task RevokeAllSessionsAsync(Guid userId);
 }

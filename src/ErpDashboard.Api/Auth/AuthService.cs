@@ -120,6 +120,14 @@ public async Task RevokeAllSessionsAsync(ClaimsPrincipal principal)
     await RevokeAllSessionsAsync(user);
 }
 
+public async Task RevokeAllSessionsAsync(Guid userId)
+{
+    var user = await userManager.FindByIdAsync(userId.ToString())
+               ?? throw new NotFoundException("User", userId);
+
+    await RevokeAllSessionsAsync(user);
+}
+
 private async Task RevokeAllSessionsAsync(User user)
 {
     await using var transaction = await dbContext.Database.BeginTransactionAsync();
