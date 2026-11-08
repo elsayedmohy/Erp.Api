@@ -50,7 +50,7 @@ public static class DbSeeder
 
             role.Name = def.Name;
             role.IsSystem = true;
-            if (!role.Permissions.SequenceEqual(def.Permissions))
+            if (def.Id == RoleIds.Admin && !role.Permissions.SequenceEqual(def.Permissions))
                 role.Permissions = [.. def.Permissions];
         }
 

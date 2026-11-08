@@ -17,13 +17,13 @@ public class RolesController(IRoleService service) : ControllerBase
     [HttpPost, HasPermission(PermissionCodes.Roles.Write)]
     public async Task<ActionResult<RoleResponse>> Create([FromBody] CreateRoleRequest request, CancellationToken ct)
     {
-        var result = await service.CreateAsync(request, ct);
+        var result = await service.CreateAsync(request, User.GetUserId(),ct);
         return StatusCode(StatusCodes.Status201Created, result);
     }
 
     [HttpPut("{id:guid}"), HasPermission(PermissionCodes.Roles.Write)]
     public async Task<ActionResult<RoleResponse>> Update(Guid id, [FromBody] UpdateRoleRequest request, CancellationToken ct)
-        => Ok(await service.UpdateAsync(request, id, ct));
+        => Ok(await service.UpdateAsync(request, id, User.GetUserId(),ct));
 
     [HttpDelete("{id:guid}"), HasPermission(PermissionCodes.Roles.Write)]
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct)

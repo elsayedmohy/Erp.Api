@@ -57,40 +57,31 @@ public static class DependencyInjection
                 {
                     OnTokenValidated = async context =>
                     {
-                        var userManager = context.HttpContext.RequestServices
-                            .GetRequiredService<UserManager<User>>();
+                        var principal = context.Principal;
+                        var tokenStamp = principal?.FindFirstValue("security_stamp");
 
-                        var userId = context.Principal?
-                            .FindFirstValue(ClaimTypes.NameIdentifier);
-
-                        var tokenStamp = context.Principal?
-                            .FindFirstValue("security_stamp");
-
-                        if (string.IsNullOrWhiteSpace(userId) ||
-                            string.IsNullOrWhiteSpace(tokenStamp))
+                        if (!Guid.TryParse(principal?.FindFirstValue(ClaimTypes.NameIdentifier), out var userId)
+                            || string.IsNullOrWhiteSpace(tokenStamp))
                         {
                             context.Fail("Invalid or missing security stamp.");
                             return;
                         }
 
-                        var user = await userManager.FindByIdAsync(userId);
+                        var db = context.HttpContext.RequestServices.GetRequiredService<AppDbContext>();
+                        var user = await db.Users
+                            .AsNoTracking()
+                            .Where(u => u.Id == userId)
+                            .Select(u => new { u.SecurityStamp, u.Role.Permissions })
+                            .SingleOrDefaultAsync(context.HttpContext.RequestAborted);
 
-                        if (user is null)
+                        if (user is null || !string.Equals(tokenStamp, user.SecurityStamp, StringComparison.Ordinal))
                         {
-                            context.Fail("User is unavailable.");
+                            context.Fail("Access token has been revoked.");
                             return;
                         }
 
-                        var currentStamp =
-                            await userManager.GetSecurityStampAsync(user);
-
-                        if (!string.Equals(
-                                tokenStamp,
-                                currentStamp,
-                                StringComparison.Ordinal))
-                        {
-                            context.Fail("Access token has been revoked.");
-                        }
+                        context.HttpContext.Items[PermissionHandler.ItemsKey] =
+                            new HashSet<string>(user.Permissions, StringComparer.Ordinal);
                     }
                 };
             });
