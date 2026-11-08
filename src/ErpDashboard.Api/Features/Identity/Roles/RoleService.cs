@@ -31,10 +31,11 @@ public class RoleService(AppDbContext dbContext) : IRoleService
     }
 
 
-    public async Task<RoleResponse> CreateAsync(CreateRoleRequest request, CancellationToken ct)
+    public async Task<RoleResponse> CreateAsync(CreateRoleRequest request, Guid callerId,CancellationToken ct)
     {
+        
         Role role = request.ToEntity();
-
+        await EnsureCallerHoldsAsync(callerId, request.Permissions.Except(role.Permissions), ct);
         var unknownPermissions = role.Permissions.Where(p => !PermissionCodes.IsValid(p)).ToList();
         if (unknownPermissions.Count > 0)
             throw new RequestValidationException("permissions", $"Unknown permissions: {string.Join(", ", unknownPermissions)}");
@@ -48,7 +49,7 @@ public class RoleService(AppDbContext dbContext) : IRoleService
     }
 
 
-    public async Task<RoleResponse> UpdateAsync(UpdateRoleRequest request, Guid roleId, CancellationToken ct)
+    public async Task<RoleResponse> UpdateAsync(UpdateRoleRequest request, Guid roleId, Guid callerId,CancellationToken ct)
     {
         var role = await dbContext.Roles.SingleOrDefaultAsync(r => r.Id == roleId, cancellationToken: ct);
         if (role is null)
@@ -64,7 +65,8 @@ public class RoleService(AppDbContext dbContext) : IRoleService
 
         if (request.Permissions is null)
             throw new RequestValidationException("permissions", "Permissions are required.");
-
+        
+        await EnsureCallerHoldsAsync(callerId, request.Permissions.Except(role.Permissions), ct);
         RoleMappings.ApplyTo(request, role);
 
 
@@ -98,5 +100,17 @@ public class RoleService(AppDbContext dbContext) : IRoleService
 
         dbContext.Roles.Remove(role);
         await dbContext.SaveChangesAsync(ct);
+    }
+    
+    private async Task EnsureCallerHoldsAsync(Guid callerId, IEnumerable<string> granted, CancellationToken ct)
+    {
+        var held = await dbContext.Users
+            .Where(u => u.Id == callerId)
+            .Select(u => u.Role.Permissions)
+            .SingleAsync(ct);
+
+        var missing = granted.Except(held, StringComparer.Ordinal).ToList();
+        if (missing.Count > 0)
+            throw new ForbiddenException($"You cannot grant permissions you do not have: {string.Join(", ", missing)}");
     }
 }
