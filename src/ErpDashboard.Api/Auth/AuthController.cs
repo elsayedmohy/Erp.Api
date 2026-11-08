@@ -24,7 +24,7 @@ public class AuthController(IAuthService service): ControllerBase
       var result =   await service.RefreshTokenAsync(dto.RefreshToken);
       return  Ok(result);
     }
-    
+    [Authorize]
     [HttpPost("logout")]
     public async Task<IActionResult> Logout(RefreshTokenRequestDto dto)
     {
