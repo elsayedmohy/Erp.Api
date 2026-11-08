@@ -56,9 +56,11 @@ public class RoleService(AppDbContext dbContext) : IRoleService
             throw new NotFoundException("Role", roleId);
         }
 
-        if (role.IsSystem)
-            throw new ConflictException(
-                $"'{role.Name}' is a system role and is managed by the application.");
+        if (role.Id == RoleIds.Admin)
+            throw new ConflictException("Admin permissions are managed by the application.");
+
+        if (role.IsSystem && !string.Equals(request.Name, role.Name, StringComparison.Ordinal))
+            throw new RequestValidationException("name", "System roles cannot be renamed.");
 
         if (request.Permissions is null)
             throw new RequestValidationException("permissions", "Permissions are required.");
