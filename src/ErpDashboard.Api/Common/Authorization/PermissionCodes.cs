@@ -28,6 +28,12 @@ public static class PermissionCodes
         public const string Write       = "products.write";
         public const string AdjustStock = "products.adjust-stock";
     }
+    
+    public static class Categories
+    {
+        public const string Read        = "categories.read";
+        public const string Write       = "categories.write";
+    }
 
     public static class Suppliers
     {
@@ -61,6 +67,12 @@ public static class PermissionCodes
         public const string Read       = "employees.read";
         public const string Write      = "employees.write";
         public const string ViewSalary = "employees.view-salary";
+    }
+    
+    public static class Departments
+    {
+        public const string Read       = "departments.read";
+        public const string Write      = "departments.write";
     }
     
     public static readonly IReadOnlyList<string> All = typeof(PermissionCodes)

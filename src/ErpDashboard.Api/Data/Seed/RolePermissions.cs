@@ -9,14 +9,19 @@ public static class RolePermissions
     public static List<string> Manager => Sorted(
         Customers.Read, Customers.Write,
         Products.Read,
+        Categories.Read, 
         Suppliers.Read,
         PurchaseOrders.Read, PurchaseOrders.Write, PurchaseOrders.UpdateStatus,
         Orders.Read, Orders.Write, Orders.UpdateStatus,
         Invoices.Read,
+        Departments.Read,
         Employees.Read);
 
     public static List<string> InventoryManager => Sorted(
-        Products.Read, Products.Write, Products.AdjustStock,
+        Products.Read,
+        Categories.Read,
+        Categories.Write,
+        Products.Write, Products.AdjustStock,
         Suppliers.Read, Suppliers.Write,
         PurchaseOrders.Read, PurchaseOrders.Write, PurchaseOrders.UpdateStatus);
 
@@ -24,10 +29,13 @@ public static class RolePermissions
         Customers.Read,
         Orders.Read,
         Invoices.Read, Invoices.Write, Invoices.Pay,
-        Employees.Read, Employees.ViewSalary);
+        Departments.Read,
+        Employees.Read,
+        Employees.ViewSalary);
 
     public static List<string> User => Sorted(
-        Customers.Read, Products.Read, Orders.Read);
+        Customers.Read, Products.Read,
+        Categories.Read, Orders.Read);
 
     private static List<string> Sorted(params string[] codes) =>
         codes.Order(StringComparer.Ordinal).ToList();
