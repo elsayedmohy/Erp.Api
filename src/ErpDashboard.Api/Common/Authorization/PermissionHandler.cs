@@ -3,6 +3,7 @@ namespace ErpDashboard.Api.Common.Authorization;
 public sealed class PermissionHandler(AppDbContext dbContext)
     : AuthorizationHandler<PermissionRequirement>
 {
+    public const string ItemsKey = "erp.permissions";
     private HashSet<string>? _permissions;
 
     protected override async Task HandleRequirementAsync(
@@ -15,9 +16,12 @@ public sealed class PermissionHandler(AppDbContext dbContext)
         if (!Guid.TryParse(context.User.FindFirstValue(ClaimTypes.NameIdentifier), out var userId))
             return;
 
-        _permissions ??= await LoadPermissionsAsync(userId);
+        var permissions =
+            context.Resource is HttpContext http && http.Items[ItemsKey] is HashSet<string> loaded
+                ? loaded
+                : _permissions ??= await LoadPermissionsAsync(userId);
 
-        if (_permissions.Contains(requirement.Permission))
+        if (permissions.Contains(requirement.Permission))
             context.Succeed(requirement);
     }
 
