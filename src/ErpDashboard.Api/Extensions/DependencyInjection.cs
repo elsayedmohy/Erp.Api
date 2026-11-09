@@ -119,6 +119,7 @@ public static class DependencyInjection
                 {
                     [new OpenApiSecuritySchemeReference("Bearer", document)] = []
                 });
+            options.OperationFilter<AuthorizationOperationFilter>();
         });
 
         return builder;
