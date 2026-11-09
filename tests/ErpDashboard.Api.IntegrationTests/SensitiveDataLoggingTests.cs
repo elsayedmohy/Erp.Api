@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
+using ErpDashboard.Api.Data.Seed;
 using Serilog.Events;
 
 namespace ErpDashboard.Api.IntegrationTests;
@@ -58,17 +59,27 @@ public class SensitiveDataLoggingTests(ApiFactory factory)
     }
 
     [Fact]
-    public async Task RejectedRegistration_DoesNotLogPassword()
+    public async Task RejectedUserCreation_DoesNotLogPassword()
     {
+        var login = await SendAsync(Post("/api/auth/login", new
+        {
+            email = ApiFactory.AdminEmail,
+            password = ApiFactory.AdminPassword
+        }));
+        var (adminToken, _) = await ReadTokens(login);
         var password = $"weak{Guid.NewGuid():N}";
 
-        var response = await SendAsync(Post("/api/auth/register", new
+        var request = Post("/api/users", new
         {
             firstName = "Log",
             lastName = "Test",
             email = $"{Guid.NewGuid():N}@tests.local",
+            roleId = RoleIds.User,
             password
-        }));
+        });
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", adminToken);
+
+        var response = await SendAsync(request);
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         AssertNotLogged(password);
