@@ -53,7 +53,7 @@ public class EmployeeService(AppDbContext dbContext,
         if (employee is null)
             throw new NotFoundException("Employee", id);
 
-        return ToResponse(employee);
+        return ToResponse(employee,canViewSalary:CanViewSalary);
     }
 
     public async Task<EmployeeResponse> CreateAsync(EmployeeRequest request, CancellationToken ct)
@@ -86,7 +86,7 @@ public class EmployeeService(AppDbContext dbContext,
 
         dbContext.Employees.Add(employee);
         await dbContext.SaveChangesAsync(ct);
-        return ToResponse(employee);
+        return ToResponse(employee , canViewSalary:CanViewSalary);
     }
 
     public async Task<EmployeeResponse> UpdateAsync(Guid id, UpdateEmployeeRequest request, CancellationToken ct)
@@ -116,7 +116,7 @@ public class EmployeeService(AppDbContext dbContext,
             employee.Salary = salary;
         
         await dbContext.SaveChangesAsync(ct);
-        return ToResponse(employee);
+        return ToResponse(employee ,canViewSalary:CanViewSalary);
     }
 
     public async Task DeleteAsync(Guid id, CancellationToken ct)
@@ -130,7 +130,7 @@ public class EmployeeService(AppDbContext dbContext,
     }
 
 
-    public static EmployeeResponse ToResponse(Employee employee) => new EmployeeResponse(
+    public static EmployeeResponse ToResponse(Employee employee,bool canViewSalary) => new EmployeeResponse(
         employee.Id,
         employee.FirstName,
         employee.LastName,
@@ -139,5 +139,5 @@ public class EmployeeService(AppDbContext dbContext,
         employee.DepartmentId,
         employee.Position,
         employee.HireDate,
-        employee.Salary);
+        canViewSalary ? employee.Salary : null);
 }
