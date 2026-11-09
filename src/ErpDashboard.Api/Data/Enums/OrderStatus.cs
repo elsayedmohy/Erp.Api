@@ -6,4 +6,6 @@ public enum OrderStatus
     Confirmed,
     Shipped,
     Delivered,
+    PendingApproval,
+    Rejected
 }
