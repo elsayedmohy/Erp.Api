@@ -27,7 +27,7 @@ public class AuthController(IAuthService service): ControllerBase
         return NoContent();
     }
     
-    [Authorize(Roles = RoleNames.Admin)]
+    [Authorize]
     [HttpPost("revoke-all-sessions")]
     public async Task<IActionResult> RevokeAllSessions()
     {
