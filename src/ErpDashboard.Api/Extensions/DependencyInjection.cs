@@ -186,6 +186,8 @@ public static class DependencyInjection
         builder.Services.AddScoped<IInvoiceService, InvoiceService>();
         builder.Services.AddScoped<IProfileService, ProfileService>();
         builder.Services.AddScoped<IAuthorizationHandler, PermissionHandler>();
+        builder.Services.AddHttpContextAccessor();
+        builder.Services.AddScoped<ICurrentUserPermissions, CurrentUserPermissions>();
 
         return builder;
     }
