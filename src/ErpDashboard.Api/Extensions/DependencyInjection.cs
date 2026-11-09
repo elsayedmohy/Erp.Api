@@ -166,6 +166,7 @@ public static class DependencyInjection
         builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("Jwt"));
         builder.Services.Configure<FinanceSettings>(builder.Configuration.GetSection(FinanceSettings.SectionName));
         builder.Services.Configure<CompanySettings>(builder.Configuration.GetSection(CompanySettings.SectionName));
+        builder.Services.Configure<SalesSettings>(builder.Configuration.GetSection(SalesSettings.SectionName));
         builder.Services.AddSingleton<IInvoicePdfGenerator, InvoicePdfGenerator>();
         builder.Services.AddScoped<IAuthService, AuthService>();
         builder.Services.AddScoped<ITokenService, TokenService>();

@@ -9,10 +9,11 @@ public static class RolePermissions
     public static List<string> Manager => Sorted(
         Customers.Read, Customers.Write,
         Products.Read,
-        Categories.Read, 
+        Categories.Read,
         Suppliers.Read,
         PurchaseOrders.Read, PurchaseOrders.Write, PurchaseOrders.UpdateStatus,
         Orders.Read, Orders.Write, Orders.UpdateStatus,
+        Orders.ApproveDiscount,
         Invoices.Read,
         Departments.Read,
         Employees.Read);

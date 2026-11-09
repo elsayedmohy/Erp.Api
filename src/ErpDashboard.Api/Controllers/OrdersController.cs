@@ -16,7 +16,7 @@ public class OrdersController(IOrderService service) : ControllerBase
     [HttpPost, HasPermission(PermissionCodes.Orders.Write)]
     public async Task<ActionResult<OrderDetailsResponse>> Create([FromBody] CreateOrderRequest request, CancellationToken ct)
     {
-        var result = await service.CreateAsync(request, ct);
+        var result = await service.CreateAsync(request, User.GetUserId(),ct);
         return StatusCode(StatusCodes.Status201Created, result);
     }
 
@@ -28,6 +28,15 @@ public class OrdersController(IOrderService service) : ControllerBase
     public async Task<ActionResult<OrderResponse>> UpdateStatus(Guid id, [FromBody] UpdateOrderStatusRequest request, CancellationToken ct)
         => Ok(await service.UpdateStatusAsync(id, request, ct));
 
+    [HttpPost("{id:guid}/approve"), HasPermission(PermissionCodes.Orders.ApproveDiscount)]
+    public async Task<ActionResult<OrderResponse>> Approve(Guid id, CancellationToken ct)
+        => Ok(await service.ApproveAsync(id, User.GetUserId(), ct));
+
+    [HttpPost("{id:guid}/reject"), HasPermission(PermissionCodes.Orders.ApproveDiscount)]
+    public async Task<ActionResult<OrderResponse>> Reject(
+        Guid id, [FromBody] RejectOrderRequest request, CancellationToken ct)
+        => Ok(await service.RejectAsync(id, request, User.GetUserId(), ct));
+    
     [HttpDelete("{id:guid}"), HasPermission(PermissionCodes.Orders.Write)]
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
     {

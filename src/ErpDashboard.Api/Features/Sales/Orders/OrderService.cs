@@ -2,8 +2,11 @@ using ErpDashboard.Api.Features.Finance.Invoices;
 
 namespace ErpDashboard.Api.Features.Sales.Orders;
 
-public class OrderService(AppDbContext dbContext) : IOrderService
+public class OrderService(AppDbContext dbContext,
+    IOptions<SalesSettings> salesOptions) : IOrderService
 {
+
+    
     private static readonly SortMap<Order> Sorts = new SortMap<Order>()
         .Add("orderDate", o => o.OrderDate)
         .Add("totalAmount", o => o.TotalAmount)
@@ -64,8 +67,10 @@ public class OrderService(AppDbContext dbContext) : IOrderService
 
     private const int InvoiceDueDays = 30;
 
-    public async Task<OrderDetailsResponse> CreateAsync(CreateOrderRequest request, CancellationToken ct)
+    public async Task<OrderDetailsResponse> CreateAsync(CreateOrderRequest request, Guid createdById,CancellationToken ct)
     {
+        var threshold = salesOptions.Value.DiscountApprovalThresholdPercent;
+        var requiresApproval = false;
         var duplicates = request.Lines
             .GroupBy(l => l.ProductId)
             .Where(g => g.Count() > 1)
@@ -75,8 +80,8 @@ public class OrderService(AppDbContext dbContext) : IOrderService
             throw new RequestValidationException("lines",
                 $"Each product can appear only once. Duplicated: {string.Join(", ", duplicates)}");
 
-        if (!await dbContext.Customers.AnyAsync(c => c.Id == request.CustomerId, ct))
-            throw new RequestValidationException("customerId", $"Customer '{request.CustomerId}' does not exist.");
+        var customer = await dbContext.Customers.FirstOrDefaultAsync(c => c.Id == request.CustomerId, ct)
+                       ?? throw new RequestValidationException("customerId", $"Customer '{request.CustomerId}' does not exist.");
 
         var ids = request.Lines.Select(l => l.ProductId).ToList();
         var products = await dbContext.Products
@@ -98,7 +103,10 @@ public class OrderService(AppDbContext dbContext) : IOrderService
         {
             var product = products[line.ProductId];
             var gross = line.Quantity * product.UnitPrice;
-
+            
+            if (line.Discount * 100 > gross * threshold)
+                requiresApproval = true;
+            
             if (line.Discount > gross)
                 throw new RequestValidationException("lines",
                     $"Discount for '{product.Name}' ({line.Discount}) exceeds the line value ({gross}).");
@@ -134,9 +142,11 @@ public class OrderService(AppDbContext dbContext) : IOrderService
 
         var order = new Order
         {
-            CustomerId = request.CustomerId,
+            CustomerId = customer.Id,
+            Customer = customer,
             OrderDate = orderDate,
-            Status = OrderStatus.Pending,
+            Status = requiresApproval ? OrderStatus.PendingApproval : OrderStatus.Pending,
+            CreatedById = createdById,
             PaymentMethod = request.PaymentMethod,
             ShippingAddress = request.ShippingAddress.Trim(),
             TotalAmount = total,
@@ -189,6 +199,47 @@ public class OrderService(AppDbContext dbContext) : IOrderService
         await dbContext.SaveChangesAsync(ct);
         return ToResponse(order);
     }
+    
+    public async Task<OrderResponse> ApproveAsync(Guid id, Guid reviewerId, CancellationToken ct)
+{
+    var order = await GetForReviewAsync(id, reviewerId, ct);
+
+    await ClaimReviewAsync(id, OrderStatus.Pending, reviewerId, null, ct);
+
+    order.Status = OrderStatus.Pending;
+    return ToResponse(order);
+}
+
+public async Task<OrderResponse> RejectAsync(
+    Guid id, RejectOrderRequest request,
+    Guid reviewerId, CancellationToken ct)
+{
+    var order = await GetForReviewAsync(id, reviewerId, ct);
+
+    await using var transaction = await dbContext.Database.BeginTransactionAsync(ct);
+
+    await ClaimReviewAsync(id, OrderStatus.Rejected, reviewerId, request.Reason.Trim(), ct);
+
+    var ids = order.OrderLines.Select(l => l.ProductId).ToList();
+    var products = await dbContext.Products
+        .IgnoreQueryFilters()
+        .Where(p => ids.Contains(p.Id))
+        .ToDictionaryAsync(p => p.Id, ct);
+
+    foreach (var line in order.OrderLines)
+        products[line.ProductId].StockQuantity += line.Quantity;
+
+    if (order.Invoice is { Status: InvoiceStatus.Draft } invoice)
+        invoice.Status = InvoiceStatus.Cancelled;
+
+    await dbContext.SaveChangesAsync(ct);
+    await transaction.CommitAsync(ct);
+
+    order.Status = OrderStatus.Rejected;
+    return ToResponse(order);
+}
+
+
 
     public async Task DeleteAsync(Guid id, CancellationToken ct)
     {
@@ -218,6 +269,42 @@ public class OrderService(AppDbContext dbContext) : IOrderService
         dbContext.Orders.Remove(order);
 
         await dbContext.SaveChangesAsync(ct);
+    }
+    
+    private async Task<Order> GetForReviewAsync(Guid id, Guid reviewerId, CancellationToken ct)
+    {
+        var order = await dbContext.Orders
+                        .Include(o => o.Customer)
+                        .Include(o => o.OrderLines)
+                        .Include(o => o.Invoice)
+                        .FirstOrDefaultAsync(o => o.Id == id, ct)
+                    ?? throw new NotFoundException("Order", id);
+
+        if (order.Status != OrderStatus.PendingApproval)
+            throw new ConflictException("Only orders pending approval can be reviewed.");
+
+        if (order.CreatedById == reviewerId)
+            throw new ForbiddenException("You cannot review an order you created.");
+
+        return order;
+    }
+
+    private async Task ClaimReviewAsync(
+        Guid id, OrderStatus next, Guid reviewerId, string? reason, CancellationToken ct)
+    {
+        Guid? reviewer = reviewerId;
+        DateTime? reviewedAt = DateTime.UtcNow;
+
+        var claimed = await dbContext.Orders
+            .Where(o => o.Id == id && o.Status == OrderStatus.PendingApproval)
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(o => o.Status, next)
+                .SetProperty(o => o.ReviewedById, reviewer)
+                .SetProperty(o => o.ReviewedAt, reviewedAt)
+                .SetProperty(o => o.RejectionReason, reason), ct);
+
+        if (claimed == 0)
+            throw new ConflictException("The order was already reviewed.");
     }
 
     private static OrderDetailsResponse ToDetailedResponse(Order o) =>

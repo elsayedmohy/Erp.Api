@@ -12,4 +12,8 @@ public class Order
     public Invoice? Invoice { get; set; }
     public Customer? Customer { get; set; }
     public ICollection<OrderLine> OrderLines { get; set; } =  new List<OrderLine>();
+    public Guid? CreatedById { get; set; }
+    public Guid? ReviewedById { get; set; }
+    public DateTime? ReviewedAt { get; set; }
+    public string? RejectionReason { get; set; }
 }
