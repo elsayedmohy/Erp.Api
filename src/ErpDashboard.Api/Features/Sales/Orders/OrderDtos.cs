@@ -64,3 +64,5 @@ public sealed record OrderLineResponse(
     decimal UnitPrice,
     decimal Discount
     );
+
+public sealed record RejectOrderRequest([Required, MaxLength(500)] string Reason);

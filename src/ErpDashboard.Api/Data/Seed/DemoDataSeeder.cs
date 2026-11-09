@@ -16,7 +16,12 @@ public static class DemoDataSeeder
             logger.LogInformation("Demo data already present, skipping.");
             return;
         }
-
+        var adminId = await db.Users
+            .Where(u => u.RoleId == RoleIds.Admin)
+            .OrderBy(u => u.Email)
+            .Select(u => u.Id)
+            .FirstAsync(ct);
+        
         await using var tx = await db.Database.BeginTransactionAsync(ct);
 
         Randomizer.Seed = new Random(42);
@@ -117,7 +122,6 @@ public static class DemoDataSeeder
                 .ToList();
 
             var customer = f.PickRandom(customers);
-
             OrderDetailsResponse order;
             try
             {
@@ -126,7 +130,7 @@ public static class DemoDataSeeder
                     f.PickRandom<PaymentMethod>(),
                     $"{customer.Address}, {customer.City}",
                     lines,
-                    orderDate), ct);
+                    orderDate), adminId ,ct);
                 created++;
             }
             catch (AppException ex)

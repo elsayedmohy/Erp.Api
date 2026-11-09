@@ -198,6 +198,47 @@ public class OrderService(AppDbContext dbContext,
         await dbContext.SaveChangesAsync(ct);
         return ToResponse(order);
     }
+    
+    public async Task<OrderResponse> ApproveAsync(Guid id, Guid reviewerId, CancellationToken ct)
+{
+    var order = await GetForReviewAsync(id, reviewerId, ct);
+
+    await ClaimReviewAsync(id, OrderStatus.Pending, reviewerId, null, ct);
+
+    order.Status = OrderStatus.Pending;
+    return ToResponse(order);
+}
+
+public async Task<OrderResponse> RejectAsync(
+    Guid id, RejectOrderRequest request,
+    Guid reviewerId, CancellationToken ct)
+{
+    var order = await GetForReviewAsync(id, reviewerId, ct);
+
+    await using var transaction = await dbContext.Database.BeginTransactionAsync(ct);
+
+    await ClaimReviewAsync(id, OrderStatus.Rejected, reviewerId, request.Reason.Trim(), ct);
+
+    var ids = order.OrderLines.Select(l => l.ProductId).ToList();
+    var products = await dbContext.Products
+        .IgnoreQueryFilters()
+        .Where(p => ids.Contains(p.Id))
+        .ToDictionaryAsync(p => p.Id, ct);
+
+    foreach (var line in order.OrderLines)
+        products[line.ProductId].StockQuantity += line.Quantity;
+
+    if (order.Invoice is { Status: InvoiceStatus.Draft } invoice)
+        invoice.Status = InvoiceStatus.Cancelled;
+
+    await dbContext.SaveChangesAsync(ct);
+    await transaction.CommitAsync(ct);
+
+    order.Status = OrderStatus.Rejected;
+    return ToResponse(order);
+}
+
+
 
     public async Task DeleteAsync(Guid id, CancellationToken ct)
     {
@@ -227,6 +268,42 @@ public class OrderService(AppDbContext dbContext,
         dbContext.Orders.Remove(order);
 
         await dbContext.SaveChangesAsync(ct);
+    }
+    
+    private async Task<Order> GetForReviewAsync(Guid id, Guid reviewerId, CancellationToken ct)
+    {
+        var order = await dbContext.Orders
+                        .Include(o => o.Customer)
+                        .Include(o => o.OrderLines)
+                        .Include(o => o.Invoice)
+                        .FirstOrDefaultAsync(o => o.Id == id, ct)
+                    ?? throw new NotFoundException("Order", id);
+
+        if (order.Status != OrderStatus.PendingApproval)
+            throw new ConflictException("Only orders pending approval can be reviewed.");
+
+        if (order.CreatedById == reviewerId)
+            throw new ForbiddenException("You cannot review an order you created.");
+
+        return order;
+    }
+
+    private async Task ClaimReviewAsync(
+        Guid id, OrderStatus next, Guid reviewerId, string? reason, CancellationToken ct)
+    {
+        Guid? reviewer = reviewerId;
+        DateTime? reviewedAt = DateTime.UtcNow;
+
+        var claimed = await dbContext.Orders
+            .Where(o => o.Id == id && o.Status == OrderStatus.PendingApproval)
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(o => o.Status, next)
+                .SetProperty(o => o.ReviewedById, reviewer)
+                .SetProperty(o => o.ReviewedAt, reviewedAt)
+                .SetProperty(o => o.RejectionReason, reason), ct);
+
+        if (claimed == 0)
+            throw new ConflictException("The order was already reviewed.");
     }
 
     private static OrderDetailsResponse ToDetailedResponse(Order o) =>
