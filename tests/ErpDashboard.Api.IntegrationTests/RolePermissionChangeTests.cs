@@ -19,14 +19,15 @@ public class RolePermissionChangeTests(ApiFactory factory)
     public async Task EditingSystemRole_AppliesToExistingToken()
     {
         var admin = await LoginAsync(ApiFactory.AdminEmail, ApiFactory.AdminPassword);
-        var user = (await RegisterAndLoginAsync()).Token;
-        Assert.Equal(HttpStatusCode.Forbidden, await GetStatusAsync("/api/suppliers", user));
+        var user = await factory.CreateUserAsync();
+        var token = await LoginAsync(user.Email, user.Password);
+        Assert.Equal(HttpStatusCode.Forbidden, await GetStatusAsync("/api/suppliers", token));
 
         await WithUserRolePermissionsAsync(admin,
             [.. RolePermissions.User, PermissionCodes.Suppliers.Read],
-            async () => Assert.Equal(HttpStatusCode.OK, await GetStatusAsync("/api/suppliers", user)));
+            async () => Assert.Equal(HttpStatusCode.OK, await GetStatusAsync("/api/suppliers", token)));
 
-        Assert.Equal(HttpStatusCode.Forbidden, await GetStatusAsync("/api/suppliers", user));
+        Assert.Equal(HttpStatusCode.Forbidden, await GetStatusAsync("/api/suppliers", token));
     }
 
     [Fact]
@@ -96,7 +97,8 @@ public class RolePermissionChangeTests(ApiFactory factory)
         Assert.Equal(HttpStatusCode.Created, created.StatusCode);
         var roleId = await ReadIdAsync(created);
 
-        var (editor, _) = await RegisterAndLoginAsync();
+        var user = await factory.CreateUserAsync();
+        var editor = await LoginAsync(user.Email, user.Password);
         var editorId = await ReadIdAsync(await SendAsync(HttpMethod.Get, "/api/profile/me", editor));
         var assign = await SendAsync(HttpMethod.Put, $"/api/users/{editorId}", admin,
             new { firstName = "Role", lastName = "Editor", roleId });
@@ -142,22 +144,6 @@ public class RolePermissionChangeTests(ApiFactory factory)
         return permissions.Order(StringComparer.Ordinal).ToList();
     }
 
-    private async Task<(string Token, string Email)> RegisterAndLoginAsync()
-    {
-        var email = $"roles-{Guid.NewGuid():N}@tests.local";
-        var password = $"Aa1!{Guid.NewGuid():N}";
-
-        var register = await _client.PostAsJsonAsync("/api/auth/register", new
-        {
-            firstName = "Role",
-            lastName = "Test",
-            email,
-            password
-        });
-        Assert.True(register.IsSuccessStatusCode);
-
-        return (await LoginAsync(email, password), email);
-    }
 
     private async Task<string> LoginAsync(string email, string password)
     {

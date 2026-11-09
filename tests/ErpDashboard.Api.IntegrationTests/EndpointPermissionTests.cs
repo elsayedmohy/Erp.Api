@@ -51,7 +51,8 @@ public class EndpointPermissionTests(ApiFactory factory)
     [InlineData("/api/customers", HttpStatusCode.OK)]
     public async Task SelfRegisteredUser_GetsOnlyUserRoleReads(string url, HttpStatusCode expected)
     {
-        var token = (await RegisterAndLoginAsync()).Token;
+        var user = await factory.CreateUserAsync();
+        var token = await LoginAsync(user.Email, user.Password);
 
         Assert.Equal(expected, (await SendAsync(HttpMethod.Get, url, token)).StatusCode);
     }
@@ -59,7 +60,8 @@ public class EndpointPermissionTests(ApiFactory factory)
     [Fact]
     public async Task SelfRegisteredUser_CannotCreateProduct()
     {
-        var token = (await RegisterAndLoginAsync()).Token;
+        var user = await factory.CreateUserAsync();
+        var token = await LoginAsync(user.Email, user.Password);
 
         var response = await SendAsync(HttpMethod.Post, "/api/products", token, new { });
 
@@ -79,7 +81,8 @@ public class EndpointPermissionTests(ApiFactory factory)
     [Fact]
     public async Task RoleChange_AppliesToExistingToken()
     {
-        var (token, email) = await RegisterAndLoginAsync();
+        var user = await factory.CreateUserAsync();
+        var (token, email) = (await LoginAsync(user.Email, user.Password), user.Email);
         Assert.Equal(HttpStatusCode.Forbidden, (await SendAsync(HttpMethod.Get, "/api/employees", token)).StatusCode);
 
         using (var scope = factory.Services.CreateScope())
@@ -93,22 +96,7 @@ public class EndpointPermissionTests(ApiFactory factory)
         Assert.Equal(HttpStatusCode.OK, (await SendAsync(HttpMethod.Get, "/api/employees", token)).StatusCode);
     }
 
-    private async Task<(string Token, string Email)> RegisterAndLoginAsync()
-    {
-        var email = $"perm-{Guid.NewGuid():N}@tests.local";
-        var password = $"Aa1!{Guid.NewGuid():N}";
 
-        var register = await _client.PostAsJsonAsync("/api/auth/register", new
-        {
-            firstName = "Permission",
-            lastName = "Test",
-            email,
-            password
-        });
-        Assert.True(register.IsSuccessStatusCode);
-
-        return (await LoginAsync(email, password), email);
-    }
 
     private async Task<string> LoginAsync(string email, string password)
     {

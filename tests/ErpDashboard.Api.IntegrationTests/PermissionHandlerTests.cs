@@ -20,30 +20,37 @@ public class PermissionHandlerTests(ApiFactory factory)
             PermissionCodes.Users.Write));
 
     [Fact]
-    public async Task UserRole_HasCustomersRead() =>
-        Assert.True(await IsAuthorizedAsync(await RegisterUserAsync(),
+    public async Task UserRole_HasCustomersRead()
+    {
+        var user = await  factory.CreateUserAsync();
+        Assert.True(await IsAuthorizedAsync(user.Id,
             PermissionCodes.Customers.Read));
+    }
+
 
     [Fact]
-    public async Task UserRole_LacksUsersWrite() =>
-        Assert.False(await IsAuthorizedAsync(await RegisterUserAsync(),
+    public async Task UserRole_LacksUsersWrite()
+    {
+        var user = await  factory.CreateUserAsync();
+       Assert.False(await IsAuthorizedAsync(user.Id,
             PermissionCodes.Users.Write));
+    }
 
     [Fact]
     public async Task RoleChange_AppliesWithoutNewToken()
     {
-        var userId = await RegisterUserAsync();
-        Assert.False(await IsAuthorizedAsync(userId, PermissionCodes.Invoices.Pay));
+        var user = await factory.CreateUserAsync();
+        Assert.False(await IsAuthorizedAsync(user.Id, PermissionCodes.Invoices.Pay));
 
         using (var scope = factory.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             await db.Users
-                .Where(u => u.Id == userId)
+                .Where(u => u.Id == user.Id)
                 .ExecuteUpdateAsync(s => s.SetProperty(u => u.RoleId, RoleIds.Accountant));
         }
 
-        Assert.True(await IsAuthorizedAsync(userId, PermissionCodes.Invoices.Pay));
+        Assert.True(await IsAuthorizedAsync(user.Id, PermissionCodes.Invoices.Pay));
     }
 
     [Fact]
@@ -76,20 +83,6 @@ public class PermissionHandlerTests(ApiFactory factory)
         return context.HasSucceeded;
     }
 
-    private async Task<Guid> RegisterUserAsync()
-    {
-        var email = $"perm-{Guid.NewGuid():N}@tests.local";
-        var response = await _client.PostAsJsonAsync("/api/auth/register", new
-        {
-            firstName = "Permission",
-            lastName = "Test",
-            email,
-            password = $"Aa1!{Guid.NewGuid():N}"
-        });
-
-        Assert.True(response.IsSuccessStatusCode);
-        return await GetUserIdAsync(email);
-    }
 
     private async Task<Guid> GetUserIdAsync(string email)
     {

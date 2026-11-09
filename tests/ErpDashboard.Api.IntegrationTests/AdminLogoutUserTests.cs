@@ -21,8 +21,8 @@ public class AdminLogoutUserTests(ApiFactory factory)
     [Fact]
     public async Task NonAdmin_Returns403AndKeepsTargetSession()
     {
-        var caller = await LoginAsync(await RegisterUserAsync());
-        var target = await LoginAsync(await RegisterUserAsync());
+        var caller = await LoginAsync(await factory.CreateUserAsync());
+        var target = await LoginAsync(await factory.CreateUserAsync());
         var targetId = await GetUserIdAsync(target.AccessToken);
 
         var status = await LogoutAllStatusAsync(targetId, caller.AccessToken);
@@ -45,7 +45,7 @@ public class AdminLogoutUserTests(ApiFactory factory)
     public async Task Admin_RevokesEveryTargetDeviceImmediately()
     {
         var admin = await LoginAdminAsync();
-        var user = await RegisterUserAsync();
+        var user = await factory.CreateUserAsync();
         var deviceA = await LoginAsync(user);
         var deviceB = await LoginAsync(user);
         var targetId = await GetUserIdAsync(deviceA.AccessToken);
@@ -63,8 +63,8 @@ public class AdminLogoutUserTests(ApiFactory factory)
     public async Task TargetCanLoginAgain_AndOtherSessionsStayActive()
     {
         var admin = await LoginAdminAsync();
-        var other = await LoginAsync(await RegisterUserAsync());
-        var user = await RegisterUserAsync();
+        var other = await LoginAsync(await factory.CreateUserAsync());
+        var user = await factory.CreateUserAsync();
         var target = await LoginAsync(user);
         var targetId = await GetUserIdAsync(target.AccessToken);
 
@@ -80,7 +80,7 @@ public class AdminLogoutUserTests(ApiFactory factory)
     public async Task SuccessfulLogout_RecordsAdminAndTarget()
     {
         var admin = await LoginAdminAsync();
-        var target = await LoginAsync(await RegisterUserAsync());
+        var target = await LoginAsync(await factory.CreateUserAsync());
         var adminId = await GetUserIdAsync(admin.AccessToken);
         var targetId = await GetUserIdAsync(target.AccessToken);
 
@@ -94,24 +94,9 @@ public class AdminLogoutUserTests(ApiFactory factory)
         logEvent.Properties.TryGetValue(name, out var value)
         && value.ToString().Trim('"') == expected.ToString();
 
-    private async Task<TestUser> RegisterUserAsync()
-    {
-        var user = new TestUser($"logout-{Guid.NewGuid():N}@tests.local", $"Aa1!{Guid.NewGuid():N}");
-
-        var response = await _client.PostAsJsonAsync("/api/auth/register", new
-        {
-            firstName = "Logout",
-            lastName = "Test",
-            email = user.Email,
-            password = user.Password
-        });
-
-        Assert.True(response.IsSuccessStatusCode);
-        return user;
-    }
 
     private Task<Session> LoginAdminAsync() =>
-        LoginAsync(new TestUser(ApiFactory.AdminEmail, ApiFactory.AdminPassword));
+        LoginAsync(new TestUser(ApiFactory.AdminEmail, ApiFactory.AdminPassword,Guid.NewGuid()));
 
     private async Task<Session> LoginAsync(TestUser user)
     {
@@ -154,6 +139,5 @@ public class AdminLogoutUserTests(ApiFactory factory)
         return _client.SendAsync(request);
     }
 
-    private sealed record TestUser(string Email, string Password);
     private sealed record Session(string AccessToken, string RefreshToken);
 }

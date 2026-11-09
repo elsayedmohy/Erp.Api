@@ -18,7 +18,7 @@ public class AccountLockoutTests(ApiFactory factory)
     [Fact]
     public async Task FourFailures_DoNotLockAccount()
     {
-        var user = await RegisterUserAsync();
+        var user = await factory.CreateUserAsync();
 
         await FailLoginAsync(user.Email, times: 4);
 
@@ -28,7 +28,7 @@ public class AccountLockoutTests(ApiFactory factory)
     [Fact]
     public async Task FifthFailure_LocksAccountForFifteenMinutes()
     {
-        var user = await RegisterUserAsync();
+        var user = await factory.CreateUserAsync();
         await FailLoginAsync(user.Email, times: 4);
 
         var fifth = await LoginStatusAsync(user.Email, WrongPassword);
@@ -44,7 +44,7 @@ public class AccountLockoutTests(ApiFactory factory)
     [Fact]
     public async Task LockedAccount_RejectsCorrectPassword()
     {
-        var user = await RegisterUserAsync();
+        var user = await factory.CreateUserAsync();
         await LockAccountAsync(user.Email);
 
         Assert.Equal(HttpStatusCode.Locked, await LoginStatusAsync(user.Email, user.Password));
@@ -53,7 +53,7 @@ public class AccountLockoutTests(ApiFactory factory)
     [Fact]
     public async Task SuccessfulLogin_ResetsFailureCounter()
     {
-        var user = await RegisterUserAsync();
+        var user = await factory.CreateUserAsync();
         await FailLoginAsync(user.Email, times: 4);
 
         Assert.Equal(HttpStatusCode.OK, await LoginStatusAsync(user.Email, user.Password));
@@ -67,7 +67,7 @@ public class AccountLockoutTests(ApiFactory factory)
     [Fact]
     public async Task ExpiredLockout_AllowsLoginAndStartsNewCounter()
     {
-        var user = await RegisterUserAsync();
+        var user = await factory.CreateUserAsync();
         await LockAccountAsync(user.Email);
         await ExpireLockoutAsync(user.Email);
 
@@ -78,7 +78,7 @@ public class AccountLockoutTests(ApiFactory factory)
     [Fact]
     public async Task UnknownEmail_LooksLikeWrongPassword()
     {
-        var user = await RegisterUserAsync();
+        var user = await factory.CreateUserAsync();
 
         var wrongPassword = await LoginAsync(user.Email, WrongPassword);
         var unknownEmail = await LoginAsync($"{Guid.NewGuid():N}@tests.local", WrongPassword);
@@ -88,21 +88,6 @@ public class AccountLockoutTests(ApiFactory factory)
         Assert.Equal(await ReadDetailAsync(wrongPassword), await ReadDetailAsync(unknownEmail));
     }
 
-    private async Task<TestUser> RegisterUserAsync()
-    {
-        var user = new TestUser($"lockout-{Guid.NewGuid():N}@tests.local", $"Aa1!{Guid.NewGuid():N}");
-
-        var response = await _client.PostAsJsonAsync("/api/auth/register", new
-        {
-            firstName = "Lockout",
-            lastName = "Test",
-            email = user.Email,
-            password = user.Password
-        });
-
-        Assert.True(response.IsSuccessStatusCode);
-        return user;
-    }
 
     private Task<HttpResponseMessage> LoginAsync(string email, string password) =>
         _client.PostAsJsonAsync("/api/auth/login", new { email, password });
@@ -148,5 +133,4 @@ public class AccountLockoutTests(ApiFactory factory)
         return json.RootElement.GetProperty("detail").GetString();
     }
 
-    private sealed record TestUser(string Email, string Password);
 }
