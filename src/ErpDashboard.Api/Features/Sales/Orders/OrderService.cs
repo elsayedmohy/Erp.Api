@@ -2,8 +2,11 @@ using ErpDashboard.Api.Features.Finance.Invoices;
 
 namespace ErpDashboard.Api.Features.Sales.Orders;
 
-public class OrderService(AppDbContext dbContext) : IOrderService
+public class OrderService(AppDbContext dbContext,
+    IOptions<SalesSettings> salesOptions) : IOrderService
 {
+
+    
     private static readonly SortMap<Order> Sorts = new SortMap<Order>()
         .Add("orderDate", o => o.OrderDate)
         .Add("totalAmount", o => o.TotalAmount)
@@ -64,8 +67,10 @@ public class OrderService(AppDbContext dbContext) : IOrderService
 
     private const int InvoiceDueDays = 30;
 
-    public async Task<OrderDetailsResponse> CreateAsync(CreateOrderRequest request, CancellationToken ct)
+    public async Task<OrderDetailsResponse> CreateAsync(CreateOrderRequest request, Guid createdById,CancellationToken ct)
     {
+        var threshold = salesOptions.Value.DiscountApprovalThresholdPercent;
+        var requiresApproval = false;
         var duplicates = request.Lines
             .GroupBy(l => l.ProductId)
             .Where(g => g.Count() > 1)
@@ -98,7 +103,10 @@ public class OrderService(AppDbContext dbContext) : IOrderService
         {
             var product = products[line.ProductId];
             var gross = line.Quantity * product.UnitPrice;
-
+            
+            if (line.Discount * 100 > gross * threshold)
+                requiresApproval = true;
+            
             if (line.Discount > gross)
                 throw new RequestValidationException("lines",
                     $"Discount for '{product.Name}' ({line.Discount}) exceeds the line value ({gross}).");
@@ -136,7 +144,8 @@ public class OrderService(AppDbContext dbContext) : IOrderService
         {
             CustomerId = request.CustomerId,
             OrderDate = orderDate,
-            Status = OrderStatus.Pending,
+            Status = requiresApproval ? OrderStatus.PendingApproval : OrderStatus.Pending,
+            CreatedById = createdById,
             PaymentMethod = request.PaymentMethod,
             ShippingAddress = request.ShippingAddress.Trim(),
             TotalAmount = total,
