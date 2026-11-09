@@ -237,6 +237,9 @@ namespace ErpDashboard.Api.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("CreatedById")
+                        .HasColumnType("uuid");
+
                     b.Property<Guid>("CustomerId")
                         .HasColumnType("uuid");
 
@@ -245,6 +248,15 @@ namespace ErpDashboard.Api.Migrations
 
                     b.Property<int>("PaymentMethod")
                         .HasColumnType("integer");
+
+                    b.Property<string>("RejectionReason")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("ReviewedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("ReviewedById")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("ShippingAddress")
                         .IsRequired()
