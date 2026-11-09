@@ -80,8 +80,8 @@ public class OrderService(AppDbContext dbContext,
             throw new RequestValidationException("lines",
                 $"Each product can appear only once. Duplicated: {string.Join(", ", duplicates)}");
 
-        if (!await dbContext.Customers.AnyAsync(c => c.Id == request.CustomerId, ct))
-            throw new RequestValidationException("customerId", $"Customer '{request.CustomerId}' does not exist.");
+        var customer = await dbContext.Customers.FirstOrDefaultAsync(c => c.Id == request.CustomerId, ct)
+                       ?? throw new RequestValidationException("customerId", $"Customer '{request.CustomerId}' does not exist.");
 
         var ids = request.Lines.Select(l => l.ProductId).ToList();
         var products = await dbContext.Products
@@ -142,7 +142,8 @@ public class OrderService(AppDbContext dbContext,
 
         var order = new Order
         {
-            CustomerId = request.CustomerId,
+            CustomerId = customer.Id,
+            Customer = customer,
             OrderDate = orderDate,
             Status = requiresApproval ? OrderStatus.PendingApproval : OrderStatus.Pending,
             CreatedById = createdById,
