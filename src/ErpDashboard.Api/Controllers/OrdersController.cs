@@ -16,7 +16,7 @@ public class OrdersController(IOrderService service) : ControllerBase
     [HttpPost, HasPermission(PermissionCodes.Orders.Write)]
     public async Task<ActionResult<OrderDetailsResponse>> Create([FromBody] CreateOrderRequest request, CancellationToken ct)
     {
-        var result = await service.CreateAsync(request, ct);
+        var result = await service.CreateAsync(request, User.GetUserId(),ct);
         return StatusCode(StatusCodes.Status201Created, result);
     }
 
