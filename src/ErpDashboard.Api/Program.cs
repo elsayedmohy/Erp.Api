@@ -18,8 +18,12 @@ await DbSeeder.SeedAsync(app.Services);
 if (app.Environment.IsDevelopment() && app.Configuration.GetValue<bool>("Seed:DemoData"))
     await DemoDataSeeder.SeedAsync(app.Services);
 
-app.UseSwagger();
-app.UseSwaggerUI();
+if (!app.Environment.IsProduction())
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
+}
+
 app.UseMiddleware<CorrelationIdMiddleware>();
 app.UseSerilogRequestLogging(options =>
 {
