@@ -1,7 +1,15 @@
 namespace ErpDashboard.Api.Features.Hr.Employees;
 
-public class EmployeeService(AppDbContext dbContext) : IEmployeeService
+public class EmployeeService(AppDbContext dbContext, 
+    ICurrentUserPermissions permissions) : IEmployeeService
 {
+    private bool CanViewSalary => permissions.Has(PermissionCodes.Employees.ViewSalary);
+
+    private void EnsureCanWriteSalary(decimal? salary)
+    {
+        if (salary is not null && !CanViewSalary)
+            throw new ForbiddenException("You do not have permission to set salaries.");
+    }
     private static readonly SortMap<Employee> Sorts = new SortMap<Employee>()
         .Add("firstName", e => e.FirstName)
         .Add("lastName", e => e.LastName)
@@ -14,6 +22,7 @@ public class EmployeeService(AppDbContext dbContext) : IEmployeeService
 
     public Task<PagedResult<EmployeeResponse>> ListAsync(EmployeeQuery query, CancellationToken ct)
     {
+        var canViewSalary = CanViewSalary;
         var q = dbContext.Employees.AsNoTracking();
 
         if (query.DepartmentId is { } departmentId) q = q.Where(e => e.DepartmentId == departmentId);
@@ -34,7 +43,7 @@ public class EmployeeService(AppDbContext dbContext) : IEmployeeService
                 e.DepartmentId,
                 e.Position,
                 e.HireDate,
-                e.Salary))
+                canViewSalary ? e.Salary : null))
             .ToPagedResultAsync(query, ct);
     }
 
@@ -44,7 +53,7 @@ public class EmployeeService(AppDbContext dbContext) : IEmployeeService
         if (employee is null)
             throw new NotFoundException("Employee", id);
 
-        return ToResponse(employee);
+        return ToResponse(employee,canViewSalary:CanViewSalary);
     }
 
     public async Task<EmployeeResponse> CreateAsync(EmployeeRequest request, CancellationToken ct)
@@ -58,6 +67,11 @@ public class EmployeeService(AppDbContext dbContext) : IEmployeeService
         if (!departmentExists)
             throw new RequestValidationException("departmentId", $"Department '{request.DepartmentId}' does not exist.");
 
+        EnsureCanWriteSalary(request.Salary);
+
+        if (request.Salary is null)
+            throw new RequestValidationException("salary", "Salary is required.");
+        
         Employee? employee = new Employee
         {
             FirstName = request.FirstName,
@@ -67,12 +81,12 @@ public class EmployeeService(AppDbContext dbContext) : IEmployeeService
             DepartmentId = request.DepartmentId,
             Position = request.Position,
             HireDate = request.HireDate,
-            Salary = request.Salary
+            Salary = request.Salary.Value
         };
 
         dbContext.Employees.Add(employee);
         await dbContext.SaveChangesAsync(ct);
-        return ToResponse(employee);
+        return ToResponse(employee , canViewSalary:CanViewSalary);
     }
 
     public async Task<EmployeeResponse> UpdateAsync(Guid id, UpdateEmployeeRequest request, CancellationToken ct)
@@ -87,16 +101,22 @@ public class EmployeeService(AppDbContext dbContext) : IEmployeeService
             if (!departmentExists)
                 throw new RequestValidationException("departmentId", $"Department '{request.DepartmentId}' does not exist.");
         }
+        
+        EnsureCanWriteSalary(request.Salary);
+
+        
 
         employee.FirstName = request.FirstName;
         employee.LastName = request.LastName;
         employee.PhoneNumber = request.PhoneNumber;
         employee.DepartmentId = request.DepartmentId;
         employee.Position = request.Position;
-        employee.Salary = request.Salary;
         employee.HireDate = request.HireDate;
+        if (request.Salary is { } salary)
+            employee.Salary = salary;
+        
         await dbContext.SaveChangesAsync(ct);
-        return ToResponse(employee);
+        return ToResponse(employee ,canViewSalary:CanViewSalary);
     }
 
     public async Task DeleteAsync(Guid id, CancellationToken ct)
@@ -110,7 +130,7 @@ public class EmployeeService(AppDbContext dbContext) : IEmployeeService
     }
 
 
-    public static EmployeeResponse ToResponse(Employee employee) => new EmployeeResponse(
+    public static EmployeeResponse ToResponse(Employee employee,bool canViewSalary) => new EmployeeResponse(
         employee.Id,
         employee.FirstName,
         employee.LastName,
@@ -119,5 +139,5 @@ public class EmployeeService(AppDbContext dbContext) : IEmployeeService
         employee.DepartmentId,
         employee.Position,
         employee.HireDate,
-        employee.Salary);
+        canViewSalary ? employee.Salary : null);
 }

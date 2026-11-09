@@ -15,7 +15,7 @@ public sealed record EmployeeResponse(
     Guid DepartmentId,
     string Position,
     DateOnly HireDate,
-    decimal Salary
+    decimal? Salary
 );
 
 public sealed record EmployeeRequest(
@@ -26,7 +26,7 @@ public sealed record EmployeeRequest(
     Guid DepartmentId,
     string Position,
     DateOnly HireDate,
-    decimal Salary
+    decimal? Salary
 );
 
 public sealed record UpdateEmployeeRequest(
@@ -36,5 +36,5 @@ public sealed record UpdateEmployeeRequest(
     Guid DepartmentId,
     string Position,
     DateOnly HireDate,
-    decimal Salary
+    decimal? Salary
 );

@@ -17,7 +17,7 @@ public class RefreshTokenRotationTests(ApiFactory factory)
     [Fact]
     public async Task Reuse_AfterGracePeriod_RevokesEveryDevice()
     {
-        var user = await RegisterUserAsync();
+        var user = await factory.CreateUserAsync();
         var deviceA = await LoginAsync(user);
         var deviceB = await LoginAsync(user);
         var rotatedA = await ReadSessionAsync(await RefreshAsync(deviceA.RefreshToken));
@@ -35,8 +35,8 @@ public class RefreshTokenRotationTests(ApiFactory factory)
     [Fact]
     public async Task Reuse_DoesNotAffectOtherUsers()
     {
-        var victim = await LoginAsync(await RegisterUserAsync());
-        var other = await LoginAsync(await RegisterUserAsync());
+        var victim = await LoginAsync(await factory.CreateUserAsync());
+        var other = await LoginAsync(await factory.CreateUserAsync());
         await RefreshAsync(victim.RefreshToken);
         await AgeRotationAsync(victim.RefreshToken);
 
@@ -49,7 +49,7 @@ public class RefreshTokenRotationTests(ApiFactory factory)
     [Fact]
     public async Task ReplayInsideGracePeriod_KeepsRotatedSession()
     {
-        var session = await LoginAsync(await RegisterUserAsync());
+        var session = await LoginAsync(await factory.CreateUserAsync());
         var rotated = await ReadSessionAsync(await RefreshAsync(session.RefreshToken));
 
         var replay = await RefreshAsync(session.RefreshToken);
@@ -62,7 +62,7 @@ public class RefreshTokenRotationTests(ApiFactory factory)
     [Fact]
     public async Task ConcurrentRefresh_AllowsOnlyOneRotation()
     {
-        var session = await LoginAsync(await RegisterUserAsync());
+        var session = await LoginAsync(await factory.CreateUserAsync());
 
         var responses = await Task.WhenAll(
             Enumerable.Range(0, 5).Select(_ => RefreshAsync(session.RefreshToken)));
@@ -80,7 +80,7 @@ public class RefreshTokenRotationTests(ApiFactory factory)
     [Fact]
     public async Task ReplayAfterLogout_DoesNotRevokeOtherDevices()
     {
-        var user = await RegisterUserAsync();
+        var user = await factory.CreateUserAsync();
         var deviceA = await LoginAsync(user);
         var deviceB = await LoginAsync(user);
 
@@ -96,22 +96,7 @@ public class RefreshTokenRotationTests(ApiFactory factory)
         Assert.Equal(HttpStatusCode.Unauthorized, replay.StatusCode);
         Assert.Equal(HttpStatusCode.OK, await ProfileStatusAsync(deviceB.AccessToken));
     }
-
-    private async Task<TestUser> RegisterUserAsync()
-    {
-        var user = new TestUser($"refresh-{Guid.NewGuid():N}@tests.local", $"Aa1!{Guid.NewGuid():N}");
-
-        var response = await _client.PostAsJsonAsync("/api/auth/register", new
-        {
-            firstName = "Refresh",
-            lastName = "Test",
-            email = user.Email,
-            password = user.Password
-        });
-
-        Assert.True(response.IsSuccessStatusCode);
-        return user;
-    }
+    
 
     private async Task<Session> LoginAsync(TestUser user)
     {
@@ -157,6 +142,5 @@ public class RefreshTokenRotationTests(ApiFactory factory)
             json.RootElement.GetProperty("refreshToken").GetString()!);
     }
 
-    private sealed record TestUser(string Email, string Password);
     private sealed record Session(string AccessToken, string RefreshToken);
 }

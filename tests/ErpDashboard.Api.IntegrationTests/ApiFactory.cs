@@ -1,5 +1,8 @@
 using ErpDashboard.Api.Data;
+using ErpDashboard.Api.Data.Entities;
+using ErpDashboard.Api.Data.Seed;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
@@ -15,6 +18,7 @@ public class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
     public const string JwtKey = "test-only-key-with-at-least-32-characters";
     public string ConnectionString => _db.GetConnectionString();
     public TestLogSink Logs { get; } = new();
+
     private readonly PostgreSqlContainer _db = new PostgreSqlBuilder()
         .WithImage("postgres:17-alpine")
         .Build();
@@ -43,4 +47,28 @@ public class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         builder.UseSetting("Cors:AllowedOrigins:0", "http://localhost:4200");
         builder.UseSetting("ApiSettings:BaseUrl", "http://localhost");
     }
+
+    public async Task<TestUser> CreateUserAsync(Guid? roleId = null)
+    {
+        using var scope = Services.CreateScope();
+        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<User>>();
+
+        var email = $"user-{Guid.NewGuid():N}@tests.local";
+        var password = $"Aa1!{Guid.NewGuid():N}";
+        var user = new User
+        {
+            UserName = email,
+            Email = email,
+            FirstName = "Test",
+            LastName = "User",
+            RoleId = roleId ?? RoleIds.User
+        };
+
+        var result = await userManager.CreateAsync(user, password);
+        Assert.True(result.Succeeded, string.Join("; ", result.Errors.Select(e => e.Description)));
+
+        return new TestUser(email, password, user.Id);
+    }
 }
+
+public sealed record TestUser(string Email, string Password, Guid Id);

@@ -7,6 +7,7 @@ using System.Text;
 using System.Text.Json;
 using ErpDashboard.Api.Data;
 using ErpDashboard.Api.Data.Entities;
+using ErpDashboard.Api.Data.Seed;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
@@ -96,16 +97,37 @@ public class AuthTests(ApiFactory factory)
     }
 
     [Fact]
-    public async Task Register_RejectsEmailThatDiffersOnlyByCase()
+    public async Task CreateUser_RejectsEmailThatDiffersOnlyByCase()
     {
+        var admin = await LoginAsync(ApiFactory.AdminEmail);
         var email = $"Case-{Guid.NewGuid():N}@tests.local";
-        var password = $"Aa1!{Guid.NewGuid():N}";
 
-        var first = await RegisterAsync(email, password);
-        var second = await RegisterAsync(email.ToLowerInvariant(), password);
+        var first = await CreateUserAsync(admin.AccessToken, email);
+        var second = await CreateUserAsync(admin.AccessToken, email.ToLowerInvariant());
 
-        Assert.True(first.IsSuccessStatusCode);
+        Assert.Equal(HttpStatusCode.Created, first.StatusCode);
         Assert.Equal(HttpStatusCode.BadRequest, second.StatusCode);
+
+        using var json = JsonDocument.Parse(await second.Content.ReadAsStringAsync());
+        Assert.True(json.RootElement.GetProperty("errors").TryGetProperty("email", out _));
+    }
+
+    private Task<HttpResponseMessage> CreateUserAsync(string adminToken, string email)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Post, "/api/users")
+        {
+            Content = JsonContent.Create(new
+            {
+                firstName = "Auth",
+                lastName = "Test",
+                email,
+                roleId = RoleIds.User,
+                password = $"Aa1!{Guid.NewGuid():N}"
+            })
+        };
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", adminToken);
+
+        return _client.SendAsync(request);
     }
     
     [Fact]

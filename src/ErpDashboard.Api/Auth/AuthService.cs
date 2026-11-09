@@ -13,22 +13,7 @@ public class AuthService(
     private const string InvalidCredentials = "Invalid email or password.";
     private const string InvalidRefreshToken = "Invalid refresh token.";
     private static readonly TimeSpan ReuseGracePeriod = TimeSpan.FromSeconds(10);
-    public async Task RegisterAsync(RegisterRequestDto request)
-    {
-        var user = new User
-        {
-            UserName = request.Email,
-            Email = request.Email,
-            FirstName = request.FirstName,
-            LastName = request.LastName,
-            RoleId = RoleIds.User
-        };
-        var result = await userManager.CreateAsync(user, request.Password);
-        if (!result.Succeeded)
-        {
-            throw result.ToValidationException();
-        }
-    }
+
 
     public async Task<LoginDto> LoginAsync(LoginRequestDto request)
     {

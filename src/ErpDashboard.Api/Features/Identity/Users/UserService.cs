@@ -71,13 +71,10 @@ public class UserService(AppDbContext dbContext, UserManager<User> userManager) 
         Role? role =  await dbContext.Roles.FirstOrDefaultAsync(r => r.Id == request.RoleId, ct);
         if (role is null)
             throw new NotFoundException("Role", request.RoleId);
-
-        int count = await dbContext.Users.CountAsync(u => u.Role.Id == RoleIds.Admin  ,ct);
         
-        if (user.Role.Name == RoleNames.Admin && role.Id == RoleIds.Admin &&  count <= 1)
-        {
-            throw new ConflictException("Cannot remove the Admin role from the last administrator");
-        }
+        if (user.RoleId == RoleIds.Admin
+            && await dbContext.Users.CountAsync(u => u.RoleId == RoleIds.Admin, ct) <= 1)
+            throw new ConflictException("Cannot delete the last administrator.");
         
         user.FirstName = request.FirstName;
         user.LastName = request.LastName;
@@ -96,6 +93,11 @@ public class UserService(AppDbContext dbContext, UserManager<User> userManager) 
         var user = await dbContext.Users.FirstOrDefaultAsync(u => u.Id == id, ct);
         if (user is null)
             throw new NotFoundException("User", id);
+        
+        if (user.RoleId == RoleIds.Admin
+            && await dbContext.Users.CountAsync(u => u.RoleId == RoleIds.Admin, ct) <= 1)
+            throw new ConflictException("Cannot delete the last administrator.");
+        
         dbContext.Users.Remove(user);
         await dbContext.SaveChangesAsync(ct);
     }
