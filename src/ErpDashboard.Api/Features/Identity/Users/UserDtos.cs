@@ -15,7 +15,7 @@ public sealed record UserRequest(
     string LastName,
     string Email,
     Guid RoleId,
-    string? Password = "Erp@222");
+    [Required] string Password);
 
 public sealed record UpdateUserRequest(
     string FirstName,
