@@ -113,12 +113,7 @@ public static class DependencyInjection
                 In = ParameterLocation.Header,
                 Description = "Enter your JWT token."
             });
-
-            options.AddSecurityRequirement(document =>
-                new OpenApiSecurityRequirement
-                {
-                    [new OpenApiSecuritySchemeReference("Bearer", document)] = []
-                });
+            
             options.OperationFilter<AuthorizationOperationFilter>();
         });
 

@@ -11,6 +11,18 @@ public sealed class AuthorizationOperationFilter : IOperationFilter
         if (metadata.OfType<IAllowAnonymous>().Any())
             return;
 
+        operation.Security ??= [];
+        operation.Security.Add(new OpenApiSecurityRequirement
+        {
+            [new OpenApiSecuritySchemeReference("Bearer", context.Document)] = []
+        });
+
+        operation.Responses ??= new OpenApiResponses();
+        operation.Responses.TryAdd("401", new OpenApiResponse
+        {
+            Description = "Missing, expired, or revoked access token."
+        });
+
         var permissions = metadata.OfType<HasPermissionAttribute>()
             .Select(a => a.Permission)
             .Distinct()
@@ -24,5 +36,10 @@ public sealed class AuthorizationOperationFilter : IOperationFilter
         operation.Description = string.IsNullOrWhiteSpace(operation.Description)
             ? line
             : $"{operation.Description}\n\n{line}";
+
+        operation.Responses.TryAdd("403", new OpenApiResponse
+        {
+            Description = "Signed in without the required permission."
+        });
     }
 }
