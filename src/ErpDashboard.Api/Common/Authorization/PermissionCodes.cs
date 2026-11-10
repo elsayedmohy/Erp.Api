@@ -76,6 +76,12 @@ public static class PermissionCodes
         public const string Write      = "departments.write";
     }
     
+    public static class Warehouses
+    {
+        public const string Read  = "warehouses.read";
+        public const string Write = "warehouses.write";
+    }
+    
     public static readonly IReadOnlyList<string> All = typeof(PermissionCodes)
         .GetNestedTypes(BindingFlags.Public)
         .SelectMany(t => t.GetFields(BindingFlags.Public | BindingFlags.Static))

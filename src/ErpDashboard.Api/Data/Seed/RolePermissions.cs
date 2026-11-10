@@ -14,11 +14,14 @@ public static class RolePermissions
         PurchaseOrders.Read, PurchaseOrders.Write, PurchaseOrders.UpdateStatus,
         Orders.Read, Orders.Write, Orders.UpdateStatus,
         Orders.ApproveDiscount,
+        Warehouses.Read,
         Invoices.Read,
         Departments.Read,
         Employees.Read);
 
     public static List<string> InventoryManager => Sorted(
+        Warehouses.Read,
+        Warehouses.Write,
         Products.Read,
         Categories.Read,
         Categories.Write,

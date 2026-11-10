@@ -476,6 +476,41 @@ namespace ErpDashboard.Api.Migrations
                     b.ToTable("Roles");
                 });
 
+            modelBuilder.Entity("ErpDashboard.Api.Data.Entities.StockAdjustment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("AdjustedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("AdjustedById")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Delta")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<Guid>("WarehouseId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProductId");
+
+                    b.HasIndex("WarehouseId", "ProductId");
+
+                    b.ToTable("StockAdjustments");
+                });
+
             modelBuilder.Entity("ErpDashboard.Api.Data.Entities.Supplier", b =>
                 {
                     b.Property<Guid>("Id")
@@ -806,6 +841,21 @@ namespace ErpDashboard.Api.Migrations
                         .WithMany("RefreshTokens")
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ErpDashboard.Api.Data.Entities.StockAdjustment", b =>
+                {
+                    b.HasOne("ErpDashboard.Api.Data.Entities.Product", null)
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ErpDashboard.Api.Data.Entities.Warehouse", null)
+                        .WithMany()
+                        .HasForeignKey("WarehouseId")
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
 
