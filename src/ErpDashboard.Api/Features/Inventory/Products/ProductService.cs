@@ -17,7 +17,6 @@ public class ProductService(AppDbContext dbContext) : IProductService
                 EF.Functions.ILike(product.Sku, p, @"\")
                 );
 
-        if (query.StockQuantity is { } stock)  q = q.Where(o => o.StockQuantity == stock);
         if (query.UnitPrice is { } price)  q = q.Where(o => o.UnitPrice == price);
         if (query.CategoryId is { } categoryId)  q = q.Where(o => o.CategoryId == categoryId);
 
@@ -43,7 +42,6 @@ public class ProductService(AppDbContext dbContext) : IProductService
             product.Sku,
             product.CostPrice,
             product.UnitPrice,
-            product.StockQuantity,
             product.ReorderLevel);
     }
 
@@ -108,6 +106,5 @@ public class ProductService(AppDbContext dbContext) : IProductService
         product.Sku,
         product.CostPrice,
         product.UnitPrice,
-        product.StockQuantity,
         product.ReorderLevel);
 }

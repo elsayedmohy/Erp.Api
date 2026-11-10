@@ -1,6 +1,6 @@
 namespace ErpDashboard.Api.Data.Configurations;
 
-public class PurchaseOrderConfiguration: IEntityTypeConfiguration<PurchaseOrder>
+public class PurchaseOrderConfiguration : IEntityTypeConfiguration<PurchaseOrder>
 {
     public void Configure(EntityTypeBuilder<PurchaseOrder> b)
     {
@@ -8,5 +8,8 @@ public class PurchaseOrderConfiguration: IEntityTypeConfiguration<PurchaseOrder>
             .WithMany(s => s.PurchaseOrders)
             .HasForeignKey(o => o.SupplierId)
             .OnDelete(DeleteBehavior.Restrict);
+        
+        b.HasOne<Warehouse>().WithMany()
+            .HasForeignKey(o => o.WarehouseId).OnDelete(DeleteBehavior.Restrict);
     }
 }

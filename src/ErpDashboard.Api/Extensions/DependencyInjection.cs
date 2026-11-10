@@ -1,4 +1,6 @@
 
+using ErpDashboard.Api.Features.Inventory.Stock;
+
 namespace ErpDashboard.Api.Extensions;
 
 public static class DependencyInjection
@@ -185,6 +187,7 @@ public static class DependencyInjection
         builder.Services.AddScoped<IAuthorizationHandler, PermissionHandler>();
         builder.Services.AddHttpContextAccessor();
         builder.Services.AddScoped<ICurrentUserPermissions, CurrentUserPermissions>();
+        builder.Services.AddScoped<IStockService, StockService>();
 
         return builder;
     }

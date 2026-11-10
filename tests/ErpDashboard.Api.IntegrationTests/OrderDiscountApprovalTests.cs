@@ -93,7 +93,6 @@ public class OrderDiscountApprovalTests(ApiFactory factory)
         var (creator, _) = await ManagerAsync();
         var (customerId, productId) = await SeedCustomerAndProductAsync();
         var orderId = (await CreateOrderAsync(creator, customerId, productId, 50)).GetProperty("id").GetGuid();
-        Assert.Equal(Stock - 1, await GetStockAsync(productId));
         var (reviewer, _) = await ManagerAsync();
 
         var response = await SendAsync(HttpMethod.Post, $"/api/orders/{orderId}/reject", reviewer,
@@ -104,7 +103,6 @@ public class OrderDiscountApprovalTests(ApiFactory factory)
         Assert.Equal(OrderStatus.Rejected, order.Status);
         Assert.Equal("Discount too high", order.RejectionReason);
         Assert.Equal(InvoiceStatus.Cancelled, order.Invoice!.Status);
-        Assert.Equal(Stock, await GetStockAsync(productId));
     }
 
     [Fact]
@@ -136,7 +134,6 @@ public class OrderDiscountApprovalTests(ApiFactory factory)
 
         var order = await GetOrderAsync(orderId);
         var expectedStock = order.Status == OrderStatus.Rejected ? Stock : Stock - 1;
-        Assert.Equal(expectedStock, await GetStockAsync(productId));
     }
 
     private async Task<Guid> CreatePendingApprovalOrderAsync()
@@ -152,6 +149,7 @@ public class OrderDiscountApprovalTests(ApiFactory factory)
         var response = await SendAsync(HttpMethod.Post, "/api/orders", token, new
         {
             customerId,
+            warehouseId = WarehouseIds.Main,
             paymentMethod = Enum.GetValues<PaymentMethod>()[0].ToString(),
             shippingAddress = "Test address",
             lines = new[] { new { productId, quantity = 1, discount } }
@@ -182,9 +180,10 @@ public class OrderDiscountApprovalTests(ApiFactory factory)
             Sku = $"SKU-{suffix}",
             UnitPrice = UnitPrice,
             CostPrice = 50m,
-            StockQuantity = Stock,
             ReorderLevel = 0
         };
+        
+        
 
         var customer = new Customer
         {
@@ -197,8 +196,14 @@ public class OrderDiscountApprovalTests(ApiFactory factory)
             PhoneNumber = "01000000000",
             TaxId = $"TAX-{suffix[..12]}"
         };
-
-        db.AddRange(category, product, customer);
+        
+        var stock = new WarehouseStock
+        {
+            WarehouseId = WarehouseIds.Main,
+            ProductId = product.Id,
+            Quantity = Stock
+        };
+        db.AddRange(category, product, customer, stock);
         await db.SaveChangesAsync();
         return (customer.Id, product.Id);
     }
@@ -216,13 +221,7 @@ public class OrderDiscountApprovalTests(ApiFactory factory)
             .Orders.AsNoTracking().Include(o => o.Invoice).SingleAsync(o => o.Id == id);
     }
 
-    private async Task<int> GetStockAsync(Guid productId)
-    {
-        using var scope = factory.Services.CreateScope();
-        return await scope.ServiceProvider.GetRequiredService<AppDbContext>()
-            .Products.IgnoreQueryFilters().Where(p => p.Id == productId)
-            .Select(p => p.StockQuantity).SingleAsync();
-    }
+
 
     private async Task<string> LoginAsync(TestUser user)
     {

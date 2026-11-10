@@ -34,6 +34,7 @@ public sealed record OrderDetailsResponse(
 
 public sealed record CreateOrderRequest(
     Guid CustomerId,
+    [Required] Guid? WarehouseId,
     PaymentMethod PaymentMethod,
     string ShippingAddress,
     List<OrderLineRequest> Lines,

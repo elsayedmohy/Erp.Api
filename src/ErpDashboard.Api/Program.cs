@@ -15,8 +15,8 @@ builder.AddPersistence()
 
 var app = builder.Build();
 await DbSeeder.SeedAsync(app.Services);
-if (app.Environment.IsDevelopment() && app.Configuration.GetValue<bool>("Seed:DemoData"))
-    await DemoDataSeeder.SeedAsync(app.Services);
+// if (app.Environment.IsDevelopment() && app.Configuration.GetValue<bool>("Seed:DemoData"))
+//     await DemoDataSeeder.SeedAsync(app.Services);
 
 if (!app.Environment.IsProduction())
 {
