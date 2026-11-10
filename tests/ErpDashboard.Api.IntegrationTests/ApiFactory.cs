@@ -48,10 +48,11 @@ public class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         builder.UseSetting("ApiSettings:BaseUrl", "http://localhost");
     }
 
-    public async Task<TestUser> CreateUserAsync(Guid? roleId = null)
+    public async Task<TestUser> CreateUserAsync(Guid? roleId = null, IEnumerable<Guid>? warehouseIds = null)
     {
         using var scope = Services.CreateScope();
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<User>>();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
         var email = $"user-{Guid.NewGuid():N}@tests.local";
         var password = $"Aa1!{Guid.NewGuid():N}";
@@ -66,6 +67,10 @@ public class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 
         var result = await userManager.CreateAsync(user, password);
         Assert.True(result.Succeeded, string.Join("; ", result.Errors.Select(e => e.Description)));
+
+        db.UserWarehouses.AddRange((warehouseIds ?? [WarehouseIds.Main])
+            .Select(id => new UserWarehouse { UserId = user.Id, WarehouseId = id }));
+        await db.SaveChangesAsync();
 
         return new TestUser(email, password, user.Id);
     }

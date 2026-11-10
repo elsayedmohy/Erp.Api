@@ -18,8 +18,8 @@ public class PurchaseOrderWarehouseTests(ApiFactory factory)
     [Fact]
     public async Task Receive_AddsStockToSelectedWarehouseOnly()
     {
-        var token = await ManagerTokenAsync();
         var (supplierId, productId, otherWarehouseId) = await SeedAsync();
+        var token = await ManagerTokenAsync(WarehouseIds.Main, otherWarehouseId);
         var poId = await CreatePoAsync(token, supplierId, otherWarehouseId, productId, quantity: 7);
 
         var response = await ReceiveAsync(token, poId);
@@ -143,9 +143,12 @@ public class PurchaseOrderWarehouseTests(ApiFactory factory)
             .SingleOrDefaultAsync() ?? 0;
     }
 
-    private async Task<string> ManagerTokenAsync()
+    private async Task<string> ManagerTokenAsync(params Guid[] warehouseIds)
     {
-        var user = await factory.CreateUserAsync(RoleIds.Manager);
+        var user = await factory.CreateUserAsync(
+            RoleIds.Manager,
+            warehouseIds.Length == 0 ? null : warehouseIds);
+
         var response = await _client.PostAsJsonAsync("/api/auth/login", new { email = user.Email, password = user.Password });
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
