@@ -619,6 +619,21 @@ namespace ErpDashboard.Api.Migrations
                     b.ToTable("AspNetUsers", (string)null);
                 });
 
+            modelBuilder.Entity("ErpDashboard.Api.Data.Entities.UserWarehouse", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("WarehouseId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("UserId", "WarehouseId");
+
+                    b.HasIndex("WarehouseId");
+
+                    b.ToTable("UserWarehouses");
+                });
+
             modelBuilder.Entity("ErpDashboard.Api.Data.Entities.Warehouse", b =>
                 {
                     b.Property<Guid>("Id")
@@ -868,6 +883,21 @@ namespace ErpDashboard.Api.Migrations
                         .IsRequired();
 
                     b.Navigation("Role");
+                });
+
+            modelBuilder.Entity("ErpDashboard.Api.Data.Entities.UserWarehouse", b =>
+                {
+                    b.HasOne("ErpDashboard.Api.Data.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("ErpDashboard.Api.Data.Entities.Warehouse", null)
+                        .WithMany()
+                        .HasForeignKey("WarehouseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("ErpDashboard.Api.Data.Entities.WarehouseStock", b =>

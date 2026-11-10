@@ -20,6 +20,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) :
     public DbSet<Warehouse> Warehouses => Set<Warehouse>();
     public DbSet<WarehouseStock> WarehouseStocks => Set<WarehouseStock>();
     public DbSet<StockAdjustment> StockAdjustments => Set<StockAdjustment>();
+    
+    public DbSet<UserWarehouse> UserWarehouses => Set<UserWarehouse>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
