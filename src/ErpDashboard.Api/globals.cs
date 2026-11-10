@@ -49,6 +49,8 @@ global using ErpDashboard.Api.Features.Purchasing.Suppliers;
 global using ErpDashboard.Api.Features.Purchasing.PurchaseOrders;
 global using ErpDashboard.Api.Features.Finance.Invoices;
 global using ErpDashboard.Api.Features.Profiles;
+global using ErpDashboard.Api.Features.Inventory.Stock;
+global using ErpDashboard.Api.Features.Inventory.Warehouses;
 global using ErpDashboard.Api.Common.Authorization;
 global using ErpDashboard.Api.Middlewares;
 

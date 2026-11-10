@@ -11,6 +11,7 @@ public sealed class OrderQuery : PageQuery
 public sealed record OrderResponse(
     Guid Id,
     Guid CustomerId,
+    Guid WarehouseId,
     string CustomerName,
     DateOnly OrderDate,
     OrderStatus Status,
@@ -22,6 +23,7 @@ public sealed record OrderResponse(
 public sealed record OrderDetailsResponse(
     Guid Id,
     Guid CustomerId,
+    Guid WarehouseId,
     Guid InvoiceId,
     string CustomerName,
     DateOnly OrderDate,
@@ -34,6 +36,7 @@ public sealed record OrderDetailsResponse(
 
 public sealed record CreateOrderRequest(
     Guid CustomerId,
+    [Required] Guid? WarehouseId,
     PaymentMethod PaymentMethod,
     string ShippingAddress,
     List<OrderLineRequest> Lines,

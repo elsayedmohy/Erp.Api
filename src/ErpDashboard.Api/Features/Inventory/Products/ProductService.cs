@@ -17,12 +17,21 @@ public class ProductService(AppDbContext dbContext) : IProductService
                 EF.Functions.ILike(product.Sku, p, @"\")
                 );
 
-        if (query.StockQuantity is { } stock)  q = q.Where(o => o.StockQuantity == stock);
         if (query.UnitPrice is { } price)  q = q.Where(o => o.UnitPrice == price);
         if (query.CategoryId is { } categoryId)  q = q.Where(o => o.CategoryId == categoryId);
 
         return Sorts.Apply(q, query.SortBy, query.SortDir)
-            .Select(product => ToResponse(product))
+            .Select(product => new ProductResponse(
+                product.Id,
+                product.Name,
+                product.CategoryId,
+                product.Sku,
+                product.CostPrice,
+                product.UnitPrice,
+                dbContext.WarehouseStocks
+                    .Where(s => s.ProductId == product.Id)
+                    .Sum(s => (int?)s.Quantity) ?? 0,
+                product.ReorderLevel))
             .ToPagedResultAsync(query, ct);
     }
 
@@ -34,16 +43,16 @@ public class ProductService(AppDbContext dbContext) : IProductService
         
         Category? category = await dbContext.Categories.FirstOrDefaultAsync(c => c.Id == product.CategoryId, ct);
         if (category is null)
-            throw new NotFoundException("category", id);
+            throw new NotFoundException("category", product.CategoryId);
 
         return new ProductDetailsResponse(
             product.Id,
             product.Name,
-            new CategoryResponse(category.Id , category.Name),
+            new CategoryResponse(category.Id, category.Name),
             product.Sku,
             product.CostPrice,
             product.UnitPrice,
-            product.StockQuantity,
+            await GetStockQuantityAsync(product.Id, ct),
             product.ReorderLevel);
     }
 
@@ -69,7 +78,7 @@ public class ProductService(AppDbContext dbContext) : IProductService
         };
         dbContext.Products.Add(product);
         await dbContext.SaveChangesAsync(ct);
-        return ToResponse(product);
+        return ToResponse(product , 0);
     }
 
     public async Task<ProductResponse> UpdateAsync(Guid id, ProductRequest request, CancellationToken ct)
@@ -88,7 +97,7 @@ public class ProductService(AppDbContext dbContext) : IProductService
         product.CostPrice = request.CostPrice;
         product.UnitPrice = request.UnitPrice;
         await dbContext.SaveChangesAsync(ct);
-        return ToResponse(product);
+        return ToResponse(product , await GetStockQuantityAsync(product.Id, ct));
     }
 
     public async Task DeleteAsync(Guid id, CancellationToken ct)
@@ -101,13 +110,18 @@ public class ProductService(AppDbContext dbContext) : IProductService
         await dbContext.SaveChangesAsync(ct);
     }
 
-    private static ProductResponse ToResponse(Product product) => new ProductResponse(
+    private Task<int> GetStockQuantityAsync(Guid productId, CancellationToken ct) =>
+        dbContext.WarehouseStocks
+            .Where(s => s.ProductId == productId)
+            .SumAsync(s => s.Quantity, ct);
+
+    private static ProductResponse ToResponse(Product product, int stockQuantity) => new(
         product.Id,
         product.Name,
         product.CategoryId,
         product.Sku,
         product.CostPrice,
         product.UnitPrice,
-        product.StockQuantity,
+        stockQuantity,
         product.ReorderLevel);
 }

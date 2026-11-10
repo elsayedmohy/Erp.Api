@@ -1,6 +1,8 @@
+using ErpDashboard.Api.Features.Inventory.Stock;
+
 namespace ErpDashboard.Api.Features.Purchasing.PurchaseOrders;
 
-public class PurchaseOrderService(AppDbContext dbContext) : IPurchaseOrderService
+public class PurchaseOrderService(AppDbContext dbContext , IStockService stock) : IPurchaseOrderService
 {
     private static readonly SortMap<PurchaseOrder> Sorts = new SortMap<PurchaseOrder>()
         .Add("orderDate", o => o.OrderDate)
@@ -31,6 +33,7 @@ public class PurchaseOrderService(AppDbContext dbContext) : IPurchaseOrderServic
             .Select(o => new PurchaseOrderResponse(
                 o.Id,
                 o.SupplierId,
+                o.WarehouseId,
                 o.OrderDate,
                 o.ExpectedDelivery,
                 o.Status,
@@ -54,8 +57,12 @@ public class PurchaseOrderService(AppDbContext dbContext) : IPurchaseOrderServic
     public async Task<PurchaseOrderDetailsResponse> CreateAsync(CreatePurchaseOrderRequest request,
         CancellationToken ct)
     {
-        if (!await dbContext.Suppliers.AnyAsync(c => c.Id == request.SupplierId, ct))
-            throw new NotFoundException("Supplier ", request.SupplierId);
+        if (!await dbContext.Suppliers.AnyAsync(s => s.Id == request.SupplierId, ct))
+            throw new RequestValidationException("supplierId", $"Supplier '{request.SupplierId}' does not exist.");
+
+        var warehouseId = request.WarehouseId!.Value;
+        if (!await dbContext.Warehouses.AnyAsync(w => w.Id == warehouseId, ct))
+            throw new RequestValidationException("warehouseId", $"Warehouse '{warehouseId}' does not exist.");
 
 
         var (lines, total) = await BuildLinesAsync(request.Lines, ct);
@@ -68,6 +75,7 @@ public class PurchaseOrderService(AppDbContext dbContext) : IPurchaseOrderServic
         var order = new PurchaseOrder()
         {
             SupplierId = request.SupplierId,
+            WarehouseId = warehouseId,
             OrderDate = orderDate,
             ExpectedDelivery = request.ExpectedDelivery,
             Status = PurchaseOrderStatus.Pending,
@@ -119,20 +127,24 @@ public class PurchaseOrderService(AppDbContext dbContext) : IPurchaseOrderServic
             throw new ConflictException(
                 $"Cannot change purchase order status from '{po.Status}' to '{request.Status}'.");
 
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(ct);
+
+        var claimed = await dbContext.PurchaseOrders
+            .Where(p => p.Id == id && p.Status == po.Status)
+            .ExecuteUpdateAsync(s => s.SetProperty(p => p.Status, request.Status), ct);
+
+        if (claimed == 0)
+            throw new ConflictException("The purchase order was already processed.");
+
         if (request.Status == PurchaseOrderStatus.Received)
         {
-            var ids = po.PurchaseLines.Select(l => l.ProductId).Distinct().ToList();
-            var products = await dbContext.Products
-                .IgnoreQueryFilters()
-                .Where(p => ids.Contains(p.Id))
-                .ToDictionaryAsync(p => p.Id, ct);
-
             foreach (var line in po.PurchaseLines)
-                products[line.ProductId].StockQuantity += line.Quantity;
+                await stock.AddAsync(po.WarehouseId, line.ProductId, line.Quantity, ct);
         }
 
+        await transaction.CommitAsync(ct);
+
         po.Status = request.Status;
-        await dbContext.SaveChangesAsync(ct);
         return ToResponse(po);
     }
 
@@ -141,6 +153,7 @@ public class PurchaseOrderService(AppDbContext dbContext) : IPurchaseOrderServic
         new PurchaseOrderDetailsResponse(
             o.Id,
             o.SupplierId,
+            o.WarehouseId,
             o.OrderDate,
             o.ExpectedDelivery,
             o.Status,
@@ -156,6 +169,7 @@ public class PurchaseOrderService(AppDbContext dbContext) : IPurchaseOrderServic
         new PurchaseOrderResponse(
             o.Id,
             o.SupplierId,
+            o.WarehouseId,
             o.OrderDate,
             o.ExpectedDelivery,
             o.Status,

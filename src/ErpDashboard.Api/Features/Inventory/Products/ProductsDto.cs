@@ -3,7 +3,6 @@ namespace ErpDashboard.Api.Features.Inventory.Products;
 public sealed class ProductQuery : PageQuery
 {
     public decimal? UnitPrice { get; set; }
-    public int? StockQuantity { get; set; }
     public Guid? CategoryId { get; set; }
 };
 

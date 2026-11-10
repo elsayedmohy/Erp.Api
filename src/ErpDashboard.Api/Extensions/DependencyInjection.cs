@@ -1,14 +1,10 @@
-
 namespace ErpDashboard.Api.Extensions;
 
 public static class DependencyInjection
 {
     public static WebApplicationBuilder AddPersistence(this WebApplicationBuilder builder)
     {
-        builder.Services.AddControllers(options =>
-            {
-                options.ReturnHttpNotAcceptable = true;
-            })
+        builder.Services.AddControllers(options => { options.ReturnHttpNotAcceptable = true; })
             .AddJsonOptions(options =>
             {
                 options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
@@ -113,7 +109,7 @@ public static class DependencyInjection
                 In = ParameterLocation.Header,
                 Description = "Enter your JWT token."
             });
-            
+
             options.OperationFilter<AuthorizationOperationFilter>();
         });
 
@@ -146,6 +142,7 @@ public static class DependencyInjection
                         .GroupBy(e => ToCamelCaseKey(e.Key))
                         .ToDictionary(g => g.Key, g => g.SelectMany(e => e.Value).ToArray());
                 }
+
                 pd.Detail ??= pd.Status switch
                 {
                     400 => "One or more validation errors occurred.",
@@ -185,6 +182,8 @@ public static class DependencyInjection
         builder.Services.AddScoped<IAuthorizationHandler, PermissionHandler>();
         builder.Services.AddHttpContextAccessor();
         builder.Services.AddScoped<ICurrentUserPermissions, CurrentUserPermissions>();
+        builder.Services.AddScoped<IStockService, StockService>();
+        builder.Services.AddScoped<IWarehouseService, WarehouseService>();
 
         return builder;
     }
@@ -209,7 +208,7 @@ public static class DependencyInjection
         });
         return builder;
     }
-    
+
     public static WebApplicationBuilder AddHealth(this WebApplicationBuilder builder)
     {
         builder.Services.AddHealthChecks()
@@ -220,8 +219,7 @@ public static class DependencyInjection
 
         return builder;
     }
-    
+
     private static string ToCamelCaseKey(string key) =>
         string.Join('.', key.Split('.').Select(part => JsonNamingPolicy.CamelCase.ConvertName(part)));
-    
 }

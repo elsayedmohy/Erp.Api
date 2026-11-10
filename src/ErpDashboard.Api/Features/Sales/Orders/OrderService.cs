@@ -1,8 +1,10 @@
 using ErpDashboard.Api.Features.Finance.Invoices;
+using ErpDashboard.Api.Features.Inventory.Stock;
 
 namespace ErpDashboard.Api.Features.Sales.Orders;
 
 public class OrderService(AppDbContext dbContext,
+    IStockService stock, 
     IOptions<SalesSettings> salesOptions) : IOrderService
 {
 
@@ -42,6 +44,7 @@ public class OrderService(AppDbContext dbContext,
             .Select(o => new OrderResponse(
                 o.Id,
                 o.CustomerId,
+                o.WarehouseId,
                 o.Customer.Name,
                 o.OrderDate,
                 o.Status,
@@ -92,6 +95,12 @@ public class OrderService(AppDbContext dbContext,
         if (missing.Count > 0)
             throw new RequestValidationException("lines", $"Products not found: {string.Join(", ", missing)}");
 
+        var warehouseId = request.WarehouseId!.Value;
+        if (!await dbContext.Warehouses.AnyAsync(w => w.Id == warehouseId, ct))
+            throw new RequestValidationException("warehouseId", $"Warehouse '{warehouseId}' does not exist.");
+
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(ct);
+        
         var orderDate = request.OrderDate ?? DateOnly.FromDateTime(DateTime.UtcNow);
         var orderLines = new List<OrderLine>();
         var invoiceLines = new List<InvoiceLineInput>();
@@ -111,13 +120,17 @@ public class OrderService(AppDbContext dbContext,
                 throw new RequestValidationException("lines",
                     $"Discount for '{product.Name}' ({line.Discount}) exceeds the line value ({gross}).");
 
-            if (product.StockQuantity < line.Quantity)
+            if (!await stock.TryDeductAsync(warehouseId, product.Id, line.Quantity, ct))
             {
-                insufficient.Add($"{product.Name} (requested {line.Quantity}, available {product.StockQuantity})");
+                var available = await dbContext.WarehouseStocks
+                    .Where(s => s.WarehouseId == warehouseId && s.ProductId == product.Id)
+                    .Select(s => (int?)s.Quantity)
+                    .SingleOrDefaultAsync(ct) ?? 0;
+
+                insufficient.Add($"{product.Name} (requested {line.Quantity}, available {available})");
                 continue;
             }
 
-            product.StockQuantity -= line.Quantity;
             total += gross - line.Discount;
 
             orderLines.Add(new OrderLine
@@ -143,6 +156,7 @@ public class OrderService(AppDbContext dbContext,
         var order = new Order
         {
             CustomerId = customer.Id,
+            WarehouseId = warehouseId,
             Customer = customer,
             OrderDate = orderDate,
             Status = requiresApproval ? OrderStatus.PendingApproval : OrderStatus.Pending,
@@ -156,6 +170,7 @@ public class OrderService(AppDbContext dbContext,
 
         dbContext.Orders.Add(order);
         await dbContext.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
         return ToDetailedResponse(order);
     }
 
@@ -220,14 +235,9 @@ public async Task<OrderResponse> RejectAsync(
 
     await ClaimReviewAsync(id, OrderStatus.Rejected, reviewerId, request.Reason.Trim(), ct);
 
-    var ids = order.OrderLines.Select(l => l.ProductId).ToList();
-    var products = await dbContext.Products
-        .IgnoreQueryFilters()
-        .Where(p => ids.Contains(p.Id))
-        .ToDictionaryAsync(p => p.Id, ct);
 
     foreach (var line in order.OrderLines)
-        products[line.ProductId].StockQuantity += line.Quantity;
+        await stock.AddAsync(order.WarehouseId, line.ProductId, line.Quantity, ct);
 
     if (order.Invoice is { Status: InvoiceStatus.Draft } invoice)
         invoice.Status = InvoiceStatus.Cancelled;
@@ -255,20 +265,17 @@ public async Task<OrderResponse> RejectAsync(
         if (order.Invoice is { Status: not InvoiceStatus.Draft })
             throw new ConflictException("The order's invoice is no longer a draft.");
 
-        var ids = order.OrderLines.Select(l => l.ProductId).ToList();
-        var products = await dbContext.Products
-            .IgnoreQueryFilters()
-            .Where(p => ids.Contains(p.Id))
-            .ToDictionaryAsync(p => p.Id, ct);
-
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(ct);
+        
         foreach (var line in order.OrderLines)
-            products[line.ProductId].StockQuantity += line.Quantity;
+            await stock.AddAsync(order.WarehouseId, line.ProductId, line.Quantity, ct);
 
         if (order.Invoice is not null)
             dbContext.Invoices.Remove(order.Invoice);
         dbContext.Orders.Remove(order);
 
         await dbContext.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
     }
     
     private async Task<Order> GetForReviewAsync(Guid id, Guid reviewerId, CancellationToken ct)
@@ -311,6 +318,7 @@ public async Task<OrderResponse> RejectAsync(
         new OrderDetailsResponse(
             o.Id,
             o.CustomerId,
+            o.WarehouseId,
             o.Invoice.Id,
             o.Customer.Name,
             o.OrderDate,
@@ -330,6 +338,7 @@ public async Task<OrderResponse> RejectAsync(
         new OrderResponse(
             o.Id,
             o.CustomerId,
+            o.WarehouseId,
             o.Customer.Name,
             o.OrderDate,
             o.Status,

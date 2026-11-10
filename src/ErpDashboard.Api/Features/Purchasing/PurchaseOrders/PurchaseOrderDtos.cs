@@ -11,6 +11,7 @@ public sealed class PurchaseOrderQuery : PageQuery
 public sealed record PurchaseOrderResponse(
     Guid Id,
     Guid SupplierId,
+    Guid WarehouseId,
     DateOnly OrderDate,
     DateOnly ExpectedDelivery,
     PurchaseOrderStatus Status,
@@ -20,6 +21,7 @@ public sealed record PurchaseOrderResponse(
 public sealed record PurchaseOrderDetailsResponse(
     Guid Id,
     Guid SupplierId,
+    Guid WarehouseId,
     DateOnly OrderDate,
     DateOnly ExpectedDelivery,
     PurchaseOrderStatus Status,
@@ -29,6 +31,7 @@ public sealed record PurchaseOrderDetailsResponse(
 
 public sealed record CreatePurchaseOrderRequest(
     Guid SupplierId,
+    [Required] Guid? WarehouseId,
     List<PurchaseLineRequest> Lines,
     DateOnly? OrderDate,
     DateOnly ExpectedDelivery
