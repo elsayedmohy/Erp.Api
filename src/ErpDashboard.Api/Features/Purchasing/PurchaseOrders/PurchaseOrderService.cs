@@ -2,7 +2,7 @@ using ErpDashboard.Api.Features.Inventory.Stock;
 
 namespace ErpDashboard.Api.Features.Purchasing.PurchaseOrders;
 
-public class PurchaseOrderService(AppDbContext dbContext , IStockService stock) : IPurchaseOrderService
+public class PurchaseOrderService(AppDbContext dbContext , IStockService stock, IWarehouseScope scope) : IPurchaseOrderService
 {
     private static readonly SortMap<PurchaseOrder> Sorts = new SortMap<PurchaseOrder>()
         .Add("orderDate", o => o.OrderDate)
@@ -61,7 +61,7 @@ public class PurchaseOrderService(AppDbContext dbContext , IStockService stock) 
             throw new RequestValidationException("supplierId", $"Supplier '{request.SupplierId}' does not exist.");
 
         var warehouseId = request.WarehouseId!.Value;
-        if (!await dbContext.Warehouses.AnyAsync(w => w.Id == warehouseId, ct))
+        if (!await scope.CanAccessAsync(warehouseId, ct))
             throw new RequestValidationException("warehouseId", $"Warehouse '{warehouseId}' does not exist.");
 
 
@@ -127,6 +127,9 @@ public class PurchaseOrderService(AppDbContext dbContext , IStockService stock) 
             throw new ConflictException(
                 $"Cannot change purchase order status from '{po.Status}' to '{request.Status}'.");
 
+        if (request.Status == PurchaseOrderStatus.Received && !await scope.CanAccessAsync(po.WarehouseId, ct))
+            throw new ForbiddenException("You do not have access to this purchase order's warehouse.");
+        
         await using var transaction = await dbContext.Database.BeginTransactionAsync(ct);
 
         var claimed = await dbContext.PurchaseOrders

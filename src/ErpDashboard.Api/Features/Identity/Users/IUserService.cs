@@ -7,4 +7,9 @@ public interface IUserService
     Task<UserResponse> CreateAsync(UserRequest request, CancellationToken ct);
     Task<UserResponse> UpdateAsync(UpdateUserRequest request ,Guid id,CancellationToken ct);
     Task DeleteUserAsync(Guid id, CancellationToken ct);
+
+    Task<UserWarehousesResponse> SetWarehousesAsync(
+        Guid userId, UserWarehousesRequest request, CancellationToken ct);
+
+    Task<UserWarehousesResponse> GetWarehousesAsync(Guid userId, CancellationToken ct);
 }

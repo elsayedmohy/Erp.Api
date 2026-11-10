@@ -1,7 +1,7 @@
 
 namespace ErpDashboard.Api.Features.Inventory.Warehouses;
 
-public sealed class WarehouseService(AppDbContext dbContext, IStockService stock) : IWarehouseService
+public sealed class WarehouseService(AppDbContext dbContext, IStockService stock,IWarehouseScope scope , ICurrentUserPermissions permissions) : IWarehouseService
 {
     private static readonly SortMap<Warehouse> Sorts = new SortMap<Warehouse>()
         .Add("code", w => w.Code)
@@ -19,6 +19,8 @@ public sealed class WarehouseService(AppDbContext dbContext, IStockService stock
     public Task<PagedResult<WarehouseResponse>> ListAsync(WarehouseQuery query, CancellationToken ct)
     {
         var q = dbContext.Warehouses.AsNoTracking();
+        var accessible = scope.AccessibleWarehouseIds();
+        q=  q.Where(w => accessible.Contains(w.Id));
         if (query.GetSearchPattern() is { } p)
             q = q.Where(w => EF.Functions.ILike(w.Code, p, @"\") || EF.Functions.ILike(w.Name, p, @"\"));
 
@@ -27,20 +29,26 @@ public sealed class WarehouseService(AppDbContext dbContext, IStockService stock
             .ToPagedResultAsync(query, ct);
     }
 
-    public async Task<WarehouseResponse> GetByIdAsync(Guid id, CancellationToken ct) =>
-        await dbContext.Warehouses.AsNoTracking()
-            .Where(w => w.Id == id)
-            .Select(w => new WarehouseResponse(w.Id, w.Code, w.Name))
-            .SingleOrDefaultAsync(ct)
-        ?? throw new NotFoundException("Warehouse", id);
+    public async Task<WarehouseResponse> GetByIdAsync(Guid id, CancellationToken ct)
+    {
+        await EnsureAccessibleAsync(id, ct);
+       return await dbContext.Warehouses.AsNoTracking()
+                .Where(w => w.Id == id)
+                .Select(w => new WarehouseResponse(w.Id, w.Code, w.Name))
+                .SingleOrDefaultAsync(ct)
+            ?? throw new NotFoundException("Warehouse", id);
+    }
 
-    public async Task<WarehouseResponse> CreateAsync(WarehouseRequest request, CancellationToken ct)
+
+    public async Task<WarehouseResponse> CreateAsync(WarehouseRequest request, Guid createdById,CancellationToken ct)
     {
         var code = NormalizeCode(request.Code);
         await EnsureCodeIsFreeAsync(code, excludeId: null, ct);
 
         var warehouse = new Warehouse { Code = code, Name = request.Name.Trim() };
         dbContext.Warehouses.Add(warehouse);
+        if (!scope.HasAccessAll)
+            dbContext.UserWarehouses.Add(new UserWarehouse { UserId = createdById, WarehouseId = warehouse.Id });
         await dbContext.SaveChangesAsync(ct);
 
         return new WarehouseResponse(warehouse.Id, warehouse.Code, warehouse.Name);
@@ -48,6 +56,7 @@ public sealed class WarehouseService(AppDbContext dbContext, IStockService stock
 
     public async Task<WarehouseResponse> UpdateAsync(Guid id, WarehouseRequest request, CancellationToken ct)
     {
+        await EnsureAccessibleAsync(id, ct);
         var warehouse = await dbContext.Warehouses.FirstOrDefaultAsync(w => w.Id == id, ct)
                         ?? throw new NotFoundException("Warehouse", id);
 
@@ -64,7 +73,7 @@ public sealed class WarehouseService(AppDbContext dbContext, IStockService stock
     public async Task<PagedResult<WarehouseStockResponse>> ListStockAsync(
         Guid id, WarehouseStockQuery query, CancellationToken ct)
     {
-        await EnsureExistsAsync(id, ct);
+        await EnsureAccessibleAsync(id, ct);
 
         var q = dbContext.WarehouseStocks.AsNoTracking().Where(s => s.WarehouseId == id);
 
@@ -88,7 +97,7 @@ public sealed class WarehouseService(AppDbContext dbContext, IStockService stock
     public async Task<AdjustStockResponse> AdjustStockAsync(
         Guid id, AdjustStockRequest request, Guid adjustedById, CancellationToken ct)
     {
-        await EnsureExistsAsync(id, ct);
+        await EnsureAccessibleAsync(id, ct);
 
         if (request.Delta == 0)
             throw new RequestValidationException("delta", "Delta must not be zero.");
@@ -124,9 +133,9 @@ public sealed class WarehouseService(AppDbContext dbContext, IStockService stock
         return new AdjustStockResponse(id, productId, quantity);
     }
 
-    private async Task EnsureExistsAsync(Guid id, CancellationToken ct)
+    private async Task EnsureAccessibleAsync(Guid id, CancellationToken ct)
     {
-        if (!await dbContext.Warehouses.AnyAsync(w => w.Id == id, ct))
+        if (!await scope.CanAccessAsync(id, ct))
             throw new NotFoundException("Warehouse", id);
     }
 

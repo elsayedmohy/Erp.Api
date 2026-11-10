@@ -80,6 +80,7 @@ public static class PermissionCodes
     {
         public const string Read  = "warehouses.read";
         public const string Write = "warehouses.write";
+        public const string AccessAll = "warehouses.access-all";
     }
     
     public static readonly IReadOnlyList<string> All = typeof(PermissionCodes)

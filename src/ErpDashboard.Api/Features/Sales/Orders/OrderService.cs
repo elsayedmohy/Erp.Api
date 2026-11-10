@@ -5,7 +5,8 @@ namespace ErpDashboard.Api.Features.Sales.Orders;
 
 public class OrderService(AppDbContext dbContext,
     IStockService stock, 
-    IOptions<SalesSettings> salesOptions) : IOrderService
+    IOptions<SalesSettings> salesOptions,
+    IWarehouseScope scope) : IOrderService
 {
 
     
@@ -96,7 +97,7 @@ public class OrderService(AppDbContext dbContext,
             throw new RequestValidationException("lines", $"Products not found: {string.Join(", ", missing)}");
 
         var warehouseId = request.WarehouseId!.Value;
-        if (!await dbContext.Warehouses.AnyAsync(w => w.Id == warehouseId, ct))
+        if (!await scope.CanAccessAsync(warehouseId, ct))
             throw new RequestValidationException("warehouseId", $"Warehouse '{warehouseId}' does not exist.");
 
         await using var transaction = await dbContext.Database.BeginTransactionAsync(ct);

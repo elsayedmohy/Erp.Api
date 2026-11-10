@@ -1,6 +1,6 @@
 namespace ErpDashboard.Api.Features.Inventory.Products;
 
-public class ProductService(AppDbContext dbContext) : IProductService
+public class ProductService(AppDbContext dbContext , IWarehouseScope scope) : IProductService
 {
     private static readonly SortMap<Product> Sorts = new SortMap<Product>()
         .Add("name", c => c.Name)
@@ -11,6 +11,7 @@ public class ProductService(AppDbContext dbContext) : IProductService
     public Task<PagedResult<ProductResponse>> ListAsync(ProductQuery query, CancellationToken ct)
     {
         var q = dbContext.Products.AsNoTracking();
+        var accessible = scope.AccessibleWarehouseIds();
         if (query.GetSearchPattern() is { } p)
             q = q.Where(product =>
                 EF.Functions.ILike(product.Name, p, @"\") ||
@@ -29,7 +30,7 @@ public class ProductService(AppDbContext dbContext) : IProductService
                 product.CostPrice,
                 product.UnitPrice,
                 dbContext.WarehouseStocks
-                    .Where(s => s.ProductId == product.Id)
+                    .Where(s => s.ProductId == product.Id && accessible.Contains(s.WarehouseId))
                     .Sum(s => (int?)s.Quantity) ?? 0,
                 product.ReorderLevel))
             .ToPagedResultAsync(query, ct);
@@ -110,10 +111,13 @@ public class ProductService(AppDbContext dbContext) : IProductService
         await dbContext.SaveChangesAsync(ct);
     }
 
-    private Task<int> GetStockQuantityAsync(Guid productId, CancellationToken ct) =>
-        dbContext.WarehouseStocks
-            .Where(s => s.ProductId == productId)
+    private Task<int> GetStockQuantityAsync(Guid productId, CancellationToken ct)
+    {
+        var accessible = scope.AccessibleWarehouseIds();
+        return dbContext.WarehouseStocks
+            .Where(s => s.ProductId == productId && accessible.Contains(s.WarehouseId))
             .SumAsync(s => s.Quantity, ct);
+    }
 
     private static ProductResponse ToResponse(Product product, int stockQuantity) => new(
         product.Id,
