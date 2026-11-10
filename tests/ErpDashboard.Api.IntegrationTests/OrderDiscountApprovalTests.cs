@@ -143,7 +143,44 @@ public class OrderDiscountApprovalTests(ApiFactory factory)
 
         return (await CreateOrderAsync(creator, customerId, productId, 50)).GetProperty("id").GetGuid();
     }
+    
+    [Fact]
+    public async Task Delete_RestoresStockToOrderWarehouse()
+    {
+        var (token, _) = await ManagerAsync();
+        var (customerId, productId) = await SeedCustomerAndProductAsync();
+        var orderId = (await CreateOrderAsync(token, customerId, productId, 0)).GetProperty("id").GetGuid();
+        Assert.Equal(Stock - 1, await GetStockAsync(WarehouseIds.Main,productId));
 
+        var response = await SendAsync(HttpMethod.Delete, $"/api/orders/{orderId}", token);
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        Assert.Equal(Stock, await GetStockAsync(WarehouseIds.Main,productId));
+    }
+
+    [Fact]
+    public async Task ProductDetails_ShowsTotalWarehouseStock()
+    {
+        var (token, _) = await ManagerAsync();
+        var (_, productId) = await SeedCustomerAndProductAsync();
+
+        var response = await SendAsync(HttpMethod.Get, $"/api/products/{productId}", token);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal(Stock, json.RootElement.GetProperty("stockQuantity").GetInt32());
+    }
+
+    private async Task<int> GetStockAsync(Guid warehouseId, Guid productId)
+    {
+        using var scope = factory.Services.CreateScope();
+        return await scope.ServiceProvider.GetRequiredService<AppDbContext>()
+            .WarehouseStocks
+            .Where(s => s.WarehouseId == warehouseId && s.ProductId == productId)
+            .Select(s => (int?)s.Quantity)
+            .SingleOrDefaultAsync() ?? 0;
+    }
+    
     private async Task<JsonElement> CreateOrderAsync(string token, Guid customerId, Guid productId, decimal discount)
     {
         var response = await SendAsync(HttpMethod.Post, "/api/orders", token, new

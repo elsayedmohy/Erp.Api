@@ -44,6 +44,7 @@ public class OrderService(AppDbContext dbContext,
             .Select(o => new OrderResponse(
                 o.Id,
                 o.CustomerId,
+                o.WarehouseId,
                 o.Customer.Name,
                 o.OrderDate,
                 o.Status,
@@ -234,11 +235,6 @@ public async Task<OrderResponse> RejectAsync(
 
     await ClaimReviewAsync(id, OrderStatus.Rejected, reviewerId, request.Reason.Trim(), ct);
 
-    var ids = order.OrderLines.Select(l => l.ProductId).ToList();
-    var products = await dbContext.Products
-        .IgnoreQueryFilters()
-        .Where(p => ids.Contains(p.Id))
-        .ToDictionaryAsync(p => p.Id, ct);
 
     foreach (var line in order.OrderLines)
         await stock.AddAsync(order.WarehouseId, line.ProductId, line.Quantity, ct);
@@ -269,12 +265,8 @@ public async Task<OrderResponse> RejectAsync(
         if (order.Invoice is { Status: not InvoiceStatus.Draft })
             throw new ConflictException("The order's invoice is no longer a draft.");
 
-        var ids = order.OrderLines.Select(l => l.ProductId).ToList();
-        var products = await dbContext.Products
-            .IgnoreQueryFilters()
-            .Where(p => ids.Contains(p.Id))
-            .ToDictionaryAsync(p => p.Id, ct);
-
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(ct);
+        
         foreach (var line in order.OrderLines)
             await stock.AddAsync(order.WarehouseId, line.ProductId, line.Quantity, ct);
 
@@ -283,6 +275,7 @@ public async Task<OrderResponse> RejectAsync(
         dbContext.Orders.Remove(order);
 
         await dbContext.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
     }
     
     private async Task<Order> GetForReviewAsync(Guid id, Guid reviewerId, CancellationToken ct)
@@ -326,6 +319,7 @@ public async Task<OrderResponse> RejectAsync(
             o.Id,
             o.CustomerId,
             o.Invoice.Id,
+            o.WarehouseId,
             o.Customer.Name,
             o.OrderDate,
             o.Status,
@@ -344,6 +338,7 @@ public async Task<OrderResponse> RejectAsync(
         new OrderResponse(
             o.Id,
             o.CustomerId,
+            o.WarehouseId,
             o.Customer.Name,
             o.OrderDate,
             o.Status,

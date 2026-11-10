@@ -22,6 +22,7 @@ public sealed record ProductResponse(
     string Sku,
     decimal CostPrice,
     decimal UnitPrice,
+    int StockQuantity,
     int ReorderLevel
     );
     
@@ -32,5 +33,6 @@ public sealed record ProductDetailsResponse(
     string Sku,
     decimal CostPrice,
     decimal UnitPrice,
+    int StockQuantity,
     int ReorderLevel
 );
