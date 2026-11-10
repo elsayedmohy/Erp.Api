@@ -318,8 +318,8 @@ public async Task<OrderResponse> RejectAsync(
         new OrderDetailsResponse(
             o.Id,
             o.CustomerId,
-            o.Invoice.Id,
             o.WarehouseId,
+            o.Invoice.Id,
             o.Customer.Name,
             o.OrderDate,
             o.Status,
