@@ -14,7 +14,7 @@ public class WarehousesController(IWarehouseService service) : ControllerBase
 
     [HttpPost, HasPermission(PermissionCodes.Warehouses.Write)]
     public async Task<ActionResult<WarehouseResponse>> Create([FromBody] WarehouseRequest request, CancellationToken ct)
-        => StatusCode(StatusCodes.Status201Created, await service.CreateAsync(request, ct));
+        => StatusCode(StatusCodes.Status201Created, await service.CreateAsync(request, User.GetUserId(),ct));
 
     [HttpPut("{id:guid}"), HasPermission(PermissionCodes.Warehouses.Write)]
     public async Task<ActionResult<WarehouseResponse>> Update(Guid id, [FromBody] WarehouseRequest request, CancellationToken ct)

@@ -44,4 +44,13 @@ public class UsersController(
 
         return NoContent();
     }
+    
+    [HttpGet("{id:guid}/warehouses"), HasPermission(PermissionCodes.Users.Read)]
+    public Task<UserWarehousesResponse> GetWarehouses(Guid id, CancellationToken ct)
+        => service.GetWarehousesAsync(id, ct);
+
+    [HttpPut("{id:guid}/warehouses"), HasPermission(PermissionCodes.Users.Write)]
+    public async Task<ActionResult<UserWarehousesResponse>> SetWarehouses(
+        Guid id, [FromBody] UserWarehousesRequest request, CancellationToken ct)
+        => Ok(await service.SetWarehousesAsync(id, request, ct));
 }

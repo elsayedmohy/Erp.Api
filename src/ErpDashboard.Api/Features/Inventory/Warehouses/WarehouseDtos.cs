@@ -28,3 +28,5 @@ public sealed record AdjustStockRequest(
     [Required, MaxLength(500)] string Reason);
 
 public sealed record AdjustStockResponse(Guid WarehouseId, Guid ProductId, int Quantity);
+public sealed record UserWarehousesRequest([Required] List<Guid> WarehouseIds);
+public sealed record UserWarehousesResponse(Guid UserId, IReadOnlyList<Guid> WarehouseIds);
