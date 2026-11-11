@@ -75,9 +75,9 @@ public class UserService(AppDbContext dbContext, UserManager<User> userManager ,
         if (role is null)
             throw new NotFoundException("Role", request.RoleId);
         
-        if (user.RoleId == RoleIds.Admin
-            && await dbContext.Users.CountAsync(u => u.RoleId == RoleIds.Admin, ct) <= 1)
-            throw new ConflictException("Cannot delete the last administrator.");
+        var demotingAdmin = user.RoleId == RoleIds.Admin && request.RoleId != RoleIds.Admin;
+        if (demotingAdmin && await dbContext.Users.CountAsync(u => u.RoleId == RoleIds.Admin, ct) <= 1)
+            throw new ConflictException("Cannot remove the Admin role from the last administrator.");
         
         await ValidateShowroomAsync(role.Id, request.ShowroomId, ct);
         
