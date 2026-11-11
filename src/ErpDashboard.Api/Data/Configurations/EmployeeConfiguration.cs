@@ -11,6 +11,6 @@ public class EmployeeConfiguration : IEntityTypeConfiguration<Employee>
             .HasForeignKey(e => e.DepartmentId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        b.HasQueryFilter(e => !e.IsDeleted);
+        b.HasQueryFilter(QueryFilters.SoftDelete, e => !e.IsDeleted);
     }
 }
