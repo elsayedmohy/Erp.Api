@@ -181,6 +181,25 @@ namespace ErpDashboard.Api.Migrations
                     b.ToTable("InvoiceLines");
                 });
 
+            modelBuilder.Entity("ErpDashboard.Api.Data.Entities.Material", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("Materials");
+                });
+
             modelBuilder.Entity("ErpDashboard.Api.Data.Entities.Order", b =>
                 {
                     b.Property<Guid>("Id")

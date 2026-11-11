@@ -1,3 +1,5 @@
+using ErpDashboard.Api.Features.Inventory.Materials;
+
 namespace ErpDashboard.Api.Extensions;
 
 public static class DependencyInjection
@@ -175,6 +177,7 @@ public static class DependencyInjection
         builder.Services.AddScoped<IShowroomService, ShowroomService>();
         builder.Services.AddScoped<IOrderService, OrderService>();
         builder.Services.AddScoped<ICategoryService, CategoryService>();
+        builder.Services.AddScoped<IMaterialService, MaterialService>();
         builder.Services.AddScoped<IProductService, ProductService>();
         builder.Services.AddScoped<IEmployeeService, EmployeeService>();
         builder.Services.AddScoped<IDepartmentService, DepartmentService>();
