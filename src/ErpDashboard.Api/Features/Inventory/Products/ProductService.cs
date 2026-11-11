@@ -1,7 +1,16 @@
 namespace ErpDashboard.Api.Features.Inventory.Products;
 
-public class ProductService(AppDbContext dbContext , IWarehouseScope scope) : IProductService
+public class ProductService(AppDbContext dbContext , IWarehouseScope scope , ICurrentUserPermissions permissions) : IProductService
 {
+    
+    private bool CanViewCost => permissions.Has(PermissionCodes.Products.ViewCost);
+
+    private void EnsureCanWriteCost(decimal? cost)
+    {
+        if (cost is not null && !CanViewCost)
+            throw new ForbiddenException("You do not have permission to set product cost.");
+    }
+    
     private static readonly SortMap<Product> Sorts = new SortMap<Product>()
         .Add("name", c => c.Name)
         .Add("sku", c => c.Sku)
@@ -11,6 +20,7 @@ public class ProductService(AppDbContext dbContext , IWarehouseScope scope) : IP
 
     public Task<PagedResult<ProductResponse>> ListAsync(ProductQuery query, CancellationToken ct)
     {
+        var canViewCost = CanViewCost;
         var q = dbContext.Products.AsNoTracking();
         var accessible = scope.AccessibleWarehouseIds();
         if (query.GetSearchPattern() is { } p)
@@ -29,7 +39,7 @@ public class ProductService(AppDbContext dbContext , IWarehouseScope scope) : IP
                 product.Name,
                 product.CategoryId,
                 product.Sku,
-                product.CostPrice,
+                canViewCost ? product.CostPrice : null,
                 product.UnitPrice,
                 dbContext.WarehouseStocks
                     .Where(s => s.ProductId == product.Id && accessible.Contains(s.WarehouseId))
@@ -53,7 +63,7 @@ public class ProductService(AppDbContext dbContext , IWarehouseScope scope) : IP
             product.Name,
             new CategoryResponse(category.Id, category.Name),
             product.Sku,
-            product.CostPrice,
+            CanViewCost ? product.CostPrice : null,
             product.UnitPrice,
             await GetStockQuantityAsync(product.Id, ct),
             product.ReorderLevel);
@@ -63,7 +73,7 @@ public class ProductService(AppDbContext dbContext , IWarehouseScope scope) : IP
     {
         var sku = NormalizeSku(request.Sku);
         await EnsureSkuIsFreeAsync(sku, excludeId: null, ct);
-
+        EnsureCanWriteCost(request.CostPrice);
 
         if (!await dbContext.Categories.AnyAsync(c => c.Id == request.CategoryId, ct))
             throw new RequestValidationException("categoryId", $"Category '{request.CategoryId}' does not exist.");
@@ -73,13 +83,13 @@ public class ProductService(AppDbContext dbContext , IWarehouseScope scope) : IP
             Name = request.Name.Trim(),
             CategoryId = request.CategoryId,
             Sku = sku,
-            CostPrice = request.CostPrice,
+            CostPrice = request.CostPrice ?? 0m,
             UnitPrice = request.UnitPrice,
             ReorderLevel = request.ReorderLevel
         };
         dbContext.Products.Add(product);
         await dbContext.SaveChangesAsync(ct);
-        return ToResponse(product , 0);
+        return ToResponse(product , 0,CanViewCost);
     }
 
     public async Task<ProductResponse> UpdateAsync(Guid id, ProductRequest request, CancellationToken ct)
@@ -89,6 +99,7 @@ public class ProductService(AppDbContext dbContext , IWarehouseScope scope) : IP
 
         var sku = NormalizeSku(request.Sku);
         await EnsureSkuIsFreeAsync(sku, excludeId: id, ct);
+        EnsureCanWriteCost(request.CostPrice);
 
         if (!await dbContext.Categories.AnyAsync(c => c.Id == request.CategoryId, ct))
             throw new RequestValidationException("categoryId", $"Category '{request.CategoryId}' does not exist.");
@@ -96,12 +107,13 @@ public class ProductService(AppDbContext dbContext , IWarehouseScope scope) : IP
         product.Name = request.Name.Trim();
         product.CategoryId = request.CategoryId;
         product.Sku = sku;
-        product.CostPrice = request.CostPrice;
+        if (request.CostPrice is { } cost)
+            product.CostPrice = cost;
         product.UnitPrice = request.UnitPrice;
         product.ReorderLevel = request.ReorderLevel;
         
         await dbContext.SaveChangesAsync(ct);
-        return ToResponse(product , await GetStockQuantityAsync(product.Id, ct));
+        return ToResponse(product , await GetStockQuantityAsync(product.Id, ct) ,CanViewCost);
     }
 
     public async Task DeleteAsync(Guid id, CancellationToken ct)
@@ -143,12 +155,12 @@ public class ProductService(AppDbContext dbContext , IWarehouseScope scope) : IP
         if (await dbContext.Products.AnyAsync(p => p.Sku == sku && p.Id != excludeId, ct))
             throw new ConflictException($"SKU '{sku}' is already used by another product.");
     }
-    private static ProductResponse ToResponse(Product product, int stockQuantity) => new(
+    private static ProductResponse ToResponse(Product product, int stockQuantity, bool canViewCost) => new(
         product.Id,
         product.Name,
         product.CategoryId,
         product.Sku,
-        product.CostPrice,
+        canViewCost ? product.CostPrice : null,
         product.UnitPrice,
         stockQuantity,
         product.ReorderLevel);
