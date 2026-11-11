@@ -174,7 +174,7 @@ public class CrossWarehouseAccessTests(ApiFactory factory)
         var product = new Product
         {
             Id = Guid.NewGuid(), CategoryId = category.Id, Name = $"Product-{suffix}",
-            Sku = $"SKU-{suffix}", UnitPrice = 100m, CostPrice = 50m
+            Sku = $"SKU-{suffix}".ToUpperInvariant()
         };
         var Showroom = new Showroom
         {

@@ -282,7 +282,7 @@ public class OrderDiscountApprovalTests(ApiFactory factory)
             Id = Guid.NewGuid(),
             CategoryId = category.Id,
             Name = $"Product-{suffix}",
-            Sku = $"SKU-{suffix}",
+            Sku = $"SKU-{suffix}".ToUpperInvariant(),
             UnitPrice = UnitPrice,
             CostPrice = 50m,
             ReorderLevel = 0
