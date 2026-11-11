@@ -8,5 +8,7 @@ public class OrderLineConfiguration : IEntityTypeConfiguration<OrderLine>
             .WithMany()
             .HasForeignKey(l => l.ProductId)
             .OnDelete(DeleteBehavior.Restrict);
+        b.Property(l => l.ProductName).HasMaxLength(200).IsRequired();
+        b.Property(l => l.Sku).HasMaxLength(50).IsRequired();
     }
 }

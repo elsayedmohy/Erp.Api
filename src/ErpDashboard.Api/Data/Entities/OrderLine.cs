@@ -9,4 +9,6 @@ public class OrderLine
     public decimal UnitPrice { get; set; }
     public decimal Discount { get; set; }
     public Product Product { get; set; } = null!;
+    public string ProductName { get; set; } = "";
+    public string Sku { get; set; } = "";
 }
