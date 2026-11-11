@@ -16,10 +16,10 @@ public static class PermissionCodes
         public const string Write = "roles.write";
     }
 
-    public static class Customers
+    public static class Showrooms
     {
-        public const string Read  = "customers.read";
-        public const string Write = "customers.write";
+        public const string Read  = "showrooms.read";
+        public const string Write = "showrooms.write";
     }
 
     public static class Products

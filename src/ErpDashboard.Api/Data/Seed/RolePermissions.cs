@@ -7,7 +7,7 @@ public static class RolePermissions
     public static List<string> Admin => [.. All];
 
     public static List<string> Manager => Sorted(
-        Customers.Read, Customers.Write,
+        Showrooms.Read, Showrooms.Write,
         Products.Read,
         Categories.Read,
         Suppliers.Read,
@@ -30,7 +30,7 @@ public static class RolePermissions
         PurchaseOrders.Read, PurchaseOrders.Write, PurchaseOrders.UpdateStatus);
 
     public static List<string> Accountant => Sorted(
-        Customers.Read,
+        Showrooms.Read,
         Orders.Read,
         Invoices.Read, Invoices.Write, Invoices.Pay,
         Departments.Read,
@@ -38,7 +38,7 @@ public static class RolePermissions
         Employees.ViewSalary);
 
     public static List<string> User => Sorted(
-        Customers.Read, Products.Read,
+        Showrooms.Read, Products.Read,
         Categories.Read, Orders.Read);
 
     private static List<string> Sorted(params string[] codes) =>

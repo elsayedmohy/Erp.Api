@@ -4,9 +4,9 @@ public class InvoiceConfiguration : IEntityTypeConfiguration<Invoice>
 {
     public void Configure(EntityTypeBuilder<Invoice> b)
     {
-        b.HasOne<Customer>()
+        b.HasOne<Showroom>()
             .WithMany(c => c.Invoices)
-            .HasForeignKey(i => i.CustomerId)
+            .HasForeignKey(i => i.ShowroomId)
             .OnDelete(DeleteBehavior.Restrict);
 
         b.HasOne<Order>()

@@ -4,7 +4,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) :
     IdentityUserContext<User, Guid>(options)
 {
     public DbSet<Role> Roles => Set<Role>();
-    public DbSet<Customer> Customers => Set<Customer>();
+    public DbSet<Showroom> Showrooms => Set<Showroom>();
     public DbSet<Supplier> Suppliers => Set<Supplier>();
     public DbSet<Category> Categories => Set<Category>();
     public DbSet<Product> Products => Set<Product>();

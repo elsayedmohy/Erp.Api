@@ -4,7 +4,7 @@ public class Invoice
 {
     public Guid Id { get; set; }
     public Guid? OrderId { get; set; }
-    public Guid CustomerId { get; set; }
+    public Guid ShowroomId { get; set; }
     public DateOnly InvoiceDate { get; set; }
     public DateOnly DueDate { get; set; }
     public InvoiceStatus  Status { get; set; }

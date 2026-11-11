@@ -48,7 +48,7 @@ public class EndpointPermissionTests(ApiFactory factory)
     [InlineData("/api/purchaseorders", HttpStatusCode.Forbidden)]
     [InlineData("/api/products", HttpStatusCode.OK)]
     [InlineData("/api/categories", HttpStatusCode.OK)]
-    [InlineData("/api/customers", HttpStatusCode.OK)]
+    [InlineData("/api/Showrooms", HttpStatusCode.OK)]
     public async Task SelfRegisteredUser_GetsOnlyUserRoleReads(string url, HttpStatusCode expected)
     {
         var user = await factory.CreateUserAsync();

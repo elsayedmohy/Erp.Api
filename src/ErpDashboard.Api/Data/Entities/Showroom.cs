@@ -1,6 +1,6 @@
 namespace ErpDashboard.Api.Data.Entities;
 
-public class Customer : ISoftDelete
+public class Showroom : ISoftDelete
 {
     public Guid Id { get; set; }
     public string Name { get; set; }

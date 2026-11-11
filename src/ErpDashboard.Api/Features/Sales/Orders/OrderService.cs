@@ -29,7 +29,7 @@ public class OrderService(AppDbContext dbContext,
         if (query.From > query.To)
             throw new RequestValidationException("from", "'from' must be before or equal to 'to'.");
 
-        var q = dbContext.Orders.Include(o => o.Customer).AsNoTracking();
+        var q = dbContext.Orders.Include(o => o.Showroom).AsNoTracking();
 
         if (query.GetSearchPattern() is { } p)
             q = q.Where(o =>
@@ -37,16 +37,16 @@ public class OrderService(AppDbContext dbContext,
             );
         
         if (query.Status is { } status) q = q.Where(o => o.Status == status);
-        if (query.CustomerId is { } cid) q = q.Where(o => o.CustomerId == cid);
+        if (query.ShowroomId is { } cid) q = q.Where(o => o.ShowroomId == cid);
         if (query.From is { } from) q = q.Where(o => o.OrderDate >= from);
         if (query.To is { } to) q = q.Where(o => o.OrderDate <= to);
 
         return Sorts.Apply(q, query.SortBy, query.SortDir)
             .Select(o => new OrderResponse(
                 o.Id,
-                o.CustomerId,
+                o.ShowroomId,
                 o.WarehouseId,
-                o.Customer.Name,
+                o.Showroom.Name,
                 o.OrderDate,
                 o.Status,
                 o.PaymentMethod,
@@ -58,7 +58,7 @@ public class OrderService(AppDbContext dbContext,
 
     public async Task<OrderDetailsResponse> GetByIdAsync(Guid id, CancellationToken ct)
     {
-        Order? order = await dbContext.Orders.Include(o => o.Customer).AsNoTracking()
+        Order? order = await dbContext.Orders.Include(o => o.Showroom).AsNoTracking()
             .Include(o => o.Invoice)
             .Include(o => o.OrderLines)
             .ThenInclude((l) => l.Product)
@@ -84,8 +84,8 @@ public class OrderService(AppDbContext dbContext,
             throw new RequestValidationException("lines",
                 $"Each product can appear only once. Duplicated: {string.Join(", ", duplicates)}");
 
-        var customer = await dbContext.Customers.FirstOrDefaultAsync(c => c.Id == request.CustomerId, ct)
-                       ?? throw new RequestValidationException("customerId", $"Customer '{request.CustomerId}' does not exist.");
+        var showroom = await dbContext.Showrooms.FirstOrDefaultAsync(c => c.Id == request.ShowroomId, ct)
+                       ?? throw new RequestValidationException("ShowroomId", $"Showroom '{request.ShowroomId}' does not exist.");
 
         var ids = request.Lines.Select(l => l.ProductId).ToList();
         var products = await dbContext.Products
@@ -152,13 +152,13 @@ public class OrderService(AppDbContext dbContext,
             throw new ConflictException("Insufficient stock: " + string.Join("; ", insufficient));
 
         var invoice = InvoiceFactory.CreateDraft(
-            request.CustomerId, orderDate, orderDate.AddDays(InvoiceDueDays), invoiceLines);
+            request.ShowroomId, orderDate, orderDate.AddDays(InvoiceDueDays), invoiceLines);
 
         var order = new Order
         {
-            CustomerId = customer.Id,
+            ShowroomId = showroom.Id,
             WarehouseId = warehouseId,
-            Customer = customer,
+            Showroom = showroom,
             OrderDate = orderDate,
             Status = requiresApproval ? OrderStatus.PendingApproval : OrderStatus.Pending,
             CreatedById = createdById,
@@ -178,7 +178,7 @@ public class OrderService(AppDbContext dbContext,
     public async Task<OrderResponse> UpdateAsync(Guid id, UpdateOrderRequest request, CancellationToken ct)
     {
         Order? order = await dbContext.Orders
-            .Include(o => o.Customer)
+            .Include(o => o.Showroom)
             .FirstOrDefaultAsync(o => o.Id == id, ct);
         if (order is null)
             throw new NotFoundException("Order", id);
@@ -195,7 +195,7 @@ public class OrderService(AppDbContext dbContext,
     public async Task<OrderResponse> UpdateStatusAsync(Guid id, UpdateOrderStatusRequest request, CancellationToken ct)
     {
         Order? order = await dbContext.Orders
-            .Include(o => o.Customer)
+            .Include(o => o.Showroom)
             .Include(o => o.Invoice)
             .FirstOrDefaultAsync(o => o.Id == id, ct);
         if (order is null)
@@ -282,7 +282,7 @@ public async Task<OrderResponse> RejectAsync(
     private async Task<Order> GetForReviewAsync(Guid id, Guid reviewerId, CancellationToken ct)
     {
         var order = await dbContext.Orders
-                        .Include(o => o.Customer)
+                        .Include(o => o.Showroom)
                         .Include(o => o.OrderLines)
                         .Include(o => o.Invoice)
                         .FirstOrDefaultAsync(o => o.Id == id, ct)
@@ -318,10 +318,10 @@ public async Task<OrderResponse> RejectAsync(
     private static OrderDetailsResponse ToDetailedResponse(Order o) =>
         new OrderDetailsResponse(
             o.Id,
-            o.CustomerId,
+            o.ShowroomId,
             o.WarehouseId,
             o.Invoice.Id,
-            o.Customer.Name,
+            o.Showroom.Name,
             o.OrderDate,
             o.Status,
             o.PaymentMethod,
@@ -338,9 +338,9 @@ public async Task<OrderResponse> RejectAsync(
     private static OrderResponse ToResponse(Order o) =>
         new OrderResponse(
             o.Id,
-            o.CustomerId,
+            o.ShowroomId,
             o.WarehouseId,
-            o.Customer.Name,
+            o.Showroom.Name,
             o.OrderDate,
             o.Status,
             o.PaymentMethod,

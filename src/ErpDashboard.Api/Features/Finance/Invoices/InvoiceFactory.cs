@@ -9,7 +9,7 @@ public sealed record InvoiceLineInput(
 
 public static class InvoiceFactory
 {
-    public static Invoice CreateDraft(Guid customerId, DateOnly invoiceDate, DateOnly dueDate,
+    public static Invoice CreateDraft(Guid ShowroomId, DateOnly invoiceDate, DateOnly dueDate,
         IReadOnlyCollection<InvoiceLineInput> lines)
     {
         ValidateDates(invoiceDate, dueDate);
@@ -17,7 +17,7 @@ public static class InvoiceFactory
 
         return new Invoice
         {
-            CustomerId = customerId,
+            ShowroomId = ShowroomId,
             InvoiceDate = invoiceDate,
             DueDate = dueDate,
             Status = InvoiceStatus.Draft,

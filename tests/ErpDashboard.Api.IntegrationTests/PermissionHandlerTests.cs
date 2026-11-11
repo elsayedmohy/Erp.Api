@@ -20,11 +20,11 @@ public class PermissionHandlerTests(ApiFactory factory)
             PermissionCodes.Users.Write));
 
     [Fact]
-    public async Task UserRole_HasCustomersRead()
+    public async Task UserRole_HasShowroomsRead()
     {
         var user = await  factory.CreateUserAsync();
         Assert.True(await IsAuthorizedAsync(user.Id,
-            PermissionCodes.Customers.Read));
+            PermissionCodes.Showrooms.Read));
     }
 
 
@@ -55,11 +55,11 @@ public class PermissionHandlerTests(ApiFactory factory)
 
     [Fact]
     public async Task UnknownUser_IsDenied() =>
-        Assert.False(await IsAuthorizedAsync(Guid.NewGuid(), PermissionCodes.Customers.Read));
+        Assert.False(await IsAuthorizedAsync(Guid.NewGuid(), PermissionCodes.Showrooms.Read));
 
     [Fact]
     public async Task Anonymous_IsDenied() =>
-        Assert.False(await IsAuthorizedAsync(null, PermissionCodes.Customers.Read));
+        Assert.False(await IsAuthorizedAsync(null, PermissionCodes.Showrooms.Read));
 
     [Fact]
     public void UnknownPermissionCode_Throws() =>

@@ -3,16 +3,16 @@ namespace ErpDashboard.Api.Features.Sales.Orders;
 public sealed class OrderQuery : PageQuery
 {
     public OrderStatus? Status { get; set; }
-    public Guid? CustomerId { get; set; }
+    public Guid? ShowroomId { get; set; }
     public DateOnly? From { get; set; }
     public DateOnly? To { get; set; }
 }
 
 public sealed record OrderResponse(
     Guid Id,
-    Guid CustomerId,
+    Guid ShowroomId,
     Guid WarehouseId,
-    string CustomerName,
+    string ShowroomName,
     DateOnly OrderDate,
     OrderStatus Status,
     PaymentMethod PaymentMethod,
@@ -22,10 +22,10 @@ public sealed record OrderResponse(
 
 public sealed record OrderDetailsResponse(
     Guid Id,
-    Guid CustomerId,
+    Guid ShowroomId,
     Guid WarehouseId,
     Guid InvoiceId,
-    string CustomerName,
+    string ShowroomName,
     DateOnly OrderDate,
     OrderStatus Status,
     PaymentMethod PaymentMethod,
@@ -35,7 +35,7 @@ public sealed record OrderDetailsResponse(
 );
 
 public sealed record CreateOrderRequest(
-    Guid CustomerId,
+    Guid ShowroomId,
     [Required] Guid? WarehouseId,
     PaymentMethod PaymentMethod,
     string ShippingAddress,

@@ -169,7 +169,7 @@ public static class DependencyInjection
         builder.Services.AddScoped<ITokenService, TokenService>();
         builder.Services.AddScoped<IUserService, UserService>();
         builder.Services.AddScoped<IRoleService, RoleService>();
-        builder.Services.AddScoped<ICustomerService, CustomerService>();
+        builder.Services.AddScoped<IShowroomService, ShowroomService>();
         builder.Services.AddScoped<IOrderService, OrderService>();
         builder.Services.AddScoped<ICategoryService, CategoryService>();
         builder.Services.AddScoped<IProductService, ProductService>();

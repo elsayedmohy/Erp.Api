@@ -29,13 +29,13 @@ public sealed class InvoiceService(AppDbContext dbContext, IOptions<FinanceSetti
         var q = dbContext.Invoices.AsNoTracking();
 
         if (query.Status is { } status) q = q.Where(i => i.Status == status);
-        if (query.CustomerId is { } cid) q = q.Where(i => i.CustomerId == cid);
+        if (query.ShowroomId is { } cid) q = q.Where(i => i.ShowroomId == cid);
         if (query.From is { } from) q = q.Where(i => i.InvoiceDate >= from);
         if (query.To is { } to) q = q.Where(i => i.InvoiceDate <= to);
 
         return Sorts.Apply(q, query.SortBy, query.SortDir)
             .Select(i => new InvoiceResponse(
-                i.Id, i.OrderId, i.CustomerId, i.InvoiceDate, i.DueDate,
+                i.Id, i.OrderId, i.ShowroomId, i.InvoiceDate, i.DueDate,
                 i.Status, i.TotalAmount, i.PaidAt))
             .ToPagedResultAsync(query, ct);
     }
@@ -47,12 +47,12 @@ public sealed class InvoiceService(AppDbContext dbContext, IOptions<FinanceSetti
             .FirstOrDefaultAsync(i => i.Id == id, ct)
             ?? throw new NotFoundException(nameof(Invoice), id);
 
-        var customerName = await dbContext.Customers.IgnoreQueryFilters()
-            .Where(c => c.Id == invoice.CustomerId)
+        var ShowroomName = await dbContext.Showrooms.IgnoreQueryFilters()
+            .Where(c => c.Id == invoice.ShowroomId)
             .Select(c => c.Name)
             .FirstAsync(ct);
 
-        return ToDetails(invoice, customerName);
+        return ToDetails(invoice, ShowroomName);
     }
 
     
@@ -69,16 +69,16 @@ public sealed class InvoiceService(AppDbContext dbContext, IOptions<FinanceSetti
         var dueDate = request.DueDate ?? invoiceDate.AddDays(_finance.DefaultDueDays);
         InvoiceFactory.ValidateDates(invoiceDate, dueDate);
 
-        var customerId = request.CustomerId!.Value;
-        var customerName = await GetActiveCustomerNameAsync(customerId, ct);
+        var ShowroomId = request.ShowroomId!.Value;
+        var ShowroomName = await GetActiveShowroomNameAsync(ShowroomId, ct);
         await EnsureProductsExistAsync(request.Lines, ct);
 
-        var invoice = InvoiceFactory.CreateDraft(customerId, invoiceDate, dueDate, ToInputs(request.Lines));
+        var invoice = InvoiceFactory.CreateDraft(ShowroomId, invoiceDate, dueDate, ToInputs(request.Lines));
 
         dbContext.Invoices.Add(invoice);
         await dbContext.SaveChangesAsync(ct);
 
-        return ToDetails(invoice, customerName);
+        return ToDetails(invoice, ShowroomName);
     }
 
     public async Task<InvoiceDetailsResponse> UpdateAsync(Guid id, UpdateInvoiceRequest request, CancellationToken ct)
@@ -96,13 +96,13 @@ public sealed class InvoiceService(AppDbContext dbContext, IOptions<FinanceSetti
         var dueDate = request.DueDate!.Value;
         InvoiceFactory.ValidateDates(invoiceDate, dueDate);
 
-        var customerId = request.CustomerId!.Value;
-        var customerName = await GetActiveCustomerNameAsync(customerId, ct);
+        var ShowroomId = request.ShowroomId!.Value;
+        var ShowroomName = await GetActiveShowroomNameAsync(ShowroomId, ct);
         await EnsureProductsExistAsync(request.Lines, ct);
 
         var newLines = InvoiceFactory.BuildLines(ToInputs(request.Lines));
 
-        invoice.CustomerId = customerId;
+        invoice.ShowroomId = ShowroomId;
         invoice.InvoiceDate = invoiceDate;
         invoice.DueDate = dueDate;
 
@@ -111,7 +111,7 @@ public sealed class InvoiceService(AppDbContext dbContext, IOptions<FinanceSetti
         invoice.TotalAmount = InvoiceFactory.CalculateTotal(invoice.InvoiceLines);
 
         await dbContext.SaveChangesAsync(ct);
-        return ToDetails(invoice, customerName);
+        return ToDetails(invoice, ShowroomName);
     }
 
     public async Task<InvoiceResponse> IssueAsync(Guid id, CancellationToken ct)
@@ -193,12 +193,12 @@ public sealed class InvoiceService(AppDbContext dbContext, IOptions<FinanceSetti
         await dbContext.Invoices.FirstOrDefaultAsync(i => i.Id == id, ct)
         ?? throw new NotFoundException(nameof(Invoice), id);
 
-    private async Task<string> GetActiveCustomerNameAsync(Guid customerId, CancellationToken ct) =>
-        await dbContext.Customers
-            .Where(c => c.Id == customerId)
+    private async Task<string> GetActiveShowroomNameAsync(Guid ShowroomId, CancellationToken ct) =>
+        await dbContext.Showrooms
+            .Where(c => c.Id == ShowroomId)
             .Select(c => c.Name)
             .FirstOrDefaultAsync(ct)
-        ?? throw new RequestValidationException("customerId", $"Customer '{customerId}' does not exist.");
+        ?? throw new RequestValidationException("ShowroomId", $"Showroom '{ShowroomId}' does not exist.");
 
     private async Task EnsureProductsExistAsync(IEnumerable<InvoiceLineRequest> lines, CancellationToken ct)
     {
@@ -224,9 +224,9 @@ public sealed class InvoiceService(AppDbContext dbContext, IOptions<FinanceSetti
             l.TaxRate ?? _finance.DefaultTaxRate)).ToList();
 
     private static InvoiceResponse ToSummary(Invoice i) =>
-        new(i.Id, i.OrderId, i.CustomerId, i.InvoiceDate, i.DueDate, i.Status, i.TotalAmount, i.PaidAt);
+        new(i.Id, i.OrderId, i.ShowroomId, i.InvoiceDate, i.DueDate, i.Status, i.TotalAmount, i.PaidAt);
 
-    private static InvoiceDetailsResponse ToDetails(Invoice i, string customerName)
+    private static InvoiceDetailsResponse ToDetails(Invoice i, string ShowroomName)
     {
         var lines = i.InvoiceLines.Select(l =>
         {
@@ -237,7 +237,7 @@ public sealed class InvoiceService(AppDbContext dbContext, IOptions<FinanceSetti
         }).ToList();
 
         return new InvoiceDetailsResponse(
-            i.Id, i.OrderId, i.CustomerId, customerName,
+            i.Id, i.OrderId, i.ShowroomId, ShowroomName,
             i.InvoiceDate, i.DueDate, i.Status,
             Subtotal: lines.Sum(x => x.LineNet),
             TaxAmount: lines.Sum(x => x.LineTax),

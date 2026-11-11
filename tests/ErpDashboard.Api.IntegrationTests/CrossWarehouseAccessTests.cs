@@ -85,7 +85,7 @@ public class CrossWarehouseAccessTests(ApiFactory factory)
 
         var response = await SendAsync(HttpMethod.Post, "/api/orders", token, new
         {
-            customerId = other.CustomerId,
+            ShowroomId = other.ShowroomId,
             warehouseId = other.WarehouseId,
             paymentMethod = Enum.GetValues<PaymentMethod>()[0].ToString(),
             shippingAddress = "Test address",
@@ -161,7 +161,7 @@ public class CrossWarehouseAccessTests(ApiFactory factory)
         Assert.Equal(1, await AssignmentCountAsync(target.Id));
     }
 
-    private sealed record Seeded(Guid WarehouseId, string Code, Guid ProductId, Guid CustomerId, Guid SupplierId);
+    private sealed record Seeded(Guid WarehouseId, string Code, Guid ProductId, Guid ShowroomId, Guid SupplierId);
 
     private async Task<Seeded> SeedAsync()
     {
@@ -176,9 +176,9 @@ public class CrossWarehouseAccessTests(ApiFactory factory)
             Id = Guid.NewGuid(), CategoryId = category.Id, Name = $"Product-{suffix}",
             Sku = $"SKU-{suffix}", UnitPrice = 100m, CostPrice = 50m
         };
-        var customer = new Customer
+        var Showroom = new Showroom
         {
-            Id = Guid.NewGuid(), Name = $"Customer-{suffix}", Email = $"c-{suffix}@tests.local",
+            Id = Guid.NewGuid(), Name = $"Showroom-{suffix}", Email = $"c-{suffix}@tests.local",
             Address = "Address", City = "Cairo", Country = "Egypt", PhoneNumber = "01000000000",
             TaxId = $"TAX-{suffix[..12]}"
         };
@@ -188,12 +188,12 @@ public class CrossWarehouseAccessTests(ApiFactory factory)
             Email = $"s-{suffix}@tests.local", Phone = "01000000000"
         };
 
-        db.AddRange(warehouse, category, product, customer, supplier,
+        db.AddRange(warehouse, category, product, Showroom, supplier,
             new WarehouseStock { WarehouseId = WarehouseIds.Main, ProductId = product.Id, Quantity = MainStock },
             new WarehouseStock { WarehouseId = warehouse.Id, ProductId = product.Id, Quantity = OtherStock });
         await db.SaveChangesAsync();
 
-        return new Seeded(warehouse.Id, warehouse.Code, product.Id, customer.Id, supplier.Id);
+        return new Seeded(warehouse.Id, warehouse.Code, product.Id, Showroom.Id, supplier.Id);
     }
 
     private async Task<Guid> CreateRoleAsync(params string[] permissions)
