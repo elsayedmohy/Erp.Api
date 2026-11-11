@@ -39,6 +39,11 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentShowro
             s => ShowroomAccessAll || s.Id == ScopedShowroomId);
     }
     
+    public override int SaveChanges(bool acceptAllChangesOnSuccess)
+    {
+        ApplySoftDelete();
+        return base.SaveChanges(acceptAllChangesOnSuccess);
+    }
     public override Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken ct = default)
     {
         ApplySoftDelete();
