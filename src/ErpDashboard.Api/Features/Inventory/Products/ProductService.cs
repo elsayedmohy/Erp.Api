@@ -106,9 +106,23 @@ public class ProductService(AppDbContext dbContext , IWarehouseScope scope) : IP
 
     public async Task DeleteAsync(Guid id, CancellationToken ct)
     {
-        Product? product = await dbContext.Products.FirstOrDefaultAsync(c => c.Id == id, cancellationToken: ct);
-        if (product is null)
-            throw new NotFoundException("Product", id);
+        var product = await dbContext.Products.FirstOrDefaultAsync(c => c.Id == id, ct)
+                      ?? throw new NotFoundException("Product", id);
+
+        if (await dbContext.WarehouseStocks.AnyAsync(s => s.ProductId == id && s.Quantity != 0, ct))
+            throw new ConflictException("Cannot delete a product that still has stock in any warehouse.");
+
+        if (await dbContext.PurchaseOrders.AnyAsync(po =>
+                po.Status == PurchaseOrderStatus.Pending &&
+                po.PurchaseLines.Any(l => l.ProductId == id), ct))
+            throw new ConflictException("Cannot delete a product on a pending purchase order.");
+
+        if (await dbContext.Orders
+                .IgnoreQueryFilters([QueryFilters.Showroom])
+                .AnyAsync(o =>
+                    (o.Status == OrderStatus.Pending || o.Status == OrderStatus.PendingApproval) &&
+                    o.OrderLines.Any(l => l.ProductId == id), ct))
+            throw new ConflictException("Cannot delete a product on an open order.");
 
         dbContext.Products.Remove(product);
         await dbContext.SaveChangesAsync(ct);
