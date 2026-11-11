@@ -45,7 +45,7 @@ public class UserService(AppDbContext dbContext, UserManager<User> userManager ,
         if (role is null)
             throw new NotFoundException("Role", request.RoleId);
         
-        await ValidateShowroomAsync(request.ShowroomId, ct);
+        await ValidateShowroomAsync(role.Id, request.ShowroomId, ct);
         
         User user = new User
         {
@@ -79,7 +79,7 @@ public class UserService(AppDbContext dbContext, UserManager<User> userManager ,
             && await dbContext.Users.CountAsync(u => u.RoleId == RoleIds.Admin, ct) <= 1)
             throw new ConflictException("Cannot delete the last administrator.");
         
-        await ValidateShowroomAsync(request.ShowroomId, ct);
+        await ValidateShowroomAsync(role.Id, request.ShowroomId, ct);
         
         user.FirstName = request.FirstName;
         user.LastName = request.LastName;
@@ -157,8 +157,16 @@ public class UserService(AppDbContext dbContext, UserManager<User> userManager ,
         return await GetWarehousesAsync(userId, ct);
     }
 
-    private async Task ValidateShowroomAsync(Guid? showroomId, CancellationToken ct)
+    private async Task ValidateShowroomAsync(Guid roleId, Guid? showroomId, CancellationToken ct)
     {
+        var isShowroomRole = roleId == RoleIds.ShowroomUser;
+
+        if (isShowroomRole && showroomId is null)
+            throw new RequestValidationException("showroomId", "Showroom users must be linked to a showroom.");
+
+        if (!isShowroomRole && showroomId is not null)
+            throw new RequestValidationException("showroomId", "Only showroom users can be linked to a showroom.");
+
         if (showroomId is { } id && !await dbContext.Showrooms.AnyAsync(s => s.Id == id, ct))
             throw new RequestValidationException("showroomId", $"Showroom '{id}' does not exist.");
     }
