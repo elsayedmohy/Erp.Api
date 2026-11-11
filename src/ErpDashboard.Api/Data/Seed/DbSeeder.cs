@@ -11,6 +11,7 @@ public static class DbSeeder
         new(RoleIds.InventoryManager, RoleNames.InventoryManager, RolePermissions.InventoryManager),
         new(RoleIds.Accountant, RoleNames.Accountant, RolePermissions.Accountant),
         new(RoleIds.User, RoleNames.User, RolePermissions.User),
+        new(RoleIds.ShowroomUser, RoleNames.ShowroomUser, RolePermissions.ShowroomUser),
     ];
 
 

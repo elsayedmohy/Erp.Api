@@ -1,6 +1,8 @@
 using System.Net;
 using ErpDashboard.Api.Common;
+using ErpDashboard.Api.Common.Authorization;
 using ErpDashboard.Api.Data;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 namespace ErpDashboard.Api.IntegrationTests;
@@ -42,7 +44,8 @@ public class HealthTests(ApiFactory factory)
         var options = new DbContextOptionsBuilder<AppDbContext>()
             .UseNpgsql("Host=127.0.0.1;Port=1;Database=x;Username=x;Password=x;Timeout=1")
             .Options;
-        await using var dbContext = new AppDbContext(options);
+        var currentShowroom = new CurrentShowroom(new HttpContextAccessor());
+        await using var dbContext = new AppDbContext(options, currentShowroom);
 
         var result = await new DatabaseHealthCheck(dbContext)
             .CheckHealthAsync(new HealthCheckContext());

@@ -25,7 +25,8 @@ public class UserService(AppDbContext dbContext, UserManager<User> userManager ,
                 new RoleSummeryResponse(c.Role.Id, c.Role.Name),
                 c.FirstName,
                 c.LastName,
-                c.Email)).ToPagedResultAsync(query, ct);
+                c.Email,
+                c.ShowroomId)).ToPagedResultAsync(query, ct);
     }
 
     public async Task<UserResponse> GetByIdAsync(Guid id, CancellationToken ct)
@@ -44,6 +45,7 @@ public class UserService(AppDbContext dbContext, UserManager<User> userManager ,
         if (role is null)
             throw new NotFoundException("Role", request.RoleId);
         
+        await ValidateShowroomAsync(role.Id, request.ShowroomId, ct);
         
         User user = new User
         {
@@ -52,7 +54,8 @@ public class UserService(AppDbContext dbContext, UserManager<User> userManager ,
             Email = request.Email,
             UserName = request.Email,
             RoleId = request.RoleId,
-            Role = role
+            Role = role,
+            ShowroomId = request.ShowroomId
         };
         var result = await userManager.CreateAsync(user, request.Password);
         if (!result.Succeeded)
@@ -76,10 +79,13 @@ public class UserService(AppDbContext dbContext, UserManager<User> userManager ,
             && await dbContext.Users.CountAsync(u => u.RoleId == RoleIds.Admin, ct) <= 1)
             throw new ConflictException("Cannot delete the last administrator.");
         
+        await ValidateShowroomAsync(role.Id, request.ShowroomId, ct);
+        
         user.FirstName = request.FirstName;
         user.LastName = request.LastName;
         user.RoleId = request.RoleId;
         user.Role = role;
+        user.ShowroomId = request.ShowroomId;
         var result = await userManager.UpdateAsync(user);
         if (!result.Succeeded)
         {
@@ -151,9 +157,23 @@ public class UserService(AppDbContext dbContext, UserManager<User> userManager ,
         return await GetWarehousesAsync(userId, ct);
     }
 
+    private async Task ValidateShowroomAsync(Guid roleId, Guid? showroomId, CancellationToken ct)
+    {
+        var isShowroomRole = roleId == RoleIds.ShowroomUser;
 
+        if (isShowroomRole && showroomId is null)
+            throw new RequestValidationException("showroomId", "Showroom users must be linked to a showroom.");
+
+        if (!isShowroomRole && showroomId is not null)
+            throw new RequestValidationException("showroomId", "Only showroom users can be linked to a showroom.");
+
+        if (showroomId is { } id && !await dbContext.Showrooms.AnyAsync(s => s.Id == id, ct))
+            throw new RequestValidationException("showroomId", $"Showroom '{id}' does not exist.");
+    }
+    
     private static UserResponse ToResponse(User user) =>
         new UserResponse(user.Id,
             new RoleSummeryResponse(user.Role.Id, user.Role.Name),
-            user.FirstName, user.LastName, user.Email);
+            user.FirstName, user.LastName, user.Email,
+            user.ShowroomId);
 }

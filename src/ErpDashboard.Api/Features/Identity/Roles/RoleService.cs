@@ -66,6 +66,11 @@ public class RoleService(AppDbContext dbContext) : IRoleService
         if (request.Permissions is null)
             throw new RequestValidationException("permissions", "Permissions are required.");
         
+        if (request.Permissions.Contains(PermissionCodes.Showrooms.AccessAll)
+            && await dbContext.Users.AnyAsync(u => u.RoleId == role.Id && u.ShowroomId != null, ct))
+            throw new RequestValidationException("permissions",
+                "Roles assigned to showroom users cannot have showrooms.access-all.");
+        
         await EnsureCallerHoldsAsync(callerId, request.Permissions.Except(role.Permissions), ct);
         RoleMappings.ApplyTo(request, role);
 

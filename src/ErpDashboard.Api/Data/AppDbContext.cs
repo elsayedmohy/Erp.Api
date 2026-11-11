@@ -1,8 +1,11 @@
 namespace ErpDashboard.Api.Data;
 
-public class AppDbContext(DbContextOptions<AppDbContext> options) :
+public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentShowroom currentShowroom) :
     IdentityUserContext<User, Guid>(options)
 {
+    private bool ShowroomAccessAll => currentShowroom.Current.Kind == ShowroomAccessKind.AccessAll;
+    private Guid? ScopedShowroomId => currentShowroom.Current.ShowroomId;
+    
     public DbSet<Role> Roles => Set<Role>();
     public DbSet<Showroom> Showrooms => Set<Showroom>();
     public DbSet<Supplier> Suppliers => Set<Supplier>();
@@ -28,6 +31,12 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) :
         base.OnModelCreating(modelBuilder);
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
 
+        modelBuilder.Entity<Order>().HasQueryFilter(QueryFilters.Showroom,
+            o => ShowroomAccessAll || o.ShowroomId == ScopedShowroomId);
+        modelBuilder.Entity<Invoice>().HasQueryFilter(QueryFilters.Showroom,
+            i => ShowroomAccessAll || i.ShowroomId == ScopedShowroomId);
+        modelBuilder.Entity<Showroom>().HasQueryFilter(QueryFilters.Showroom,
+            s => ShowroomAccessAll || s.Id == ScopedShowroomId);
     }
     
     public override Task<int> SaveChangesAsync(CancellationToken ct = default)

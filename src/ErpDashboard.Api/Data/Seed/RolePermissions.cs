@@ -17,7 +17,8 @@ public static class RolePermissions
         Warehouses.Read,
         Invoices.Read,
         Departments.Read,
-        Employees.Read);
+        Employees.Read,
+        Showrooms.AccessAll);
 
     public static List<string> InventoryManager => Sorted(
         Warehouses.Read,
@@ -35,11 +36,15 @@ public static class RolePermissions
         Invoices.Read, Invoices.Write, Invoices.Pay,
         Departments.Read,
         Employees.Read,
-        Employees.ViewSalary);
+        Employees.ViewSalary,
+        Showrooms.AccessAll);
 
+    public static List<string> ShowroomUser => Sorted(Orders.Read, Invoices.Read);
+    
     public static List<string> User => Sorted(
         Showrooms.Read, Products.Read,
-        Categories.Read, Orders.Read);
+        Categories.Read, Orders.Read,
+    Showrooms.AccessAll);
 
     private static List<string> Sorted(params string[] codes) =>
         codes.Order(StringComparer.Ordinal).ToList();

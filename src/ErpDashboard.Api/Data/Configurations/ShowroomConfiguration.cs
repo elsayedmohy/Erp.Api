@@ -6,6 +6,6 @@ public class ShowroomConfiguration : IEntityTypeConfiguration<Showroom>
     {
         b.Property(c => c.TaxId).HasMaxLength(50);
         b.HasIndex(c => c.Email).IsUnique().HasFilter("\"IsDeleted\" = false");
-        b.HasQueryFilter(c => !c.IsDeleted);
+        b.HasQueryFilter(QueryFilters.SoftDelete, e => !e.IsDeleted);
     }
 }

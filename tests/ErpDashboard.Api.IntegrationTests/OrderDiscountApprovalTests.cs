@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using ErpDashboard.Api.Common;
 using ErpDashboard.Api.Data;
 using ErpDashboard.Api.Data.Entities;
 using ErpDashboard.Api.Data.Enums;
@@ -26,9 +27,9 @@ public class OrderDiscountApprovalTests(ApiFactory factory)
     public async Task Create_SetsStatusByDiscount(decimal discount, string expected)
     {
         var (creator, _) = await ManagerAsync();
-        var (ShowroomId, productId) = await SeedShowroomAndProductAsync();
+        var (showroomId, productId) = await SeedShowroomAndProductAsync();
 
-        var order = await CreateOrderAsync(creator, ShowroomId, productId, discount);
+        var order = await CreateOrderAsync(creator, showroomId, productId, discount);
 
         Assert.Equal(expected, order.GetProperty("status").GetString());
     }
@@ -49,8 +50,8 @@ public class OrderDiscountApprovalTests(ApiFactory factory)
     public async Task Creator_CannotApproveOwnOrder()
     {
         var (creator, _) = await ManagerAsync();
-        var (ShowroomId, productId) = await SeedShowroomAndProductAsync();
-        var orderId = (await CreateOrderAsync(creator, ShowroomId, productId, 50)).GetProperty("id").GetGuid();
+        var (showroomId, productId) = await SeedShowroomAndProductAsync();
+        var orderId = (await CreateOrderAsync(creator, showroomId, productId, 50)).GetProperty("id").GetGuid();
 
         var response = await SendAsync(HttpMethod.Post, $"/api/orders/{orderId}/approve", creator);
 
@@ -91,8 +92,8 @@ public class OrderDiscountApprovalTests(ApiFactory factory)
     public async Task Reject_RestoresStockAndCancelsInvoice()
     {
         var (creator, _) = await ManagerAsync();
-        var (ShowroomId, productId) = await SeedShowroomAndProductAsync();
-        var orderId = (await CreateOrderAsync(creator, ShowroomId, productId, 50)).GetProperty("id").GetGuid();
+        var (showroomId, productId) = await SeedShowroomAndProductAsync();
+        var orderId = (await CreateOrderAsync(creator, showroomId, productId, 50)).GetProperty("id").GetGuid();
         var (reviewer, _) = await ManagerAsync();
 
         var response = await SendAsync(HttpMethod.Post, $"/api/orders/{orderId}/reject", reviewer,
@@ -120,8 +121,8 @@ public class OrderDiscountApprovalTests(ApiFactory factory)
     public async Task ConcurrentApproveAndReject_OnlyOneWins()
     {
         var (creator, _) = await ManagerAsync();
-        var (ShowroomId, productId) = await SeedShowroomAndProductAsync();
-        var orderId = (await CreateOrderAsync(creator, ShowroomId, productId, 50)).GetProperty("id").GetGuid();
+        var (showroomId, productId) = await SeedShowroomAndProductAsync();
+        var orderId = (await CreateOrderAsync(creator, showroomId, productId, 50)).GetProperty("id").GetGuid();
         var (approver, _) = await ManagerAsync();
         var (rejecter, _) = await ManagerAsync();
 
@@ -139,17 +140,17 @@ public class OrderDiscountApprovalTests(ApiFactory factory)
     private async Task<Guid> CreatePendingApprovalOrderAsync()
     {
         var (creator, _) = await ManagerAsync();
-        var (ShowroomId, productId) = await SeedShowroomAndProductAsync();
+        var (showroomId, productId) = await SeedShowroomAndProductAsync();
 
-        return (await CreateOrderAsync(creator, ShowroomId, productId, 50)).GetProperty("id").GetGuid();
+        return (await CreateOrderAsync(creator, showroomId, productId, 50)).GetProperty("id").GetGuid();
     }
     
     [Fact]
     public async Task Delete_RestoresStockToOrderWarehouse()
     {
         var (token, _) = await ManagerAsync();
-        var (ShowroomId, productId) = await SeedShowroomAndProductAsync();
-        var orderId = (await CreateOrderAsync(token, ShowroomId, productId, 0)).GetProperty("id").GetGuid();
+        var (showroomId, productId) = await SeedShowroomAndProductAsync();
+        var orderId = (await CreateOrderAsync(token, showroomId, productId, 0)).GetProperty("id").GetGuid();
         Assert.Equal(Stock - 1, await GetStockAsync(WarehouseIds.Main,productId));
 
         var response = await SendAsync(HttpMethod.Delete, $"/api/orders/{orderId}", token);
@@ -181,11 +182,11 @@ public class OrderDiscountApprovalTests(ApiFactory factory)
             .SingleOrDefaultAsync() ?? 0;
     }
     
-    private async Task<JsonElement> CreateOrderAsync(string token, Guid ShowroomId, Guid productId, decimal discount)
+    private async Task<JsonElement> CreateOrderAsync(string token, Guid showroomId, Guid productId, decimal discount)
     {
         var response = await SendAsync(HttpMethod.Post, "/api/orders", token, new
         {
-            ShowroomId,
+            showroomId,
             warehouseId = WarehouseIds.Main,
             paymentMethod = Enum.GetValues<PaymentMethod>()[0].ToString(),
             shippingAddress = "Test address",
@@ -197,7 +198,7 @@ public class OrderDiscountApprovalTests(ApiFactory factory)
         return json.RootElement.Clone();
     }
 
-    private async Task<(Guid ShowroomId, Guid ProductId)> SeedShowroomAndProductAsync()
+    private async Task<(Guid showroomId, Guid ProductId)> SeedShowroomAndProductAsync()
     {
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -222,7 +223,7 @@ public class OrderDiscountApprovalTests(ApiFactory factory)
         
         
 
-        var Showroom = new Showroom
+        var showroom = new Showroom
         {
             Id = Guid.NewGuid(),
             Name = $"Showroom-{suffix}",
@@ -240,9 +241,9 @@ public class OrderDiscountApprovalTests(ApiFactory factory)
             ProductId = product.Id,
             Quantity = Stock
         };
-        db.AddRange(category, product, Showroom, stock);
+        db.AddRange(category, product, showroom, stock);
         await db.SaveChangesAsync();
-        return (Showroom.Id, product.Id);
+        return (showroom.Id, product.Id);
     }
 
     private async Task<(string Token, Guid Id)> ManagerAsync()
@@ -255,7 +256,11 @@ public class OrderDiscountApprovalTests(ApiFactory factory)
     {
         using var scope = factory.Services.CreateScope();
         return await scope.ServiceProvider.GetRequiredService<AppDbContext>()
-            .Orders.AsNoTracking().Include(o => o.Invoice).SingleAsync(o => o.Id == id);
+            .Orders
+            .IgnoreQueryFilters([QueryFilters.Showroom])
+            .AsNoTracking()
+            .Include(o => o.Invoice)
+            .SingleAsync(o => o.Id == id);
     }
 
 

@@ -20,6 +20,7 @@ public static class PermissionCodes
     {
         public const string Read  = "showrooms.read";
         public const string Write = "showrooms.write";
+        public const string AccessAll = "showrooms.access-all";
     }
 
     public static class Products
