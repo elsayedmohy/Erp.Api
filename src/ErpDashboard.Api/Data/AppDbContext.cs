@@ -25,6 +25,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentShowro
     public DbSet<StockAdjustment> StockAdjustments => Set<StockAdjustment>();
     
     public DbSet<UserWarehouse> UserWarehouses => Set<UserWarehouse>();
+    
+    public DbSet<ProductPriceHistory> ProductPriceHistory => Set<ProductPriceHistory>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

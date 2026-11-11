@@ -1,5 +1,3 @@
-
-
 namespace ErpDashboard.Api.Controllers;
 
 [ApiController]
@@ -9,12 +7,12 @@ public class ProductsController(IProductService service) : ControllerBase
     [HttpGet, HasPermission(PermissionCodes.Products.Read)]
     public Task<PagedResult<ProductResponse>> List([FromQuery] ProductQuery query, CancellationToken ct)
         => service.ListAsync(query, ct);
-    
-    
+
+
     [HttpGet("{id:guid}"), HasPermission(PermissionCodes.Products.Read)]
-    public Task<ProductDetailsResponse> GetById( Guid id, CancellationToken ct)
+    public Task<ProductDetailsResponse> GetById(Guid id, CancellationToken ct)
         => service.GetByIdAsync(id, ct);
-    
+
     [HttpPost, HasPermission(PermissionCodes.Products.Write)]
     public async Task<ActionResult<ProductResponse>> Create([FromBody] ProductRequest request, CancellationToken ct)
     {
@@ -23,9 +21,14 @@ public class ProductsController(IProductService service) : ControllerBase
     }
 
     [HttpPut("{id:guid}"), HasPermission(PermissionCodes.Products.Write)]
-    public async Task<ActionResult<ProductResponse>> Update(Guid id, [FromBody] ProductRequest request, CancellationToken ct)
-        => Ok(await service.UpdateAsync(id, request, ct));
+    public async Task<ActionResult<ProductResponse>> Update(Guid id, [FromBody] ProductRequest request,
+        CancellationToken ct)
+        => Ok(await service.UpdateAsync(id, request, User.GetUserId(), ct));
 
+    [HttpGet("{id:guid}/price-history"), HasPermission(PermissionCodes.Products.Read)]
+    public Task<IReadOnlyList<ProductPriceChangeResponse>> GetPriceHistory(Guid id, CancellationToken ct)
+        => service.GetPriceHistoryAsync(id, ct);
+    
     [HttpDelete("{id:guid}"), HasPermission(PermissionCodes.Products.Write)]
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
     {

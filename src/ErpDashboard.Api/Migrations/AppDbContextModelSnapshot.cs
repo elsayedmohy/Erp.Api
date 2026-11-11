@@ -318,6 +318,40 @@ namespace ErpDashboard.Api.Migrations
                         });
                 });
 
+            modelBuilder.Entity("ErpDashboard.Api.Data.Entities.ProductPriceHistory", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("ChangedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("ChangedById")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("NewCostPrice")
+                        .HasColumnType("numeric");
+
+                    b.Property<decimal>("NewUnitPrice")
+                        .HasColumnType("numeric");
+
+                    b.Property<decimal>("OldCostPrice")
+                        .HasColumnType("numeric");
+
+                    b.Property<decimal>("OldUnitPrice")
+                        .HasColumnType("numeric");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProductId", "ChangedAt");
+
+                    b.ToTable("ProductPriceHistory", (string)null);
+                });
+
             modelBuilder.Entity("ErpDashboard.Api.Data.Entities.PurchaseLine", b =>
                 {
                     b.Property<Guid>("Id")
@@ -832,6 +866,15 @@ namespace ErpDashboard.Api.Migrations
                     b.HasOne("ErpDashboard.Api.Data.Entities.Category", null)
                         .WithMany("Products")
                         .HasForeignKey("CategoryId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ErpDashboard.Api.Data.Entities.ProductPriceHistory", b =>
+                {
+                    b.HasOne("ErpDashboard.Api.Data.Entities.Product", null)
+                        .WithMany()
+                        .HasForeignKey("ProductId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });

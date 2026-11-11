@@ -92,7 +92,7 @@ public class ProductService(AppDbContext dbContext , IWarehouseScope scope , ICu
         return ToResponse(product , 0,CanViewCost);
     }
 
-    public async Task<ProductResponse> UpdateAsync(Guid id, ProductRequest request, CancellationToken ct)
+    public async Task<ProductResponse> UpdateAsync(Guid id, ProductRequest request,Guid userId ,CancellationToken ct)
     {
         var product = await dbContext.Products.FirstOrDefaultAsync(c => c.Id == id, ct)
                       ?? throw new NotFoundException("Product", id);
@@ -104,6 +104,8 @@ public class ProductService(AppDbContext dbContext , IWarehouseScope scope , ICu
         if (!await dbContext.Categories.AnyAsync(c => c.Id == request.CategoryId, ct))
             throw new RequestValidationException("categoryId", $"Category '{request.CategoryId}' does not exist.");
         
+        var oldUnitPrice = product.UnitPrice;
+        var oldCostPrice = product.CostPrice;
         product.Name = request.Name.Trim();
         product.CategoryId = request.CategoryId;
         product.Sku = sku;
@@ -112,8 +114,47 @@ public class ProductService(AppDbContext dbContext , IWarehouseScope scope , ICu
         product.UnitPrice = request.UnitPrice;
         product.ReorderLevel = request.ReorderLevel;
         
+        if (product.UnitPrice != oldUnitPrice || product.CostPrice != oldCostPrice)
+        {
+            dbContext.ProductPriceHistory.Add(new ProductPriceHistory
+            {
+                Id = Guid.NewGuid(),
+                ProductId = product.Id,
+                OldUnitPrice = oldUnitPrice,
+                NewUnitPrice = product.UnitPrice,
+                OldCostPrice = oldCostPrice,
+                NewCostPrice = product.CostPrice,
+                ChangedById = userId,
+                ChangedAt = DateTime.UtcNow
+            });
+        }
+        
         await dbContext.SaveChangesAsync(ct);
         return ToResponse(product , await GetStockQuantityAsync(product.Id, ct) ,CanViewCost);
+    }
+    
+    public async Task<IReadOnlyList<ProductPriceChangeResponse>> GetPriceHistoryAsync(Guid id, CancellationToken ct)
+    {
+        if (!await dbContext.Products.AnyAsync(p => p.Id == id, ct))
+            throw new NotFoundException("Product", id);
+
+        var canViewCost = CanViewCost;
+        var q = dbContext.ProductPriceHistory.AsNoTracking().Where(h => h.ProductId == id);
+
+        if (!canViewCost)
+            q = q.Where(h => h.OldUnitPrice != h.NewUnitPrice);
+
+        return await q
+            .OrderByDescending(h => h.ChangedAt)
+            .ThenByDescending(h => h.Id)
+            .Select(h => new ProductPriceChangeResponse(
+                h.OldUnitPrice,
+                h.NewUnitPrice,
+                canViewCost ? h.OldCostPrice : null,
+                canViewCost ? h.NewCostPrice : null,
+                h.ChangedById,
+                h.ChangedAt))
+            .ToListAsync(ct);
     }
 
     public async Task DeleteAsync(Guid id, CancellationToken ct)
