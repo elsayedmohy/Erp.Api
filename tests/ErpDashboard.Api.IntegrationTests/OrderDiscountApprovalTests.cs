@@ -144,19 +144,19 @@ public class OrderDiscountApprovalTests(ApiFactory factory)
 
         return (await CreateOrderAsync(creator, showroomId, productId, 50)).GetProperty("id").GetGuid();
     }
-    
+
     [Fact]
     public async Task Delete_RestoresStockToOrderWarehouse()
     {
         var (token, _) = await ManagerAsync();
         var (showroomId, productId) = await SeedShowroomAndProductAsync();
         var orderId = (await CreateOrderAsync(token, showroomId, productId, 0)).GetProperty("id").GetGuid();
-        Assert.Equal(Stock - 1, await GetStockAsync(WarehouseIds.Main,productId));
+        Assert.Equal(Stock - 1, await GetStockAsync(WarehouseIds.Main, productId));
 
         var response = await SendAsync(HttpMethod.Delete, $"/api/orders/{orderId}", token);
 
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
-        Assert.Equal(Stock, await GetStockAsync(WarehouseIds.Main,productId));
+        Assert.Equal(Stock, await GetStockAsync(WarehouseIds.Main, productId));
     }
 
     [Fact]
@@ -172,6 +172,73 @@ public class OrderDiscountApprovalTests(ApiFactory factory)
         Assert.Equal(Stock, json.RootElement.GetProperty("stockQuantity").GetInt32());
     }
 
+    [Fact]
+    public async Task OrderDetails_KeepLines_AfterProductIsDeleted()
+    {
+        var (token, _) = await ManagerAsync();
+        var (showroomId, productId) = await SeedShowroomAndProductAsync();
+        var created = await CreateOrderAsync(token, showroomId, productId, discount: 5);
+        var orderId = created.GetProperty("id").GetGuid();
+        var originalName = Line(created).GetProperty("productName").GetString();
+
+        await UpdateProductAsync(productId, deleted: true);
+
+        var details = await GetOrderDetailsAsync(token, orderId);
+        var line = Line(details);
+        Assert.Equal(originalName, line.GetProperty("productName").GetString());
+        Assert.Equal(details.GetProperty("totalAmount").GetDecimal(), LinesTotal(details));
+    }
+
+    [Fact]
+    public async Task OrderDetails_KeepOriginalName_AfterProductIsRenamed()
+    {
+        var (token, _) = await ManagerAsync();
+        var (showroomId, productId) = await SeedShowroomAndProductAsync();
+        var created = await CreateOrderAsync(token, showroomId, productId, discount: 0);
+        var orderId = created.GetProperty("id").GetGuid();
+        var originalName = Line(created).GetProperty("productName").GetString();
+
+        await UpdateProductAsync(productId, newName: $"Renamed-{Guid.NewGuid():N}");
+
+        var details = await GetOrderDetailsAsync(token, orderId);
+        Assert.Equal(originalName, Line(details).GetProperty("productName").GetString());
+    }
+
+    private static JsonElement Line(JsonElement order) =>
+        Assert.Single(order.GetProperty("lines").EnumerateArray());
+
+    private static decimal LinesTotal(JsonElement order) =>
+        order.GetProperty("lines").EnumerateArray().Sum(l =>
+            l.GetProperty("quantity").GetInt32() * l.GetProperty("unitPrice").GetDecimal()
+            - l.GetProperty("discount").GetDecimal());
+
+    private async Task<JsonElement> GetOrderDetailsAsync(string token, Guid orderId)
+    {
+        var response = await SendAsync(HttpMethod.Get, $"/api/orders/{orderId}", token);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        return json.RootElement.Clone();
+    }
+
+    private async Task UpdateProductAsync(Guid productId, bool deleted = false, string? newName = null)
+    {
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var product = await db.Products.SingleAsync(p => p.Id == productId);
+        if (deleted)
+        {
+            product.IsDeleted = true;
+            product.DeletedAt = DateTime.UtcNow;
+        }
+
+        if (newName is not null)
+            product.Name = newName;
+
+        await db.SaveChangesAsync();
+    }
+
     private async Task<int> GetStockAsync(Guid warehouseId, Guid productId)
     {
         using var scope = factory.Services.CreateScope();
@@ -181,7 +248,7 @@ public class OrderDiscountApprovalTests(ApiFactory factory)
             .Select(s => (int?)s.Quantity)
             .SingleOrDefaultAsync() ?? 0;
     }
-    
+
     private async Task<JsonElement> CreateOrderAsync(string token, Guid showroomId, Guid productId, decimal discount)
     {
         var response = await SendAsync(HttpMethod.Post, "/api/orders", token, new
@@ -220,8 +287,7 @@ public class OrderDiscountApprovalTests(ApiFactory factory)
             CostPrice = 50m,
             ReorderLevel = 0
         };
-        
-        
+
 
         var showroom = new Showroom
         {
@@ -234,7 +300,7 @@ public class OrderDiscountApprovalTests(ApiFactory factory)
             PhoneNumber = "01000000000",
             TaxId = $"TAX-{suffix[..12]}"
         };
-        
+
         var stock = new WarehouseStock
         {
             WarehouseId = WarehouseIds.Main,
@@ -264,10 +330,10 @@ public class OrderDiscountApprovalTests(ApiFactory factory)
     }
 
 
-
     private async Task<string> LoginAsync(TestUser user)
     {
-        var response = await _client.PostAsJsonAsync("/api/auth/login", new { email = user.Email, password = user.Password });
+        var response =
+            await _client.PostAsJsonAsync("/api/auth/login", new { email = user.Email, password = user.Password });
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
         using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
