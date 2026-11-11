@@ -188,6 +188,7 @@ public static class DependencyInjection
         builder.Services.AddScoped<IStockService, StockService>();
         builder.Services.AddScoped<IWarehouseService, WarehouseService>();
         builder.Services.AddScoped<IWarehouseScope, WarehouseScope>();
+        builder.Services.AddScoped<ICurrentShowroom, CurrentShowroom>();
 
         return builder;
     }
