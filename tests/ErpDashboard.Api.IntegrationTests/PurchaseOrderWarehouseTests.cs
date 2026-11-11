@@ -109,7 +109,7 @@ public class PurchaseOrderWarehouseTests(ApiFactory factory)
             Id = Guid.NewGuid(),
             CategoryId = category.Id,
             Name = $"Product-{suffix}",
-            Sku = $"SKU-{suffix}",
+            Sku = $"SKU-{suffix}".ToUpperInvariant(),
             UnitPrice = 100m,
             CostPrice = 50m
         };

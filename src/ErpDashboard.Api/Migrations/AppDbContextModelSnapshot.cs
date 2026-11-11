@@ -312,7 +312,10 @@ namespace ErpDashboard.Api.Migrations
                         .IsUnique()
                         .HasFilter("\"IsDeleted\" = false");
 
-                    b.ToTable("Products");
+                    b.ToTable("Products", t =>
+                        {
+                            t.HasCheckConstraint("CK_Products_Sku_Normalized", "\"Sku\" = upper(btrim(\"Sku\"))");
+                        });
                 });
 
             modelBuilder.Entity("ErpDashboard.Api.Data.Entities.PurchaseLine", b =>

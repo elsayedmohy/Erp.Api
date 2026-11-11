@@ -59,23 +59,21 @@ public class ProductService(AppDbContext dbContext , IWarehouseScope scope) : IP
 
     public async Task<ProductResponse> CreateAsync(ProductRequest request, CancellationToken ct)
     {
-        var existed = await dbContext.Products.AnyAsync(c => c.Sku == request.Sku, ct);
-
-        if (existed)
-            throw new ConflictException($"Product {request.Name} already exists");
+        var sku = NormalizeSku(request.Sku);
+        await EnsureSkuIsFreeAsync(sku, excludeId: null, ct);
 
 
-        Category? category = await dbContext.Categories.FirstOrDefaultAsync(c => c.Id == request.CategoryId, ct);
-        if (category is null)
+        if (!await dbContext.Categories.AnyAsync(c => c.Id == request.CategoryId, ct))
             throw new RequestValidationException("categoryId", $"Category '{request.CategoryId}' does not exist.");
 
         Product product = new Product
         {
-            Name = request.Name,
+            Name = request.Name.Trim(),
             CategoryId = request.CategoryId,
-            Sku = request.Sku,
+            Sku = sku,
             CostPrice = request.CostPrice,
-            UnitPrice = request.UnitPrice
+            UnitPrice = request.UnitPrice,
+            ReorderLevel = request.ReorderLevel
         };
         dbContext.Products.Add(product);
         await dbContext.SaveChangesAsync(ct);
@@ -84,19 +82,22 @@ public class ProductService(AppDbContext dbContext , IWarehouseScope scope) : IP
 
     public async Task<ProductResponse> UpdateAsync(Guid id, ProductRequest request, CancellationToken ct)
     {
-        Product? product = await dbContext.Products.FirstOrDefaultAsync(c => c.Id == id, cancellationToken: ct);
-        if (product is null)
-            throw new NotFoundException("Product", id);
-        
-        Category? category = await dbContext.Categories.FirstOrDefaultAsync(c => c.Id == request.CategoryId, ct);
-        if (category is null)
+        var product = await dbContext.Products.FirstOrDefaultAsync(c => c.Id == id, ct)
+                      ?? throw new NotFoundException("Product", id);
+
+        var sku = NormalizeSku(request.Sku);
+        await EnsureSkuIsFreeAsync(sku, excludeId: id, ct);
+
+        if (!await dbContext.Categories.AnyAsync(c => c.Id == request.CategoryId, ct))
             throw new RequestValidationException("categoryId", $"Category '{request.CategoryId}' does not exist.");
         
-        product.Name = request.Name;
+        product.Name = request.Name.Trim();
         product.CategoryId = request.CategoryId;
-        product.Sku = request.Sku;
+        product.Sku = sku;
         product.CostPrice = request.CostPrice;
         product.UnitPrice = request.UnitPrice;
+        product.ReorderLevel = request.ReorderLevel;
+        
         await dbContext.SaveChangesAsync(ct);
         return ToResponse(product , await GetStockQuantityAsync(product.Id, ct));
     }
@@ -118,7 +119,14 @@ public class ProductService(AppDbContext dbContext , IWarehouseScope scope) : IP
             .Where(s => s.ProductId == productId && accessible.Contains(s.WarehouseId))
             .SumAsync(s => s.Quantity, ct);
     }
+    
+    private static string NormalizeSku(string sku) => sku.Trim().ToUpperInvariant();
 
+    private async Task EnsureSkuIsFreeAsync(string sku, Guid? excludeId, CancellationToken ct)
+    {
+        if (await dbContext.Products.AnyAsync(p => p.Sku == sku && p.Id != excludeId, ct))
+            throw new ConflictException($"SKU '{sku}' is already used by another product.");
+    }
     private static ProductResponse ToResponse(Product product, int stockQuantity) => new(
         product.Id,
         product.Name,

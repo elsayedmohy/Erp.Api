@@ -1,3 +1,5 @@
+using Npgsql;
+
 namespace ErpDashboard.Api.Common;
 
 public class GlobalExceptionHandler(
@@ -23,6 +25,23 @@ public class GlobalExceptionHandler(
                 ProblemDetails = new HttpValidationProblemDetails(validation.Errors)
                 {
                     Status = StatusCodes.Status400BadRequest
+                }
+            });
+        }
+        
+        if (ex is DbUpdateException { InnerException: PostgresException { SqlState: PostgresErrorCodes.UniqueViolation } })
+        {
+            logger.LogWarning(ex, "Unique constraint violation");
+            ctx.Response.StatusCode = StatusCodes.Status409Conflict;
+            return await problemDetailsService.TryWriteAsync(new ProblemDetailsContext
+            {
+                HttpContext = ctx,
+                Exception = ex,
+                ProblemDetails = new ProblemDetails
+                {
+                    Status = StatusCodes.Status409Conflict,
+                    Title = "Conflict",
+                    Detail = "A record with the same unique value already exists."
                 }
             });
         }

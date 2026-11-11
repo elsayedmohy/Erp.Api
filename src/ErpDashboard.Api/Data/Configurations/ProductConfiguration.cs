@@ -8,7 +8,8 @@ public class ProductConfiguration : IEntityTypeConfiguration<Product>
         b.Property(p => p.Sku).HasMaxLength(50).IsRequired();
 
         b.HasIndex(p => p.Sku).IsUnique().HasFilter("\"IsDeleted\" = false");
-
+        b.ToTable(t => t.HasCheckConstraint("CK_Products_Sku_Normalized", "\"Sku\" = upper(btrim(\"Sku\"))"));
+        
         b.HasOne<Category>()
             .WithMany(c => c.Products)
             .HasForeignKey(p => p.CategoryId)
