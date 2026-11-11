@@ -107,7 +107,12 @@ public class ProductService(AppDbContext dbContext , IWarehouseScope scope , ICu
             Sku = sku,
             CostPrice = request.CostPrice ?? 0m,
             UnitPrice = request.UnitPrice,
-            ReorderLevel = request.ReorderLevel
+            ReorderLevel = request.ReorderLevel,
+            LengthCm = request.LengthCm,
+            WidthCm = request.WidthCm,
+            HeightCm = request.HeightCm,
+            WeightKg = request.WeightKg,
+            MaterialId = request.MaterialId
         };
         dbContext.Products.Add(product);
         await dbContext.SaveChangesAsync(ct);
@@ -139,6 +144,11 @@ public class ProductService(AppDbContext dbContext , IWarehouseScope scope , ICu
             product.CostPrice = cost;
         product.UnitPrice = request.UnitPrice;
         product.ReorderLevel = request.ReorderLevel;
+        product.LengthCm = request.LengthCm;
+        product.WidthCm = request.WidthCm;
+        product.HeightCm = request.HeightCm;
+        product.WeightKg = request.WeightKg;
+        product.MaterialId = request.MaterialId;
         
         if (product.UnitPrice != oldUnitPrice || product.CostPrice != oldCostPrice)
         {
