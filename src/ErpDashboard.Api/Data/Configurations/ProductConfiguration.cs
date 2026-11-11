@@ -9,10 +9,15 @@ public class ProductConfiguration : IEntityTypeConfiguration<Product>
 
         b.HasIndex(p => p.Sku).IsUnique().HasFilter("\"IsDeleted\" = false");
         b.ToTable(t => t.HasCheckConstraint("CK_Products_Sku_Normalized", "\"Sku\" = upper(btrim(\"Sku\"))"));
+        b.Property(p => p.WeightKg).HasPrecision(8, 2);
         
         b.HasOne<Category>()
             .WithMany(c => c.Products)
             .HasForeignKey(p => p.CategoryId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        b.HasOne<Material>().WithMany()
+            .HasForeignKey(p => p.MaterialId)
             .OnDelete(DeleteBehavior.Restrict);
 
         b.HasQueryFilter(QueryFilters.SoftDelete, e => !e.IsDeleted);
