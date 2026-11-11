@@ -72,7 +72,8 @@ public class ProductService(AppDbContext dbContext , IWarehouseScope scope) : IP
             CategoryId = request.CategoryId,
             Sku = sku,
             CostPrice = request.CostPrice,
-            UnitPrice = request.UnitPrice
+            UnitPrice = request.UnitPrice,
+            ReorderLevel = request.ReorderLevel
         };
         dbContext.Products.Add(product);
         await dbContext.SaveChangesAsync(ct);
@@ -95,6 +96,7 @@ public class ProductService(AppDbContext dbContext , IWarehouseScope scope) : IP
         product.Sku = sku;
         product.CostPrice = request.CostPrice;
         product.UnitPrice = request.UnitPrice;
+        product.ReorderLevel = request.ReorderLevel;
         
         await dbContext.SaveChangesAsync(ct);
         return ToResponse(product , await GetStockQuantityAsync(product.Id, ct));
