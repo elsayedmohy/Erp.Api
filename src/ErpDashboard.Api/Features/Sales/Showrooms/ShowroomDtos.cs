@@ -1,8 +1,8 @@
-namespace ErpDashboard.Api.Features.Sales.Customers;
+namespace ErpDashboard.Api.Features.Sales.Showrooms;
 
-public sealed class CustomerQuery : PageQuery;
+public sealed class ShowroomQuery : PageQuery;
 
-public sealed record CustomerResponse(
+public sealed record ShowroomResponse(
     Guid Id,
     string Name,
     string Email,
@@ -13,7 +13,7 @@ public sealed record CustomerResponse(
     string TaxId
 );
 
-public sealed record CustomerRequest(
+public sealed record ShowroomRequest(
     string Name,
     string Email,
     string PhoneNumber,

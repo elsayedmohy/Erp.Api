@@ -42,56 +42,6 @@ namespace ErpDashboard.Api.Migrations
                     b.ToTable("Categories");
                 });
 
-            modelBuilder.Entity("ErpDashboard.Api.Data.Entities.Customer", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Address")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("City")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("Country")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Email")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("PhoneNumber")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("TaxId")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Email")
-                        .IsUnique()
-                        .HasFilter("\"IsDeleted\" = false");
-
-                    b.ToTable("Customers");
-                });
-
             modelBuilder.Entity("ErpDashboard.Api.Data.Entities.Department", b =>
                 {
                     b.Property<Guid>("Id")
@@ -165,9 +115,6 @@ namespace ErpDashboard.Api.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<Guid>("CustomerId")
-                        .HasColumnType("uuid");
-
                     b.Property<DateOnly>("DueDate")
                         .HasColumnType("date");
 
@@ -183,6 +130,9 @@ namespace ErpDashboard.Api.Migrations
                     b.Property<int?>("PaymentMethod")
                         .HasColumnType("integer");
 
+                    b.Property<Guid>("ShowroomId")
+                        .HasColumnType("uuid");
+
                     b.Property<int>("Status")
                         .HasColumnType("integer");
 
@@ -191,10 +141,10 @@ namespace ErpDashboard.Api.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("CustomerId");
-
                     b.HasIndex("OrderId")
                         .IsUnique();
+
+                    b.HasIndex("ShowroomId");
 
                     b.ToTable("Invoices");
                 });
@@ -240,9 +190,6 @@ namespace ErpDashboard.Api.Migrations
                     b.Property<Guid?>("CreatedById")
                         .HasColumnType("uuid");
 
-                    b.Property<Guid>("CustomerId")
-                        .HasColumnType("uuid");
-
                     b.Property<DateOnly>("OrderDate")
                         .HasColumnType("date");
 
@@ -262,6 +209,9 @@ namespace ErpDashboard.Api.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<Guid>("ShowroomId")
+                        .HasColumnType("uuid");
+
                     b.Property<int>("Status")
                         .HasColumnType("integer");
 
@@ -273,7 +223,7 @@ namespace ErpDashboard.Api.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("CustomerId");
+                    b.HasIndex("ShowroomId");
 
                     b.HasIndex("WarehouseId");
 
@@ -474,6 +424,56 @@ namespace ErpDashboard.Api.Migrations
                         .IsUnique();
 
                     b.ToTable("Roles");
+                });
+
+            modelBuilder.Entity("ErpDashboard.Api.Data.Entities.Showroom", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Address")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("City")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Country")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("PhoneNumber")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("TaxId")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Email")
+                        .IsUnique()
+                        .HasFilter("\"IsDeleted\" = false");
+
+                    b.ToTable("Showrooms");
                 });
 
             modelBuilder.Entity("ErpDashboard.Api.Data.Entities.StockAdjustment", b =>
@@ -754,16 +754,16 @@ namespace ErpDashboard.Api.Migrations
 
             modelBuilder.Entity("ErpDashboard.Api.Data.Entities.Invoice", b =>
                 {
-                    b.HasOne("ErpDashboard.Api.Data.Entities.Customer", null)
-                        .WithMany("Invoices")
-                        .HasForeignKey("CustomerId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
                     b.HasOne("ErpDashboard.Api.Data.Entities.Order", null)
                         .WithOne("Invoice")
                         .HasForeignKey("ErpDashboard.Api.Data.Entities.Invoice", "OrderId")
                         .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ErpDashboard.Api.Data.Entities.Showroom", null)
+                        .WithMany("Invoices")
+                        .HasForeignKey("ShowroomId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("ErpDashboard.Api.Data.Entities.InvoiceLine", b =>
@@ -777,9 +777,9 @@ namespace ErpDashboard.Api.Migrations
 
             modelBuilder.Entity("ErpDashboard.Api.Data.Entities.Order", b =>
                 {
-                    b.HasOne("ErpDashboard.Api.Data.Entities.Customer", "Customer")
+                    b.HasOne("ErpDashboard.Api.Data.Entities.Showroom", "Showroom")
                         .WithMany("Orders")
-                        .HasForeignKey("CustomerId")
+                        .HasForeignKey("ShowroomId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
@@ -789,7 +789,7 @@ namespace ErpDashboard.Api.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.Navigation("Customer");
+                    b.Navigation("Showroom");
                 });
 
             modelBuilder.Entity("ErpDashboard.Api.Data.Entities.OrderLine", b =>
@@ -951,13 +951,6 @@ namespace ErpDashboard.Api.Migrations
                     b.Navigation("Products");
                 });
 
-            modelBuilder.Entity("ErpDashboard.Api.Data.Entities.Customer", b =>
-                {
-                    b.Navigation("Invoices");
-
-                    b.Navigation("Orders");
-                });
-
             modelBuilder.Entity("ErpDashboard.Api.Data.Entities.Department", b =>
                 {
                     b.Navigation("Employees");
@@ -983,6 +976,13 @@ namespace ErpDashboard.Api.Migrations
             modelBuilder.Entity("ErpDashboard.Api.Data.Entities.Role", b =>
                 {
                     b.Navigation("Users");
+                });
+
+            modelBuilder.Entity("ErpDashboard.Api.Data.Entities.Showroom", b =>
+                {
+                    b.Navigation("Invoices");
+
+                    b.Navigation("Orders");
                 });
 
             modelBuilder.Entity("ErpDashboard.Api.Data.Entities.Supplier", b =>

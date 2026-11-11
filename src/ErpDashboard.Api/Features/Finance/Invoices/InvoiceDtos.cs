@@ -3,19 +3,19 @@ namespace ErpDashboard.Api.Features.Finance.Invoices;
 public sealed class InvoiceQuery : PageQuery
 {
     public InvoiceStatus? Status { get; set; }
-    public Guid? CustomerId { get; set; }
+    public Guid? ShowroomId { get; set; }
     public DateOnly? From { get; set; }
     public DateOnly? To { get; set; }
 };
 
 public sealed record CreateInvoiceRequest(
-    [Required] Guid? CustomerId,
+    [Required] Guid? ShowroomId,
     DateOnly? InvoiceDate,
     DateOnly? DueDate,
     [Required, MinLength(1)] List<InvoiceLineRequest> Lines);
 
 public sealed record UpdateInvoiceRequest(
-    [Required] Guid? CustomerId,
+    [Required] Guid? ShowroomId,
     [Required] DateOnly? InvoiceDate,
     [Required] DateOnly? DueDate,
     [Required, MinLength(1)] List<InvoiceLineRequest> Lines);
@@ -41,8 +41,8 @@ public sealed record InvoiceLineResponse(
 public sealed record InvoiceDetailsResponse(
     Guid Id,
     Guid? OrderId,
-    Guid CustomerId,
-    string CustomerName,
+    Guid ShowroomId,
+    string ShowroomName,
     DateOnly InvoiceDate,
     DateOnly DueDate,
     InvoiceStatus Status,
@@ -56,7 +56,7 @@ public sealed record InvoiceDetailsResponse(
 public sealed record InvoiceResponse(
     Guid Id,
     Guid? OrderId,
-    Guid CustomerId,
+    Guid ShowroomId,
     DateOnly InvoiceDate,
     DateOnly DueDate,
     InvoiceStatus Status,

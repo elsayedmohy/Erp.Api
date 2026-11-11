@@ -3,7 +3,7 @@ namespace ErpDashboard.Api.Data.Entities;
 public class Order
 {
     public Guid Id { get; set; }
-    public Guid CustomerId { get; set; }
+    public Guid ShowroomId { get; set; }
     public Guid WarehouseId { get; set; }
     public DateOnly OrderDate { get; set; }
     public OrderStatus Status { get; set; }
@@ -11,7 +11,7 @@ public class Order
     public string ShippingAddress { get; set; }
     public decimal TotalAmount { get; set; }
     public Invoice? Invoice { get; set; }
-    public Customer? Customer { get; set; }
+    public Showroom? Showroom { get; set; }
     public ICollection<OrderLine> OrderLines { get; set; } =  new List<OrderLine>();
     public Guid? CreatedById { get; set; }
     public Guid? ReviewedById { get; set; }

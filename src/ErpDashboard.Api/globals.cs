@@ -37,7 +37,7 @@ global using ErpDashboard.Api.Settings;
 global using ErpDashboard.Api.Extensions;
 global using ErpDashboard.Api.Auth;
 global using ErpDashboard.Api.Features.Sales.Orders;
-global using ErpDashboard.Api.Features.Sales.Customers;
+global using ErpDashboard.Api.Features.Sales.Showrooms;
 global using ErpDashboard.Api.Features.Identity.Users;
 global using ErpDashboard.Api.Data.Seed;
 global using ErpDashboard.Api.Features.Identity.Roles;

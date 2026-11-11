@@ -4,9 +4,9 @@ public class OrderConfiguration : IEntityTypeConfiguration<Order>
 {
     public void Configure(EntityTypeBuilder<Order> b)
     {
-        b.HasOne<Customer>(o => o.Customer)
+        b.HasOne<Showroom>(o => o.Showroom)
             .WithMany(c => c.Orders)
-            .HasForeignKey(o => o.CustomerId)
+            .HasForeignKey(o => o.ShowroomId)
             .OnDelete(DeleteBehavior.Restrict);
 
         b.HasMany(o => o.OrderLines)

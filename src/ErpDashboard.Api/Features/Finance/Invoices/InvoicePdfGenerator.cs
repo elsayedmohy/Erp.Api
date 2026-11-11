@@ -56,7 +56,7 @@ public sealed class InvoicePdfGenerator(IOptions<CompanySettings> options) : IIn
                 col.Item().Text(t =>
                 {
                     t.Span("Bill to: ").Bold();
-                    t.Span(inv.CustomerName);
+                    t.Span(inv.ShowroomName);
                 });
 
                 if (inv.OrderId is { } orderId)
