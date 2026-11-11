@@ -5,6 +5,7 @@ public class ProductService(AppDbContext dbContext , IWarehouseScope scope) : IP
     private static readonly SortMap<Product> Sorts = new SortMap<Product>()
         .Add("name", c => c.Name)
         .Add("sku", c => c.Sku)
+        .Add("unitPrice", c => c.UnitPrice)
         .Default("name")
         .TieBreaker(c => c.Id);
 
@@ -18,7 +19,8 @@ public class ProductService(AppDbContext dbContext , IWarehouseScope scope) : IP
                 EF.Functions.ILike(product.Sku, p, @"\")
                 );
 
-        if (query.UnitPrice is { } price)  q = q.Where(o => o.UnitPrice == price);
+        if (query.MinPrice is { } min) q = q.Where(p => p.UnitPrice >= min);
+        if (query.MaxPrice is { } max) q = q.Where(p => p.UnitPrice <= max);
         if (query.CategoryId is { } categoryId)  q = q.Where(o => o.CategoryId == categoryId);
 
         return Sorts.Apply(q, query.SortBy, query.SortDir)
@@ -104,9 +106,23 @@ public class ProductService(AppDbContext dbContext , IWarehouseScope scope) : IP
 
     public async Task DeleteAsync(Guid id, CancellationToken ct)
     {
-        Product? product = await dbContext.Products.FirstOrDefaultAsync(c => c.Id == id, cancellationToken: ct);
-        if (product is null)
-            throw new NotFoundException("Product", id);
+        var product = await dbContext.Products.FirstOrDefaultAsync(c => c.Id == id, ct)
+                      ?? throw new NotFoundException("Product", id);
+
+        if (await dbContext.WarehouseStocks.AnyAsync(s => s.ProductId == id && s.Quantity != 0, ct))
+            throw new ConflictException("Cannot delete a product that still has stock in any warehouse.");
+
+        if (await dbContext.PurchaseOrders.AnyAsync(po =>
+                po.Status == PurchaseOrderStatus.Pending &&
+                po.PurchaseLines.Any(l => l.ProductId == id), ct))
+            throw new ConflictException("Cannot delete a product on a pending purchase order.");
+
+        if (await dbContext.Orders
+                .IgnoreQueryFilters([QueryFilters.Showroom])
+                .AnyAsync(o =>
+                    (o.Status == OrderStatus.Pending || o.Status == OrderStatus.PendingApproval) &&
+                    o.OrderLines.Any(l => l.ProductId == id), ct))
+            throw new ConflictException("Cannot delete a product on an open order.");
 
         dbContext.Products.Remove(product);
         await dbContext.SaveChangesAsync(ct);

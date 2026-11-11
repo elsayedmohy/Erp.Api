@@ -1,10 +1,17 @@
 namespace ErpDashboard.Api.Features.Inventory.Products;
 
-public sealed class ProductQuery : PageQuery
+public sealed class ProductQuery : PageQuery, IValidatableObject
 {
-    public decimal? UnitPrice { get; set; }
+    [Range(0, 1_000_000_000)] public decimal? MinPrice { get; set; }
+    [Range(0, 1_000_000_000)] public decimal? MaxPrice { get; set; }
     public Guid? CategoryId { get; set; }
-};
+
+    public IEnumerable<ValidationResult> Validate(ValidationContext context)
+    {
+        if (MinPrice > MaxPrice)
+            yield return new ValidationResult("minPrice must not exceed maxPrice.", [nameof(MinPrice)]);
+    }
+}
 
 
 public sealed record ProductRequest(
