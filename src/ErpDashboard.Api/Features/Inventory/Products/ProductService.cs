@@ -132,6 +132,30 @@ public class ProductService(AppDbContext dbContext , IWarehouseScope scope , ICu
         await dbContext.SaveChangesAsync(ct);
         return ToResponse(product , await GetStockQuantityAsync(product.Id, ct) ,CanViewCost);
     }
+    
+    public async Task<IReadOnlyList<ProductPriceChangeResponse>> GetPriceHistoryAsync(Guid id, CancellationToken ct)
+    {
+        if (!await dbContext.Products.AnyAsync(p => p.Id == id, ct))
+            throw new NotFoundException("Product", id);
+
+        var canViewCost = CanViewCost;
+        var q = dbContext.ProductPriceHistory.AsNoTracking().Where(h => h.ProductId == id);
+
+        if (!canViewCost)
+            q = q.Where(h => h.OldUnitPrice != h.NewUnitPrice);
+
+        return await q
+            .OrderByDescending(h => h.ChangedAt)
+            .ThenByDescending(h => h.Id)
+            .Select(h => new ProductPriceChangeResponse(
+                h.OldUnitPrice,
+                h.NewUnitPrice,
+                canViewCost ? h.OldCostPrice : null,
+                canViewCost ? h.NewCostPrice : null,
+                h.ChangedById,
+                h.ChangedAt))
+            .ToListAsync(ct);
+    }
 
     public async Task DeleteAsync(Guid id, CancellationToken ct)
     {

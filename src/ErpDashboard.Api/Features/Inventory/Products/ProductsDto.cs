@@ -43,3 +43,11 @@ public sealed record ProductDetailsResponse(
     int StockQuantity,
     int ReorderLevel
 );
+
+public sealed record ProductPriceChangeResponse(
+    decimal OldUnitPrice,
+    decimal NewUnitPrice,
+    decimal? OldCostPrice,
+    decimal? NewCostPrice,
+    Guid ChangedById,
+    DateTime ChangedAt);

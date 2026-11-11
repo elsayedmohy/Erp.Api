@@ -6,5 +6,6 @@ public interface IProductService
     Task<ProductDetailsResponse> GetByIdAsync(Guid id ,CancellationToken ct);
     Task<ProductResponse> CreateAsync(ProductRequest request ,CancellationToken ct);
     Task<ProductResponse> UpdateAsync(Guid id, ProductRequest request, Guid userId, CancellationToken ct);
+    Task<IReadOnlyList<ProductPriceChangeResponse>> GetPriceHistoryAsync(Guid id, CancellationToken ct);
     Task DeleteAsync(Guid id ,CancellationToken ct);
 }

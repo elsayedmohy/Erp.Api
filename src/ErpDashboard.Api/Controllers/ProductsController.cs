@@ -25,6 +25,10 @@ public class ProductsController(IProductService service) : ControllerBase
         CancellationToken ct)
         => Ok(await service.UpdateAsync(id, request, User.GetUserId(), ct));
 
+    [HttpGet("{id:guid}/price-history"), HasPermission(PermissionCodes.Products.Read)]
+    public Task<IReadOnlyList<ProductPriceChangeResponse>> GetPriceHistory(Guid id, CancellationToken ct)
+        => service.GetPriceHistoryAsync(id, ct);
+    
     [HttpDelete("{id:guid}"), HasPermission(PermissionCodes.Products.Write)]
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
     {
