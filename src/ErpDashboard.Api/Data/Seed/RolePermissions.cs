@@ -9,6 +9,7 @@ public static class RolePermissions
     public static List<string> Manager => Sorted(
         Showrooms.Read, Showrooms.Write,
         Products.Read,
+        Products.ViewCost,
         Categories.Read,
         Suppliers.Read,
         PurchaseOrders.Read, PurchaseOrders.Write, PurchaseOrders.UpdateStatus,
@@ -24,6 +25,7 @@ public static class RolePermissions
         Warehouses.Read,
         Warehouses.Write,
         Products.Read,
+        Products.ViewCost,
         Categories.Read,
         Categories.Write,
         Products.Write, Products.AdjustStock,

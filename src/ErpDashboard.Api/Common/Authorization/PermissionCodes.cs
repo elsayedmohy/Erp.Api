@@ -28,6 +28,7 @@ public static class PermissionCodes
         public const string Read        = "products.read";
         public const string Write       = "products.write";
         public const string AdjustStock = "products.adjust-stock";
+        public const string ViewCost = "products.view-cost";
     }
     
     public static class Categories
