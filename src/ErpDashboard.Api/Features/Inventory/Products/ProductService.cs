@@ -160,7 +160,7 @@ public class ProductService(AppDbContext dbContext , IWarehouseScope scope , ICu
         product.Name,
         product.CategoryId,
         product.Sku,
-        product.CostPrice,
+        canViewCost ? product.CostPrice : null,
         product.UnitPrice,
         stockQuantity,
         product.ReorderLevel);
