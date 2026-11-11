@@ -5,6 +5,7 @@ public class ProductService(AppDbContext dbContext , IWarehouseScope scope) : IP
     private static readonly SortMap<Product> Sorts = new SortMap<Product>()
         .Add("name", c => c.Name)
         .Add("sku", c => c.Sku)
+        .Add("uitPrice", c => c.UnitPrice)
         .Default("name")
         .TieBreaker(c => c.Id);
 
@@ -18,7 +19,8 @@ public class ProductService(AppDbContext dbContext , IWarehouseScope scope) : IP
                 EF.Functions.ILike(product.Sku, p, @"\")
                 );
 
-        if (query.UnitPrice is { } price)  q = q.Where(o => o.UnitPrice == price);
+        if (query.MinPrice is { } min) q = q.Where(p => p.UnitPrice >= min);
+        if (query.MaxPrice is { } max) q = q.Where(p => p.UnitPrice <= max);
         if (query.CategoryId is { } categoryId)  q = q.Where(o => o.CategoryId == categoryId);
 
         return Sorts.Apply(q, query.SortBy, query.SortDir)
