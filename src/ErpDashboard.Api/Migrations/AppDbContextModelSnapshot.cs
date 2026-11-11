@@ -598,6 +598,9 @@ namespace ErpDashboard.Api.Migrations
                     b.Property<string>("SecurityStamp")
                         .HasColumnType("text");
 
+                    b.Property<Guid?>("ShowroomId")
+                        .HasColumnType("uuid");
+
                     b.Property<bool>("TwoFactorEnabled")
                         .HasColumnType("boolean");
 
@@ -615,6 +618,8 @@ namespace ErpDashboard.Api.Migrations
                         .HasDatabaseName("UserNameIndex");
 
                     b.HasIndex("RoleId");
+
+                    b.HasIndex("ShowroomId");
 
                     b.ToTable("AspNetUsers", (string)null);
                 });
@@ -881,6 +886,11 @@ namespace ErpDashboard.Api.Migrations
                         .HasForeignKey("RoleId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.HasOne("ErpDashboard.Api.Data.Entities.Showroom", null)
+                        .WithMany()
+                        .HasForeignKey("ShowroomId")
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Role");
                 });
