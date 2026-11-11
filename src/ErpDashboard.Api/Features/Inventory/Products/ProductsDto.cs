@@ -1,3 +1,4 @@
+
 namespace ErpDashboard.Api.Features.Inventory.Products;
 
 public sealed class ProductQuery : PageQuery, IValidatableObject
@@ -5,7 +6,7 @@ public sealed class ProductQuery : PageQuery, IValidatableObject
     [Range(0, 1_000_000_000)] public decimal? MinPrice { get; set; }
     [Range(0, 1_000_000_000)] public decimal? MaxPrice { get; set; }
     public Guid? CategoryId { get; set; }
-
+    public Guid? MaterialId { get; set; }
     public IEnumerable<ValidationResult> Validate(ValidationContext context)
     {
         if (MinPrice > MaxPrice)
@@ -13,14 +14,19 @@ public sealed class ProductQuery : PageQuery, IValidatableObject
     }
 }
 
-
 public sealed record ProductRequest(
     [Required, MaxLength(200)] string Name,
     Guid CategoryId,
-    [Required, MaxLength(50), RegularExpression(@"^\s*[A-Za-z0-9][A-Za-z0-9._-]*\s*$")] string Sku,
+    [Required, MaxLength(50), RegularExpression(@"^\s*[A-Za-z0-9][A-Za-z0-9._-]*\s*$")]
+    string Sku,
     [Range(0, 1_000_000_000)] decimal? CostPrice,
     [Range(0.01, 1_000_000_000)] decimal UnitPrice,
-    [Range(0, 1_000_000)] int ReorderLevel = 0);
+    [Range(0, 1_000_000)] int ReorderLevel = 0,
+    [Range(1, 10_000)] int? LengthCm = null,
+    [Range(1, 10_000)] int? WidthCm = null,
+    [Range(1, 10_000)] int? HeightCm = null,
+    [Range(0.01, 10_000)] decimal? WeightKg = null,
+    Guid? MaterialId = null);
 
 public sealed record ProductResponse(
     Guid Id,
@@ -30,9 +36,14 @@ public sealed record ProductResponse(
     decimal? CostPrice,
     decimal UnitPrice,
     int StockQuantity,
-    int ReorderLevel
-    );
-    
+    int ReorderLevel,
+    int? LengthCm,
+    int? WidthCm,
+    int? HeightCm,
+    decimal? WeightKg,
+    Guid? MaterialId
+);
+
 public sealed record ProductDetailsResponse(
     Guid Id,
     string Name,
@@ -41,7 +52,12 @@ public sealed record ProductDetailsResponse(
     decimal? CostPrice,
     decimal UnitPrice,
     int StockQuantity,
-    int ReorderLevel
+    int ReorderLevel,
+    int? LengthCm,
+    int? WidthCm,
+    int? HeightCm,
+    decimal? WeightKg,
+    MaterialResponse? Material
 );
 
 public sealed record ProductPriceChangeResponse(

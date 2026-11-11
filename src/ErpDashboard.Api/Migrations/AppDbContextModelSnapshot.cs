@@ -181,6 +181,25 @@ namespace ErpDashboard.Api.Migrations
                     b.ToTable("InvoiceLines");
                 });
 
+            modelBuilder.Entity("ErpDashboard.Api.Data.Entities.Material", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("Materials");
+                });
+
             modelBuilder.Entity("ErpDashboard.Api.Data.Entities.Order", b =>
                 {
                     b.Property<Guid>("Id")
@@ -285,8 +304,17 @@ namespace ErpDashboard.Api.Migrations
                     b.Property<DateTime?>("DeletedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<int?>("HeightCm")
+                        .HasColumnType("integer");
+
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
+
+                    b.Property<int?>("LengthCm")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid?>("MaterialId")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -304,9 +332,18 @@ namespace ErpDashboard.Api.Migrations
                     b.Property<decimal>("UnitPrice")
                         .HasColumnType("numeric");
 
+                    b.Property<decimal?>("WeightKg")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)");
+
+                    b.Property<int?>("WidthCm")
+                        .HasColumnType("integer");
+
                     b.HasKey("Id");
 
                     b.HasIndex("CategoryId");
+
+                    b.HasIndex("MaterialId");
 
                     b.HasIndex("Sku")
                         .IsUnique()
@@ -868,6 +905,11 @@ namespace ErpDashboard.Api.Migrations
                         .HasForeignKey("CategoryId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.HasOne("ErpDashboard.Api.Data.Entities.Material", null)
+                        .WithMany()
+                        .HasForeignKey("MaterialId")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("ErpDashboard.Api.Data.Entities.ProductPriceHistory", b =>

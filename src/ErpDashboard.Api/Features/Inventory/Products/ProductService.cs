@@ -32,7 +32,8 @@ public class ProductService(AppDbContext dbContext , IWarehouseScope scope , ICu
         if (query.MinPrice is { } min) q = q.Where(p => p.UnitPrice >= min);
         if (query.MaxPrice is { } max) q = q.Where(p => p.UnitPrice <= max);
         if (query.CategoryId is { } categoryId)  q = q.Where(o => o.CategoryId == categoryId);
-
+        if (query.MaterialId is { } materialId) q = q.Where(p => p.MaterialId == materialId);
+        
         return Sorts.Apply(q, query.SortBy, query.SortDir)
             .Select(product => new ProductResponse(
                 product.Id,
@@ -44,7 +45,13 @@ public class ProductService(AppDbContext dbContext , IWarehouseScope scope , ICu
                 dbContext.WarehouseStocks
                     .Where(s => s.ProductId == product.Id && accessible.Contains(s.WarehouseId))
                     .Sum(s => (int?)s.Quantity) ?? 0,
-                product.ReorderLevel))
+                product.ReorderLevel,
+                product.LengthCm,
+                product.WidthCm,
+                product.HeightCm,
+                product.WeightKg, 
+                product.MaterialId
+                ))
             .ToPagedResultAsync(query, ct);
     }
 
@@ -58,6 +65,11 @@ public class ProductService(AppDbContext dbContext , IWarehouseScope scope , ICu
         if (category is null)
             throw new NotFoundException("category", product.CategoryId);
 
+        var material = product.MaterialId is { } mId
+            ? await dbContext.Materials.Where(m => m.Id == mId)
+                .Select(m => new MaterialResponse(m.Id, m.Name)).FirstOrDefaultAsync(ct)
+            : null;
+        
         return new ProductDetailsResponse(
             product.Id,
             product.Name,
@@ -66,7 +78,13 @@ public class ProductService(AppDbContext dbContext , IWarehouseScope scope , ICu
             CanViewCost ? product.CostPrice : null,
             product.UnitPrice,
             await GetStockQuantityAsync(product.Id, ct),
-            product.ReorderLevel);
+            product.ReorderLevel,
+        product.LengthCm,
+        product.WidthCm,
+        product.HeightCm,
+        product.WeightKg, 
+        material
+            );
     }
 
     public async Task<ProductResponse> CreateAsync(ProductRequest request, CancellationToken ct)
@@ -78,6 +96,10 @@ public class ProductService(AppDbContext dbContext , IWarehouseScope scope , ICu
         if (!await dbContext.Categories.AnyAsync(c => c.Id == request.CategoryId, ct))
             throw new RequestValidationException("categoryId", $"Category '{request.CategoryId}' does not exist.");
 
+        if (request.MaterialId is { } materialId &&
+            !await dbContext.Materials.AnyAsync(m => m.Id == materialId, ct))
+            throw new RequestValidationException("materialId", $"Material '{materialId}' does not exist.");
+        
         Product product = new Product
         {
             Name = request.Name.Trim(),
@@ -85,7 +107,12 @@ public class ProductService(AppDbContext dbContext , IWarehouseScope scope , ICu
             Sku = sku,
             CostPrice = request.CostPrice ?? 0m,
             UnitPrice = request.UnitPrice,
-            ReorderLevel = request.ReorderLevel
+            ReorderLevel = request.ReorderLevel,
+            LengthCm = request.LengthCm,
+            WidthCm = request.WidthCm,
+            HeightCm = request.HeightCm,
+            WeightKg = request.WeightKg,
+            MaterialId = request.MaterialId
         };
         dbContext.Products.Add(product);
         await dbContext.SaveChangesAsync(ct);
@@ -104,6 +131,10 @@ public class ProductService(AppDbContext dbContext , IWarehouseScope scope , ICu
         if (!await dbContext.Categories.AnyAsync(c => c.Id == request.CategoryId, ct))
             throw new RequestValidationException("categoryId", $"Category '{request.CategoryId}' does not exist.");
         
+        if (request.MaterialId is { } materialId &&
+            !await dbContext.Materials.AnyAsync(m => m.Id == materialId, ct))
+            throw new RequestValidationException("materialId", $"Material '{materialId}' does not exist.");
+        
         var oldUnitPrice = product.UnitPrice;
         var oldCostPrice = product.CostPrice;
         product.Name = request.Name.Trim();
@@ -113,6 +144,11 @@ public class ProductService(AppDbContext dbContext , IWarehouseScope scope , ICu
             product.CostPrice = cost;
         product.UnitPrice = request.UnitPrice;
         product.ReorderLevel = request.ReorderLevel;
+        product.LengthCm = request.LengthCm;
+        product.WidthCm = request.WidthCm;
+        product.HeightCm = request.HeightCm;
+        product.WeightKg = request.WeightKg;
+        product.MaterialId = request.MaterialId;
         
         if (product.UnitPrice != oldUnitPrice || product.CostPrice != oldCostPrice)
         {
@@ -204,5 +240,10 @@ public class ProductService(AppDbContext dbContext , IWarehouseScope scope , ICu
         canViewCost ? product.CostPrice : null,
         product.UnitPrice,
         stockQuantity,
-        product.ReorderLevel);
+        product.ReorderLevel,
+        product.LengthCm,
+        product.WidthCm,
+        product.HeightCm,
+        product.WeightKg, 
+        product.MaterialId);
 }
