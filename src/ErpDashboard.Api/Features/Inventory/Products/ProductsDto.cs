@@ -10,7 +10,7 @@ public sealed class ProductQuery : PageQuery
 public sealed record ProductRequest(
     [Required, MaxLength(200)] string Name,
     Guid CategoryId,
-    [Required, MaxLength(50), RegularExpression("^[A-Za-z0-9][A-Za-z0-9._-]*$")] string Sku,
+    [Required, MaxLength(50), RegularExpression(@"^\s*[A-Za-z0-9][A-Za-z0-9._-]*\s*$")] string Sku,
     [Range(0, 1_000_000_000)] decimal CostPrice,
     [Range(0.01, 1_000_000_000)] decimal UnitPrice,
     [Range(0, 1_000_000)] int ReorderLevel = 0);
