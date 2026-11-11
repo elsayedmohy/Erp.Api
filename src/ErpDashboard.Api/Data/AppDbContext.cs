@@ -39,15 +39,20 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentShowro
             s => ShowroomAccessAll || s.Id == ScopedShowroomId);
     }
     
-    public override Task<int> SaveChangesAsync(CancellationToken ct = default)
+    public override Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken ct = default)
+    {
+        ApplySoftDelete();
+        return base.SaveChangesAsync(acceptAllChangesOnSuccess, ct);
+    }
+
+    private void ApplySoftDelete()
     {
         foreach (var entry in ChangeTracker.Entries<ISoftDelete>()
                      .Where(e => e.State == EntityState.Deleted))
         {
-            entry.State = EntityState.Modified;   
+            entry.State = EntityState.Modified;
             entry.Entity.IsDeleted = true;
             entry.Entity.DeletedAt = DateTime.UtcNow;
         }
-        return base.SaveChangesAsync(ct); 
     }
 }

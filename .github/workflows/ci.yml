@@ -27,6 +27,12 @@ jobs:
             echo "::error::Risky logging found"
             exit 1
           fi
+      - name: Block hard deletes on soft-delete entities
+        run: |
+          if git grep -nE '\.(Products|Employees|Showrooms)\b.*ExecuteDelete' -- 'src/*.cs'; then
+            echo "::error::Use Remove + SaveChanges for soft-delete entities"
+            exit 1
+          fi
       - run: dotnet restore --locked-mode
       - run: dotnet build --no-restore -c Release
       - run: dotnet test --no-build -c Release --logger trx --results-directory TestResults
