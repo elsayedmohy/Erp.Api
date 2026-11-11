@@ -58,10 +58,10 @@ public class OrderService(AppDbContext dbContext,
 
     public async Task<OrderDetailsResponse> GetByIdAsync(Guid id, CancellationToken ct)
     {
-        Order? order = await dbContext.Orders.Include(o => o.Showroom).AsNoTracking()
+        Order? order = await dbContext.Orders.AsNoTracking()
+            .Include(o => o.Showroom)
             .Include(o => o.Invoice)
             .Include(o => o.OrderLines)
-            .ThenInclude((l) => l.Product)
             .FirstOrDefaultAsync(o => o.Id == id, ct);
         if (order is null)
             throw new NotFoundException("Order", id);
@@ -137,6 +137,8 @@ public class OrderService(AppDbContext dbContext,
             orderLines.Add(new OrderLine
             {
                 ProductId = product.Id,
+                ProductName = product.Name,
+                Sku = product.Sku,
                 Quantity = line.Quantity,
                 UnitPrice = product.UnitPrice,
                 Discount = line.Discount
@@ -316,7 +318,7 @@ public async Task<OrderResponse> RejectAsync(
     }
 
     private static OrderDetailsResponse ToDetailedResponse(Order o) =>
-        new OrderDetailsResponse(
+        new(
             o.Id,
             o.ShowroomId,
             o.WarehouseId,
@@ -330,7 +332,8 @@ public async Task<OrderResponse> RejectAsync(
             o.OrderLines.Select(l => new OrderLineResponse(
                 l.Id,
                 l.ProductId,
-                l.Product.Name,
+                l.ProductName,
+                l.Sku,
                 l.Quantity,
                 l.UnitPrice,
                 l.Discount)).ToList());

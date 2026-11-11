@@ -63,6 +63,7 @@ public sealed record OrderLineResponse(
     Guid Id,
     Guid ProductId,
     string ProductName,
+    string Sku,
     int Quantity,
     decimal UnitPrice,
     decimal Discount
