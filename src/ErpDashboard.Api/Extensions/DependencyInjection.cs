@@ -67,7 +67,7 @@ public static class DependencyInjection
                         var user = await db.Users
                             .AsNoTracking()
                             .Where(u => u.Id == userId)
-                            .Select(u => new { u.SecurityStamp, u.Role.Permissions })
+                            .Select(u => new { u.SecurityStamp,u.ShowroomId , u.Role.Permissions })
                             .SingleOrDefaultAsync(context.HttpContext.RequestAborted);
 
                         if (user is null || !string.Equals(tokenStamp, user.SecurityStamp, StringComparison.Ordinal))
@@ -78,6 +78,9 @@ public static class DependencyInjection
 
                         context.HttpContext.Items[PermissionHandler.ItemsKey] =
                             new HashSet<string>(user.Permissions, StringComparer.Ordinal);
+                        
+                        if (user.ShowroomId is { } showroomId)
+                            context.HttpContext.Items[CurrentShowroom.ItemsKey] = showroomId;
                     }
                 };
             });
