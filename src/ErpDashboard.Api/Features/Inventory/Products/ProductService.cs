@@ -5,7 +5,7 @@ public class ProductService(AppDbContext dbContext , IWarehouseScope scope) : IP
     private static readonly SortMap<Product> Sorts = new SortMap<Product>()
         .Add("name", c => c.Name)
         .Add("sku", c => c.Sku)
-        .Add("uitPrice", c => c.UnitPrice)
+        .Add("unitPrice", c => c.UnitPrice)
         .Default("name")
         .TieBreaker(c => c.Id);
 
