@@ -85,6 +85,11 @@ public static class PermissionCodes
         public const string AccessAll = "warehouses.access-all";
     }
     
+    public static class Stock
+    {
+        public const string Reconcile = "stock.reconcile";
+    }
+    
     public static readonly IReadOnlyList<string> All = typeof(PermissionCodes)
         .GetNestedTypes(BindingFlags.Public)
         .SelectMany(t => t.GetFields(BindingFlags.Public | BindingFlags.Static))
