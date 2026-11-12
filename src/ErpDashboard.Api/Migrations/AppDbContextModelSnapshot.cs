@@ -209,6 +209,10 @@ namespace ErpDashboard.Api.Migrations
                     b.Property<Guid?>("CreatedById")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
                     b.Property<DateOnly>("OrderDate")
                         .HasColumnType("date");
 

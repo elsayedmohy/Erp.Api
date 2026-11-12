@@ -30,23 +30,24 @@ public sealed record OrderDetailsResponse(
     OrderStatus Status,
     PaymentMethod PaymentMethod,
     string ShippingAddress,
+    string? Notes,
     decimal TotalAmount,
     List<OrderLineResponse> Lines
 );
 
 public sealed record CreateOrderRequest(
-    Guid ShowroomId,
+    [Required] Guid? ShowroomId,
     [Required] Guid? WarehouseId,
-    PaymentMethod PaymentMethod,
-    string ShippingAddress,
-    List<OrderLineRequest> Lines,
-    DateOnly? OrderDate
-    );
+    [EnumDataType(typeof(PaymentMethod))] PaymentMethod PaymentMethod,
+    [Required, MaxLength(500)] string ShippingAddress,
+    [Required, MinLength(1), MaxLength(100)] List<OrderLineRequest> Lines,
+    [MaxLength(1000)] string? Notes = null);
 
 public sealed record UpdateOrderRequest(
     [EnumDataType(typeof(PaymentMethod))]
     PaymentMethod PaymentMethod,
-    string ShippingAddress
+    string ShippingAddress,
+    [MaxLength(1000)] string? Notes = null
 );
 
 public sealed record UpdateOrderStatusRequest(
