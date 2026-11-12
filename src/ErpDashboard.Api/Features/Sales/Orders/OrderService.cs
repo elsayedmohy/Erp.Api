@@ -109,7 +109,7 @@ public class OrderService(AppDbContext dbContext,
         decimal total = 0;
         decimal taxRate = 14;
         var orderId = Guid.NewGuid();
-        foreach (var line in request.Lines)
+        foreach (var line in request.Lines.OrderBy(l => l.ProductId))
         {
             var product = products[line.ProductId];
             var gross = line.Quantity * product.UnitPrice;
