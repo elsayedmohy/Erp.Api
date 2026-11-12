@@ -108,7 +108,7 @@ public class OrderService(AppDbContext dbContext,
         var insufficient = new List<string>();
         decimal total = 0;
         decimal taxRate = 14;
-
+        var orderId = Guid.NewGuid();
         foreach (var line in request.Lines)
         {
             var product = products[line.ProductId];
@@ -121,7 +121,8 @@ public class OrderService(AppDbContext dbContext,
                 throw new RequestValidationException("lines",
                     $"Discount for '{product.Name}' ({line.Discount}) exceeds the line value ({gross}).");
 
-            if (!await stock.TryDeductAsync(warehouseId, product.Id, line.Quantity, ct))
+            if (!await stock.TryApplyAsync(new StockChange(
+                    warehouseId, product.Id, -line.Quantity, StockMovementType.SalesIssue, createdById, orderId), ct))
             {
                 var available = await dbContext.WarehouseStocks
                     .Where(s => s.WarehouseId == warehouseId && s.ProductId == product.Id)
@@ -158,6 +159,7 @@ public class OrderService(AppDbContext dbContext,
 
         var order = new Order
         {
+            Id = orderId,
             ShowroomId = showroom.Id,
             WarehouseId = warehouseId,
             Showroom = showroom,
@@ -240,7 +242,9 @@ public async Task<OrderResponse> RejectAsync(
 
 
     foreach (var line in order.OrderLines)
-        await stock.AddAsync(order.WarehouseId, line.ProductId, line.Quantity, ct);
+        await stock.TryApplyAsync(new StockChange(
+            order.WarehouseId, line.ProductId, line.Quantity, StockMovementType.SalesReversal,
+            reviewerId, order.Id, "Order rejected"), ct);
 
     if (order.Invoice is { Status: InvoiceStatus.Draft } invoice)
         invoice.Status = InvoiceStatus.Cancelled;
@@ -254,7 +258,7 @@ public async Task<OrderResponse> RejectAsync(
 
 
 
-    public async Task DeleteAsync(Guid id, CancellationToken ct)
+    public async Task DeleteAsync(Guid id,Guid deletedById, CancellationToken ct)
     {
         var order = await dbContext.Orders
                         .Include(o => o.OrderLines)
@@ -271,7 +275,9 @@ public async Task<OrderResponse> RejectAsync(
         await using var transaction = await dbContext.Database.BeginTransactionAsync(ct);
         
         foreach (var line in order.OrderLines)
-            await stock.AddAsync(order.WarehouseId, line.ProductId, line.Quantity, ct);
+            await stock.TryApplyAsync(new StockChange(
+                order.WarehouseId, line.ProductId, line.Quantity, StockMovementType.SalesReversal,
+                deletedById, order.Id, "Order deleted"), ct);
 
         if (order.Invoice is not null)
             dbContext.Invoices.Remove(order.Invoice);

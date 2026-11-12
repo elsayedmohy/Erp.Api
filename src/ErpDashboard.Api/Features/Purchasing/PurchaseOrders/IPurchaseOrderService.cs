@@ -7,6 +7,6 @@ public interface IPurchaseOrderService
     
     Task<PurchaseOrderDetailsResponse> GetByIdAsync(Guid id, CancellationToken ct);
     Task<PurchaseOrderDetailsResponse> CreateAsync(CreatePurchaseOrderRequest request ,CancellationToken ct);
-    Task<PurchaseOrderDetailsResponse> UpdateAsync(Guid id, UpdatePurchaseOrderRequest request ,CancellationToken ct);
-    Task<PurchaseOrderResponse> UpdateStatusAsync(Guid id, UpdatePurchaseOrderStatusRequest request ,CancellationToken ct);
+    Task<PurchaseOrderDetailsResponse> UpdateAsync(Guid id, UpdatePurchaseOrderRequest request,CancellationToken ct);
+    Task<PurchaseOrderResponse> UpdateStatusAsync(Guid id, UpdatePurchaseOrderStatusRequest request,Guid userId  ,CancellationToken ct);
 }

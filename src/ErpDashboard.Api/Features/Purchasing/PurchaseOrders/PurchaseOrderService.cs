@@ -115,6 +115,7 @@ public class PurchaseOrderService(AppDbContext dbContext , IStockService stock, 
     }
 
     public async Task<PurchaseOrderResponse> UpdateStatusAsync(Guid id, UpdatePurchaseOrderStatusRequest request,
+        Guid userId,
         CancellationToken ct)
     {
         PurchaseOrder? po = await dbContext.PurchaseOrders
@@ -142,7 +143,8 @@ public class PurchaseOrderService(AppDbContext dbContext , IStockService stock, 
         if (request.Status == PurchaseOrderStatus.Received)
         {
             foreach (var line in po.PurchaseLines)
-                await stock.AddAsync(po.WarehouseId, line.ProductId, line.Quantity, ct);
+                await stock.TryApplyAsync(new StockChange(
+                    po.WarehouseId, line.ProductId, line.Quantity, StockMovementType.PurchaseReceipt, userId, po.Id), ct);
         }
 
         await transaction.CommitAsync(ct);

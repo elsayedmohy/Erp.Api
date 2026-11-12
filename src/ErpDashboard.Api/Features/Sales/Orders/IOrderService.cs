@@ -12,5 +12,5 @@ public interface IOrderService
     Task<OrderResponse> RejectAsync(Guid id, RejectOrderRequest request , Guid reviewerId,CancellationToken ct);
     
     
-    Task DeleteAsync(Guid id,CancellationToken ct);
+    Task DeleteAsync(Guid id,Guid deletedById,CancellationToken ct);
 }

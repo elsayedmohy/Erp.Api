@@ -108,20 +108,13 @@ public sealed class WarehouseService(AppDbContext dbContext, IStockService stock
 
         await using var transaction = await dbContext.Database.BeginTransactionAsync(ct);
 
-        if (request.Delta > 0)
-            await stock.AddAsync(id, productId, request.Delta, ct);
-        else if (!await stock.TryDeductAsync(id, productId, -request.Delta, ct))
-            throw new ConflictException("The adjustment would make stock negative.");
+        var applied = await stock.TryApplyAsync(new StockChange(
+            id, productId, request.Delta, StockMovementType.Adjustment, adjustedById,
+            Reason: request.Reason.Trim()), ct);
 
-        dbContext.StockAdjustments.Add(new StockAdjustment
-        {
-            WarehouseId = id,
-            ProductId = productId,
-            Delta = request.Delta,
-            Reason = request.Reason.Trim(),
-            AdjustedById = adjustedById,
-            AdjustedAt = DateTime.UtcNow
-        });
+        if (!applied)
+            throw new ConflictException("The adjustment would make stock negative.");
+        
         await dbContext.SaveChangesAsync(ct);
 
         var quantity = await dbContext.WarehouseStocks
