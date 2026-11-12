@@ -114,8 +114,6 @@ public sealed class WarehouseService(AppDbContext dbContext, IStockService stock
 
         if (!applied)
             throw new ConflictException("The adjustment would make stock negative.");
-        
-        await dbContext.SaveChangesAsync(ct);
 
         var quantity = await dbContext.WarehouseStocks
             .Where(s => s.WarehouseId == id && s.ProductId == productId)
