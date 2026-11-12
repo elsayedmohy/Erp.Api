@@ -12,96 +12,166 @@ using Microsoft.Extensions.DependencyInjection;
 namespace ErpDashboard.Api.IntegrationTests;
 
 [Collection(ApiCollection.Name)]
-public class StockTransferTests(ApiFactory factory)
+public class StockTransferLifecycleTests(ApiFactory factory)
 {
     private readonly HttpClient _client = factory.CreateClient();
 
     [Fact]
-    public async Task Transfer_MovesStock_AndRecordsLinkedMovements()
+    public async Task Dispatch_TakesFromSource_ButNotIntoDestinationYet()
     {
-        var other = await SeedWarehouseAsync();
-        var (token, userId) = await LoginAsync([WarehouseIds.Main, other]);
+        var (damietta, cairo) = (WarehouseIds.Main, await SeedWarehouseAsync());
+        var sender = await LoginAsync([damietta]);
         var productId = await SeedProductAsync();
-        await AdjustAsync(token, WarehouseIds.Main, productId, 10);
+        await AdjustAsync(sender, damietta, productId, 50);
 
-        var response = await TransferAsync(token, WarehouseIds.Main, other, (productId, 4));
+        var transfer = await DispatchAsync(sender, damietta, cairo, (productId, 30));
 
-        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
-        var transferId = (await ReadJsonAsync(response)).GetProperty("transferId").GetGuid();
-        Assert.Equal(6, await StockAsync(WarehouseIds.Main, productId));
-        Assert.Equal(4, await StockAsync(other, productId));
-
-        var movements = await TransferMovementsAsync(transferId);
-        Assert.Equal(2, movements.Count);
-        Assert.Contains(movements, m => m.Type == StockMovementType.TransferOut && m.WarehouseId == WarehouseIds.Main && m.Quantity == -4);
-        Assert.Contains(movements, m => m.Type == StockMovementType.TransferIn && m.WarehouseId == other && m.Quantity == 4);
-        Assert.All(movements, m => Assert.Equal(userId, m.CreatedById));
+        Assert.Equal("InTransit", transfer.GetProperty("status").GetString());
+        Assert.Equal(20, await StockAsync(damietta, productId));
+        Assert.Equal(0, await StockAsync(cairo, productId));
     }
 
     [Fact]
-    public async Task Transfer_WithOneLineShort_RollsBackAllLines()
+    public async Task InTransitStock_CannotBeSold_AtDestination()
     {
-        var other = await SeedWarehouseAsync();
-        var (token, _) = await LoginAsync([WarehouseIds.Main, other]);
+        var (damietta, cairo) = (WarehouseIds.Main, await SeedWarehouseAsync());
+        var sender = await LoginAsync([damietta]);
+        var productId = await SeedProductAsync();
+        await AdjustAsync(sender, damietta, productId, 30);
+        await DispatchAsync(sender, damietta, cairo, (productId, 30));
+
+        var cairoManager = await LoginAsync([cairo], RoleIds.Manager);
+        var order = await SendAsync(HttpMethod.Post, "/api/orders", cairoManager, new
+        {
+            showroomId = await SeedShowroomAsync(),
+            warehouseId = cairo,
+            paymentMethod = Enum.GetValues<PaymentMethod>()[0].ToString(),
+            shippingAddress = "Cairo showroom",
+            lines = new[] { new { productId, quantity = 1, discount = 0m } }
+        });
+
+        Assert.Equal(HttpStatusCode.Conflict, order.StatusCode);
+    }
+
+    [Fact]
+    public async Task Receive_ByDestination_AddsStock_AndCompletesTransfer()
+    {
+        var (damietta, cairo) = (WarehouseIds.Main, await SeedWarehouseAsync());
+        var sender = await LoginAsync([damietta]);
+        var receiver = await LoginAsync([cairo]);
+        var productId = await SeedProductAsync();
+        await AdjustAsync(sender, damietta, productId, 30);
+        var id = (await DispatchAsync(sender, damietta, cairo, (productId, 30))).GetProperty("id").GetGuid();
+
+        var response = await SendAsync(HttpMethod.Post, $"/api/stock/transfers/{id}/receive", receiver);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(30, await StockAsync(cairo, productId));
+        Assert.Equal(0, await StockAsync(damietta, productId));
+        Assert.Equal(StockTransferStatus.Received, await StatusAsync(id));
+    }
+
+    [Fact]
+    public async Task Receive_BySourceOnlyUser_Returns403()
+    {
+        var (damietta, cairo) = (WarehouseIds.Main, await SeedWarehouseAsync());
+        var sender = await LoginAsync([damietta]);
+        var productId = await SeedProductAsync();
+        await AdjustAsync(sender, damietta, productId, 5);
+        var id = (await DispatchAsync(sender, damietta, cairo, (productId, 5))).GetProperty("id").GetGuid();
+
+        var response = await SendAsync(HttpMethod.Post, $"/api/stock/transfers/{id}/receive", sender);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.Equal(0, await StockAsync(cairo, productId));
+    }
+
+    [Fact]
+    public async Task ReceiveTwice_SecondReturns409_AndStockAddedOnce()
+    {
+        var (damietta, cairo) = (WarehouseIds.Main, await SeedWarehouseAsync());
+        var sender = await LoginAsync([damietta]);
+        var receiver = await LoginAsync([cairo]);
+        var productId = await SeedProductAsync();
+        await AdjustAsync(sender, damietta, productId, 10);
+        var id = (await DispatchAsync(sender, damietta, cairo, (productId, 10))).GetProperty("id").GetGuid();
+
+        var responses = await Task.WhenAll(
+            SendAsync(HttpMethod.Post, $"/api/stock/transfers/{id}/receive", receiver),
+            SendAsync(HttpMethod.Post, $"/api/stock/transfers/{id}/receive", receiver));
+
+        Assert.Single(responses, r => r.StatusCode == HttpStatusCode.OK);
+        Assert.Single(responses, r => r.StatusCode == HttpStatusCode.Conflict);
+        Assert.Equal(10, await StockAsync(cairo, productId));
+    }
+
+    [Fact]
+    public async Task Cancel_ReturnsStockToSource_AndBlocksReceive()
+    {
+        var (damietta, cairo) = (WarehouseIds.Main, await SeedWarehouseAsync());
+        var sender = await LoginAsync([damietta]);
+        var receiver = await LoginAsync([cairo]);
+        var productId = await SeedProductAsync();
+        await AdjustAsync(sender, damietta, productId, 30);
+        var id = (await DispatchAsync(sender, damietta, cairo, (productId, 30))).GetProperty("id").GetGuid();
+
+        var cancel = await SendAsync(HttpMethod.Post, $"/api/stock/transfers/{id}/cancel", sender, new { reason = "Truck returned" });
+        var receive = await SendAsync(HttpMethod.Post, $"/api/stock/transfers/{id}/receive", receiver);
+
+        Assert.Equal(HttpStatusCode.OK, cancel.StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, receive.StatusCode);
+        Assert.Equal(30, await StockAsync(damietta, productId));
+        Assert.Equal(0, await StockAsync(cairo, productId));
+        Assert.Single(await MovementsAsync(id, StockMovementType.TransferReturn));
+    }
+
+    [Fact]
+    public async Task Dispatch_WithOneLineShort_ChangesNothing()
+    {
+        var (damietta, cairo) = (WarehouseIds.Main, await SeedWarehouseAsync());
+        var sender = await LoginAsync([damietta]);
         var enough = await SeedProductAsync();
         var shortOne = await SeedProductAsync();
-        await AdjustAsync(token, WarehouseIds.Main, enough, 10);
-        await AdjustAsync(token, WarehouseIds.Main, shortOne, 1);
+        await AdjustAsync(sender, damietta, enough, 10);
+        await AdjustAsync(sender, damietta, shortOne, 1);
 
-        var response = await TransferAsync(token, WarehouseIds.Main, other, (enough, 5), (shortOne, 3));
+        var response = await SendAsync(HttpMethod.Post, "/api/stock/transfers", sender,
+            TransferBody(damietta, cairo, (enough, 5), (shortOne, 3)));
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
-        Assert.Equal(10, await StockAsync(WarehouseIds.Main, enough));
-        Assert.Equal(0, await StockAsync(other, enough));
-        Assert.Empty(await MovementsAsync(enough, StockMovementType.TransferOut));
-        Assert.Empty(await MovementsAsync(enough, StockMovementType.TransferIn));
+        Assert.Equal(10, await StockAsync(damietta, enough));
+        Assert.False(await AnyTransferForAsync(enough));
     }
 
     [Fact]
-    public async Task Transfer_ToSameWarehouse_Returns400()
+    public async Task DeleteProduct_InTransit_Returns409()
     {
-        var (token, _) = await LoginAsync([WarehouseIds.Main]);
+        var (damietta, cairo) = (WarehouseIds.Main, await SeedWarehouseAsync());
+        var sender = await LoginAsync([damietta]);
         var productId = await SeedProductAsync();
+        await AdjustAsync(sender, damietta, productId, 3);
+        await DispatchAsync(sender, damietta, cairo, (productId, 3));
 
-        var response = await TransferAsync(token, WarehouseIds.Main, WarehouseIds.Main, (productId, 1));
+        var response = await SendAsync(HttpMethod.Delete, $"/api/products/{productId}", sender);
 
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
     }
 
-    [Fact]
-    public async Task Transfer_ToWarehouseOutsideScope_Returns400_AndChangesNothing()
+    private static object TransferBody(Guid from, Guid to, params (Guid ProductId, int Quantity)[] lines) => new
     {
-        var other = await SeedWarehouseAsync();
-        var (token, _) = await LoginAsync([WarehouseIds.Main]);
-        var productId = await SeedProductAsync();
-        await AdjustAsync(token, WarehouseIds.Main, productId, 5);
+        fromWarehouseId = from,
+        toWarehouseId = to,
+        reason = "Restock Cairo",
+        lines = lines.Select(l => new { productId = l.ProductId, quantity = l.Quantity })
+    };
 
-        var response = await TransferAsync(token, WarehouseIds.Main, other, (productId, 2));
-
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        Assert.Equal(5, await StockAsync(WarehouseIds.Main, productId));
-    }
-
-    [Fact]
-    public async Task Transfer_WithDuplicateProduct_Returns400()
+    private async Task<JsonElement> DispatchAsync(string token, Guid from, Guid to, params (Guid, int)[] lines)
     {
-        var other = await SeedWarehouseAsync();
-        var (token, _) = await LoginAsync([WarehouseIds.Main, other]);
-        var productId = await SeedProductAsync();
-
-        var response = await TransferAsync(token, WarehouseIds.Main, other, (productId, 1), (productId, 1));
-
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var response = await SendAsync(HttpMethod.Post, "/api/stock/transfers", token, TransferBody(from, to, lines));
+        Assert.True(response.StatusCode == HttpStatusCode.Created, await response.Content.ReadAsStringAsync());
+        using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        return json.RootElement.Clone();
     }
-
-    private Task<HttpResponseMessage> TransferAsync(string token, Guid from, Guid to, params (Guid ProductId, int Quantity)[] lines) =>
-        SendAsync(HttpMethod.Post, "/api/stock/transfers", token, new
-        {
-            fromWarehouseId = from,
-            toWarehouseId = to,
-            reason = "Restock showroom",
-            lines = lines.Select(l => new { productId = l.ProductId, quantity = l.Quantity })
-        });
 
     private async Task AdjustAsync(string token, Guid warehouseId, Guid productId, int delta)
     {
@@ -118,29 +188,25 @@ public class StockTransferTests(ApiFactory factory)
             .Select(s => (int?)s.Quantity).SingleOrDefaultAsync() ?? 0;
     }
 
-    private async Task<List<StockMovement>> TransferMovementsAsync(Guid transferId)
+    private async Task<StockTransferStatus> StatusAsync(Guid id)
+    {
+        using var scope = factory.Services.CreateScope();
+        return await scope.ServiceProvider.GetRequiredService<AppDbContext>().StockTransfers
+            .Where(t => t.Id == id).Select(t => t.Status).SingleAsync();
+    }
+
+    private async Task<bool> AnyTransferForAsync(Guid productId)
+    {
+        using var scope = factory.Services.CreateScope();
+        return await scope.ServiceProvider.GetRequiredService<AppDbContext>().StockTransfers
+            .AnyAsync(t => t.Lines.Any(l => l.ProductId == productId));
+    }
+
+    private async Task<List<StockMovement>> MovementsAsync(Guid transferId, StockMovementType type)
     {
         using var scope = factory.Services.CreateScope();
         return await scope.ServiceProvider.GetRequiredService<AppDbContext>().StockMovements
-            .AsNoTracking().Where(m => m.ReferenceId == transferId).ToListAsync();
-    }
-
-    private async Task<List<StockMovement>> MovementsAsync(Guid productId, StockMovementType type)
-    {
-        using var scope = factory.Services.CreateScope();
-        return await scope.ServiceProvider.GetRequiredService<AppDbContext>().StockMovements
-            .AsNoTracking().Where(m => m.ProductId == productId && m.Type == type).ToListAsync();
-    }
-
-    private async Task<Guid> SeedWarehouseAsync()
-    {
-        var suffix = Guid.NewGuid().ToString("N");
-        var warehouse = new Warehouse { Id = Guid.NewGuid(), Code = suffix[..20], Name = $"Warehouse-{suffix}" };
-        using var scope = factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        db.Warehouses.Add(warehouse);
-        await db.SaveChangesAsync();
-        return warehouse.Id;
+            .AsNoTracking().Where(m => m.ReferenceId == transferId && m.Type == type).ToListAsync();
     }
 
     private async Task<Guid> SeedProductAsync()
@@ -149,28 +215,49 @@ public class StockTransferTests(ApiFactory factory)
         var category = new Category { Id = Guid.NewGuid(), Name = $"Cat-{suffix}" };
         var product = new Product
         {
-            Id = Guid.NewGuid(), CategoryId = category.Id, Name = $"Product-{suffix}",
+            Id = Guid.NewGuid(), CategoryId = category.Id, Name = $"Antreh-{suffix}",
             Sku = $"SKU-{suffix}".ToUpperInvariant(), UnitPrice = 100m, CostPrice = 50m
         };
-        using var scope = factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        db.AddRange(category, product);
-        await db.SaveChangesAsync();
+        await SeedAsync(db => db.AddRange(category, product));
         return product.Id;
     }
 
-    private async Task<(string Token, Guid UserId)> LoginAsync(Guid[] warehouseIds)
+    private async Task<Guid> SeedWarehouseAsync()
     {
-        var user = await factory.CreateUserAsync(RoleIds.InventoryManager, warehouseIds);
-        var response = await _client.PostAsJsonAsync("/api/auth/login", new { email = user.Email, password = user.Password });
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        return ((await ReadJsonAsync(response)).GetProperty("token").GetString()!, user.Id);
+        var suffix = Guid.NewGuid().ToString("N");
+        var warehouse = new Warehouse { Id = Guid.NewGuid(), Code = suffix[..20], Name = $"Cairo-{suffix}" };
+        await SeedAsync(db => db.Warehouses.Add(warehouse));
+        return warehouse.Id;
     }
 
-    private static async Task<JsonElement> ReadJsonAsync(HttpResponseMessage response)
+    private async Task<Guid> SeedShowroomAsync()
     {
+        var suffix = Guid.NewGuid().ToString("N");
+        var showroom = new Showroom
+        {
+            Id = Guid.NewGuid(), Name = $"Showroom-{suffix}", Email = $"showroom-{suffix}@tests.local",
+            Address = "Test address", City = "Cairo", Country = "Egypt",
+            PhoneNumber = "01000000000", TaxId = $"TAX-{suffix[..12]}"
+        };
+        await SeedAsync(db => db.Showrooms.Add(showroom));
+        return showroom.Id;
+    }
+
+    private async Task SeedAsync(Action<AppDbContext> seed)
+    {
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        seed(db);
+        await db.SaveChangesAsync();
+    }
+
+    private async Task<string> LoginAsync(Guid[] warehouseIds, Guid? roleId = null)
+    {
+        var user = await factory.CreateUserAsync(roleId ?? RoleIds.InventoryManager, warehouseIds);
+        var response = await _client.PostAsJsonAsync("/api/auth/login", new { email = user.Email, password = user.Password });
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-        return json.RootElement.Clone();
+        return json.RootElement.GetProperty("token").GetString()!;
     }
 
     private Task<HttpResponseMessage> SendAsync(HttpMethod method, string url, string token, object? body = null)
