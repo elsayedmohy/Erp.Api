@@ -13,7 +13,7 @@ public class OrdersController(IOrderService service) : ControllerBase
     public Task<OrderDetailsResponse> GetById( Guid id, CancellationToken ct)
         => service.GetByIdAsync(id, ct);
     
-    [HttpPost, HasPermission(PermissionCodes.Orders.Write)]
+    [HttpPost, HasPermission(PermissionCodes.Orders.Create)]
     public async Task<ActionResult<OrderDetailsResponse>> Create([FromBody] CreateOrderRequest request, CancellationToken ct)
     {
         var result = await service.CreateAsync(request, User.GetUserId(),ct);

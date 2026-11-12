@@ -7,13 +7,19 @@ public static class RolePermissions
     public static List<string> Admin => [.. All];
 
     public static List<string> Manager => Sorted(
-        Showrooms.Read, Showrooms.Write,
+        Showrooms.Read,
+        Showrooms.Write,
         Products.Read,
         Products.ViewCost,
         Categories.Read,
         Suppliers.Read,
-        PurchaseOrders.Read, PurchaseOrders.Write, PurchaseOrders.UpdateStatus,
-        Orders.Read, Orders.Write, Orders.UpdateStatus,
+        PurchaseOrders.Read,
+        PurchaseOrders.Write,
+        PurchaseOrders.UpdateStatus,
+        Orders.Read,
+        Orders.Write,
+        Orders.Create,
+        Orders.UpdateStatus,
         Orders.ApproveDiscount,
         Warehouses.Read,
         Invoices.Read,
@@ -41,12 +47,21 @@ public static class RolePermissions
         Employees.ViewSalary,
         Showrooms.AccessAll);
 
+    public static List<string> Sales => Sorted(
+        Showrooms.Read,
+        Showrooms.AccessAll,
+        Products.Read,
+        Categories.Read,
+        Warehouses.Read,
+        Orders.Read,
+        Orders.Create);
+
     public static List<string> ShowroomUser => Sorted(Orders.Read, Invoices.Read);
-    
+
     public static List<string> User => Sorted(
         Showrooms.Read, Products.Read,
         Categories.Read, Orders.Read,
-    Showrooms.AccessAll);
+        Showrooms.AccessAll);
 
     private static List<string> Sorted(params string[] codes) =>
         codes.Order(StringComparer.Ordinal).ToList();

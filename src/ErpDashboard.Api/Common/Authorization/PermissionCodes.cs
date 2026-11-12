@@ -54,6 +54,7 @@ public static class PermissionCodes
     {
         public const string Read         = "orders.read";
         public const string Write        = "orders.write";
+        public const string Create = "orders.create";
         public const string UpdateStatus = "orders.update-status";
         public const string ApproveDiscount = "orders.approve-discount";
     }

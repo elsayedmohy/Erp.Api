@@ -8,6 +8,7 @@ public static class RoleNames
     public const string Accountant = "Accountant";
     public const string User = "User";
     public const string ShowroomUser = "ShowroomUser";
+    public const string Sales = "Sales";
 }
 
 public static class RoleIds
@@ -18,4 +19,5 @@ public static class RoleIds
     public static readonly Guid Accountant = Guid.Parse("00000000-0000-0000-0000-000000000004");
     public static readonly Guid User = Guid.Parse("00000000-0000-0000-0000-000000000005");
     public static readonly Guid ShowroomUser = Guid.Parse("00000000-0000-0000-0000-000000000006");
+    public static readonly Guid Sales = Guid.Parse("00000000-0000-0000-0000-000000000007");
 }
