@@ -30,3 +30,21 @@ public sealed class StockMismatchRow
     public int Balance { get; init; }
     public long LedgerTotal { get; init; }
 }
+
+public sealed record TransferStockRequest(
+    [Required] Guid? FromWarehouseId,
+    [Required] Guid? ToWarehouseId,
+    [Required, MaxLength(500)] string Reason,
+    [Required, MinLength(1), MaxLength(100)] IReadOnlyList<TransferLineRequest> Lines);
+
+public sealed record TransferLineRequest(
+    [Required] Guid? ProductId,
+    [Range(1, 1_000_000)] int Quantity);
+
+public sealed record TransferStockResponse(
+    Guid TransferId,
+    Guid FromWarehouseId,
+    Guid ToWarehouseId,
+    IReadOnlyList<TransferLineResponse> Lines);
+
+public sealed record TransferLineResponse(Guid ProductId, int Quantity);
