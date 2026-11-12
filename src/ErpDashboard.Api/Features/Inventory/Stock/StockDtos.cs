@@ -1,5 +1,20 @@
 namespace ErpDashboard.Api.Features.Inventory.Stock;
 
+public sealed class LowStockQuery : PageQuery
+{
+    public Guid? WarehouseId { get; set; }
+}
+
+public sealed record LowStockItem(
+    Guid WarehouseId,
+    string WarehouseCode,
+    Guid ProductId,
+    string ProductName,
+    string Sku,
+    int Quantity,
+    int ReorderLevel,
+    int Shortage);
+
 public sealed record StockChange(
     Guid WarehouseId,
     Guid ProductId,

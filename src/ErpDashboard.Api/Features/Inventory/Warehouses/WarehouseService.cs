@@ -82,7 +82,7 @@ public sealed class WarehouseService(AppDbContext dbContext, IStockService stock
                              EF.Functions.ILike(s.Product.Sku, p, @"\"));
 
         if (query.LowStock == true)
-            q = q.Where(s => s.Quantity <= s.Product.ReorderLevel);
+            q = q.Where(s => s.Product.ReorderLevel > 0 && s.Quantity < s.Product.ReorderLevel);
 
         return await StockSorts.Apply(q, query.SortBy, query.SortDir)
             .Select(s => new WarehouseStockResponse(
