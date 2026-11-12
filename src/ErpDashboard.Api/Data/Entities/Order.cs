@@ -17,4 +17,5 @@ public class Order
     public Guid? ReviewedById { get; set; }
     public DateTime? ReviewedAt { get; set; }
     public string? RejectionReason { get; set; }
+    public string? Notes { get; set; }
 }

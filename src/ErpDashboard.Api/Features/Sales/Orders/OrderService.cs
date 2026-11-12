@@ -84,8 +84,9 @@ public class OrderService(AppDbContext dbContext,
             throw new RequestValidationException("lines",
                 $"Each product can appear only once. Duplicated: {string.Join(", ", duplicates)}");
 
-        var showroom = await dbContext.Showrooms.FirstOrDefaultAsync(c => c.Id == request.ShowroomId, ct)
-                       ?? throw new RequestValidationException("ShowroomId", $"Showroom '{request.ShowroomId}' does not exist.");
+        var showroomId = request.ShowroomId!.Value;
+        var showroom = await dbContext.Showrooms.FirstOrDefaultAsync(c => c.Id == showroomId, ct)
+                       ?? throw new RequestValidationException("showroomId", $"Showroom '{showroomId}' does not exist.");
 
         var ids = request.Lines.Select(l => l.ProductId).ToList();
         var products = await dbContext.Products
@@ -102,7 +103,7 @@ public class OrderService(AppDbContext dbContext,
 
         await using var transaction = await dbContext.Database.BeginTransactionAsync(ct);
         
-        var orderDate = request.OrderDate ?? DateOnly.FromDateTime(DateTime.UtcNow);
+        var orderDate =  DateOnly.FromDateTime(DateTime.UtcNow);
         var orderLines = new List<OrderLine>();
         var invoiceLines = new List<InvoiceLineInput>();
         var insufficient = new List<string>();
@@ -155,12 +156,13 @@ public class OrderService(AppDbContext dbContext,
             throw new ConflictException("Insufficient stock: " + string.Join("; ", insufficient));
 
         var invoice = InvoiceFactory.CreateDraft(
-            request.ShowroomId, orderDate, orderDate.AddDays(InvoiceDueDays), invoiceLines);
+            showroomId, orderDate, orderDate.AddDays(InvoiceDueDays), invoiceLines);
 
         var order = new Order
         {
             Id = orderId,
-            ShowroomId = showroom.Id,
+            ShowroomId = showroomId,
+            Notes = string.IsNullOrWhiteSpace(request.Notes) ? null : request.Notes.Trim(),
             WarehouseId = warehouseId,
             Showroom = showroom,
             OrderDate = orderDate,
@@ -192,6 +194,7 @@ public class OrderService(AppDbContext dbContext,
 
         order.ShippingAddress = request.ShippingAddress.Trim();
         order.PaymentMethod = request.PaymentMethod;
+        order.Notes = string.IsNullOrWhiteSpace(request.Notes) ? null : request.Notes.Trim();
         await dbContext.SaveChangesAsync(ct);
         return ToResponse(order);
     }
@@ -334,6 +337,7 @@ public async Task<OrderResponse> RejectAsync(
             o.Status,
             o.PaymentMethod,
             o.ShippingAddress,
+            o.Notes,
             o.TotalAmount,
             o.OrderLines.Select(l => new OrderLineResponse(
                 l.Id,
