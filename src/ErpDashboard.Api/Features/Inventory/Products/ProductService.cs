@@ -205,6 +205,11 @@ public class ProductService(AppDbContext dbContext , IWarehouseScope scope , ICu
                 po.Status == PurchaseOrderStatus.Pending &&
                 po.PurchaseLines.Any(l => l.ProductId == id), ct))
             throw new ConflictException("Cannot delete a product on a pending purchase order.");
+        
+        if (await dbContext.StockTransfers.AnyAsync(t =>
+                t.Status == StockTransferStatus.InTransit &&
+                t.Lines.Any(l => l.ProductId == id), ct))
+            throw new ConflictException("Cannot delete a product that is in transit between warehouses.");
 
         if (await dbContext.Orders
                 .IgnoreQueryFilters([QueryFilters.Showroom])

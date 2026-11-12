@@ -5,6 +5,12 @@ public sealed class LowStockQuery : PageQuery
     public Guid? WarehouseId { get; set; }
 }
 
+public sealed class StockTransferQuery : PageQuery
+{
+    public StockTransferStatus? Status { get; set; }
+    public Guid? WarehouseId { get; set; }
+}
+
 public sealed record LowStockItem(
     Guid WarehouseId,
     string WarehouseCode,
@@ -62,4 +68,20 @@ public sealed record TransferStockResponse(
     Guid ToWarehouseId,
     IReadOnlyList<TransferLineResponse> Lines);
 
+public sealed record StockTransferResponse(
+    Guid Id,
+    Guid FromWarehouseId,
+    Guid ToWarehouseId,
+    StockTransferStatus Status,
+    string Reason,
+    Guid DispatchedById,
+    DateTime DispatchedAt,
+    Guid? ReceivedById,
+    DateTime? ReceivedAt,
+    Guid? CancelledById,
+    DateTime? CancelledAt,
+    string? CancelReason,
+    IReadOnlyList<TransferLineResponse> Lines);
+
 public sealed record TransferLineResponse(Guid ProductId, int Quantity);
+public sealed record CancelTransferRequest([Required, MaxLength(500)] string Reason);
