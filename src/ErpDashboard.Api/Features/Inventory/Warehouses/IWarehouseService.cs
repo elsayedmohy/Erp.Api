@@ -8,4 +8,5 @@ public interface IWarehouseService
     Task<WarehouseResponse> UpdateAsync(Guid id, WarehouseRequest request, CancellationToken ct);
     Task<PagedResult<WarehouseStockResponse>> ListStockAsync(Guid id, WarehouseStockQuery query, CancellationToken ct);
     Task<AdjustStockResponse> AdjustStockAsync(Guid id, AdjustStockRequest request, Guid adjustedById, CancellationToken ct);
+    Task<PagedResult<StockMovementResponse>> ListMovementsAsync(Guid id, StockMovementQuery query, CancellationToken ct);
 }

@@ -123,6 +123,60 @@ public sealed class WarehouseService(AppDbContext dbContext, IStockService stock
         await transaction.CommitAsync(ct);
         return new AdjustStockResponse(id, productId, quantity);
     }
+    
+    public async Task<PagedResult<StockMovementResponse>> ListMovementsAsync(
+    Guid id, StockMovementQuery query, CancellationToken ct)
+{
+    await EnsureAccessibleAsync(id, ct);
+
+    if (query.From > query.To)
+        throw new RequestValidationException("from", "'from' must be before or equal to 'to'.");
+
+    var movements = dbContext.StockMovements.AsNoTracking().Where(m => m.WarehouseId == id);
+
+    if (query.ProductId is { } productId)
+        movements = movements.Where(m => m.ProductId == productId);
+    if (query.Type is { } type)
+        movements = movements.Where(m => m.Type == type);
+    if (query.ReferenceId is { } referenceId)
+        movements = movements.Where(m => m.ReferenceId == referenceId);
+    if (query.From is { } from)
+    {
+        var start = from.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+        movements = movements.Where(m => m.CreatedAt >= start);
+    }
+    if (query.To is { } to)
+    {
+        var end = to.AddDays(1).ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+        movements = movements.Where(m => m.CreatedAt < end);
+    }
+
+    var q =
+        from m in movements
+        join p in dbContext.Products.IgnoreQueryFilters([QueryFilters.SoftDelete]) on m.ProductId equals p.Id
+        join u in dbContext.Users on m.CreatedById equals (Guid?)u.Id into users
+        from u in users.DefaultIfEmpty()
+        orderby m.CreatedAt descending, m.Id descending
+        select new StockMovementResponse(
+            m.Id,
+            m.ProductId,
+            p.Name,
+            p.Sku,
+            m.Type,
+            m.Quantity,
+            dbContext.StockMovements
+                .Where(x => x.WarehouseId == m.WarehouseId
+                            && x.ProductId == m.ProductId
+                            && x.CreatedAt <= m.CreatedAt)
+                .Sum(x => x.Quantity),
+            m.ReferenceId,
+            m.Reason,
+            m.CreatedById,
+            u == null ? null : u.FirstName + " " + u.LastName,
+            m.CreatedAt);
+
+    return await q.ToPagedResultAsync(query, ct);
+}
 
     private async Task EnsureAccessibleAsync(Guid id, CancellationToken ct)
     {
