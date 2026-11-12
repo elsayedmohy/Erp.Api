@@ -4,6 +4,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using ErpDashboard.Api.Data;
 using ErpDashboard.Api.Data.Entities;
+using ErpDashboard.Api.Data.Enums;
 using ErpDashboard.Api.Data.Seed;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -54,9 +55,9 @@ public class WarehouseEndpointsTests(ApiFactory factory)
         Assert.Equal(12, (await ReadJsonAsync(response)).GetProperty("quantity").GetInt32());
 
         var adjustment = await SingleAdjustmentAsync(productId);
-        Assert.Equal(12, adjustment.Delta);
+        Assert.Equal(12, adjustment.Quantity);
         Assert.Equal("Opening count", adjustment.Reason);
-        Assert.Equal(user.Id, adjustment.AdjustedById);
+        Assert.Equal(user.Id, adjustment.CreatedById);
     }
 
     [Fact]
@@ -158,18 +159,19 @@ public class WarehouseEndpointsTests(ApiFactory factory)
         return product.Id;
     }
 
-    private async Task<StockAdjustment> SingleAdjustmentAsync(Guid productId)
+    private async Task<StockMovement> SingleAdjustmentAsync(Guid productId)
     {
         using var scope = factory.Services.CreateScope();
         return await scope.ServiceProvider.GetRequiredService<AppDbContext>()
-            .StockAdjustments.AsNoTracking().SingleAsync(a => a.ProductId == productId);
+            .StockMovements.AsNoTracking()
+            .SingleAsync(m => m.ProductId == productId && m.Type == StockMovementType.Adjustment);
     }
 
     private async Task<int> AdjustmentCountAsync(Guid productId)
     {
         using var scope = factory.Services.CreateScope();
         return await scope.ServiceProvider.GetRequiredService<AppDbContext>()
-            .StockAdjustments.CountAsync(a => a.ProductId == productId);
+            .StockMovements.CountAsync(m => m.ProductId == productId && m.Type == StockMovementType.Adjustment);
     }
 
     private async Task<int> GetStockAsync(Guid warehouseId, Guid productId)
