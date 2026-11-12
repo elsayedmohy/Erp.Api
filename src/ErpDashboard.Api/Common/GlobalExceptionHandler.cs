@@ -45,6 +45,26 @@ public class GlobalExceptionHandler(
                 }
             });
         }
+       
+        if (ex is InsufficientStockException shortage)
+        {
+            ctx.Response.StatusCode = StatusCodes.Status409Conflict;
+            var problem = new ProblemDetails
+            {
+                Status = StatusCodes.Status409Conflict,
+                Title = "Insufficient stock",
+                Detail = ex.Message
+            };
+            problem.Extensions["warehouseId"] = shortage.WarehouseId;
+            problem.Extensions["lines"] = shortage.Lines;
+
+            return await problemDetailsService.TryWriteAsync(new ProblemDetailsContext
+            {
+                HttpContext = ctx,
+                Exception = ex,
+                ProblemDetails = problem
+            });
+        }
 
         var (status, title) = ex switch
         {
@@ -91,3 +111,11 @@ public class RequestValidationException(IDictionary<string, string[]> errors)
 
 public sealed class AccountLockedException(string message = "Account is locked. Try again after 15 minutes.") : AppException(message);
 
+public sealed record StockShortage(Guid ProductId, string ProductName, int Requested, int Available);
+
+public sealed class InsufficientStockException(Guid warehouseId, IReadOnlyList<StockShortage> lines)
+    : ConflictException($"Insufficient stock for {lines.Count} line(s).")
+{
+    public Guid WarehouseId { get; } = warehouseId;
+    public IReadOnlyList<StockShortage> Lines { get; } = lines;
+}
