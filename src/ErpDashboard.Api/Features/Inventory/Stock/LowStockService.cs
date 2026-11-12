@@ -8,7 +8,7 @@ public interface ILowStockService
 public sealed class LowStockService(AppDbContext dbContext, IWarehouseScope scope) : ILowStockService
 {
     private static readonly SortMap<WarehouseStock> Sorts = new SortMap<WarehouseStock>()
-        .Add("shortage", s => s.Product.ReorderLevel - s.Quantity)
+        .Add("shortage", s => s.Product.ReorderLevel - (s.Quantity - s.Reserved))
         .Add("sku", s => s.Product.Sku)
         .Add("warehouse", s => s.Warehouse.Code)
         .Default("shortage", descending: true)
@@ -20,8 +20,7 @@ public sealed class LowStockService(AppDbContext dbContext, IWarehouseScope scop
 
         var q = dbContext.WarehouseStocks.AsNoTracking()
             .Where(s => accessible.Contains(s.WarehouseId))
-            .Where(s => s.Product.ReorderLevel > 0 && s.Quantity < s.Product.ReorderLevel);
-
+            .Where(s => s.Product.ReorderLevel > 0 && s.Quantity - s.Reserved < s.Product.ReorderLevel);
         if (query.WarehouseId is { } warehouseId)
             q = q.Where(s => s.WarehouseId == warehouseId);
 
@@ -37,8 +36,10 @@ public sealed class LowStockService(AppDbContext dbContext, IWarehouseScope scop
                 s.Product.Name,
                 s.Product.Sku,
                 s.Quantity,
+                s.Reserved,
+                s.Quantity - s.Reserved,
                 s.Product.ReorderLevel,
-                s.Product.ReorderLevel - s.Quantity))
+                s.Product.ReorderLevel - (s.Quantity - s.Reserved)))
             .ToPagedResultAsync(query, ct);
     }
 }

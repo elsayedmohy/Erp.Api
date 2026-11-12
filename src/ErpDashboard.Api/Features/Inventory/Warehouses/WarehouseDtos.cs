@@ -29,7 +29,10 @@ public sealed record WarehouseStockResponse(
     string ProductName,
     string Sku,
     int Quantity,
-    int ReorderLevel);
+    int Reserved,
+    int Available,
+    int ReorderLevel
+    );
 
 public sealed record AdjustStockRequest(
     [Required] Guid? ProductId,

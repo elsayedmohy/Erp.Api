@@ -44,7 +44,7 @@ public class ProductService(AppDbContext dbContext , IWarehouseScope scope , ICu
                 product.UnitPrice,
                 dbContext.WarehouseStocks
                     .Where(s => s.ProductId == product.Id && accessible.Contains(s.WarehouseId))
-                    .Sum(s => (int?)s.Quantity) ?? 0,
+                    .Sum(s => (int?)s.Quantity - s.Reserved) ?? 0,
                 product.ReorderLevel,
                 product.LengthCm,
                 product.WidthCm,
@@ -227,7 +227,7 @@ public class ProductService(AppDbContext dbContext , IWarehouseScope scope , ICu
         var accessible = scope.AccessibleWarehouseIds();
         return dbContext.WarehouseStocks
             .Where(s => s.ProductId == productId && accessible.Contains(s.WarehouseId))
-            .SumAsync(s => s.Quantity, ct);
+            .SumAsync(s => s.Quantity - s.Reserved, ct);
     }
     
     private static string NormalizeSku(string sku) => sku.Trim().ToUpperInvariant();

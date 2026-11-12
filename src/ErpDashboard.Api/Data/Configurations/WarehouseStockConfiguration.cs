@@ -6,8 +6,12 @@ public class WarehouseStockConfiguration : IEntityTypeConfiguration<WarehouseSto
     {
 
         b.HasKey(s => new { s.WarehouseId, s.ProductId });
-        b.ToTable(t => t.HasCheckConstraint("CK_WarehouseStocks_Quantity", "\"Quantity\" >= 0"));
-
+        b.ToTable(t =>
+        {
+            t.HasCheckConstraint("CK_WarehouseStocks_Quantity", "\"Quantity\" >= 0");
+            t.HasCheckConstraint("CK_WarehouseStocks_Reserved", "\"Reserved\" >= 0 AND \"Reserved\" <= \"Quantity\"");
+        });
+        
         b.HasOne(s => s.Warehouse).WithMany(w => w.Stock)
             .HasForeignKey(s => s.WarehouseId).OnDelete(DeleteBehavior.Restrict);
 

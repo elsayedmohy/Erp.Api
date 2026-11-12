@@ -26,7 +26,7 @@ public class OrdersController(IOrderService service) : ControllerBase
     
     [HttpPatch("{id:guid}/status"), HasPermission(PermissionCodes.Orders.UpdateStatus)]
     public async Task<ActionResult<OrderResponse>> UpdateStatus(Guid id, [FromBody] UpdateOrderStatusRequest request, CancellationToken ct)
-        => Ok(await service.UpdateStatusAsync(id, request, ct));
+        => Ok(await service.UpdateStatusAsync(id, request, User.GetUserId(),ct));
 
     [HttpPost("{id:guid}/approve"), HasPermission(PermissionCodes.Orders.ApproveDiscount)]
     public async Task<ActionResult<OrderResponse>> Approve(Guid id, CancellationToken ct)
