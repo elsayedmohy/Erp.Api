@@ -1,6 +1,7 @@
 using ErpDashboard.Api.Data;
 using ErpDashboard.Api.Data.Entities;
 using ErpDashboard.Api.Data.Seed;
+using ErpDashboard.Api.Features.Inventory.Stock;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -13,6 +14,7 @@ namespace ErpDashboard.Api.IntegrationTests;
 
 public class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
+    public StockFaults StockFaults { get; } = new();
     public const string AdminEmail = "admin@tests.local";
     public const string AdminPassword = "Test-only-Passw0rd!";
     public const string JwtKey = "test-only-key-with-at-least-32-characters";
@@ -34,6 +36,10 @@ public class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
             services.AddControllers()
                 .AddApplicationPart(typeof(TestErrorsController).Assembly);
             services.AddSingleton<ILogEventSink>(Logs);
+
+            services.AddScoped<StockService>();
+            services.AddScoped<IStockService>(sp =>
+                new FaultInjectingStockService(sp.GetRequiredService<StockService>(), StockFaults));
         });
 
         builder.UseEnvironment("Testing");
