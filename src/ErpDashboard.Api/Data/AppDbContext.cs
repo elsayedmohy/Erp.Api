@@ -22,7 +22,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentShowro
     
     public DbSet<Warehouse> Warehouses => Set<Warehouse>();
     public DbSet<WarehouseStock> WarehouseStocks => Set<WarehouseStock>();
-    public DbSet<StockAdjustment> StockAdjustments => Set<StockAdjustment>();
+    public DbSet<StockMovement> StockMovements => Set<StockMovement>();
     
     public DbSet<UserWarehouse> UserWarehouses => Set<UserWarehouse>();
     

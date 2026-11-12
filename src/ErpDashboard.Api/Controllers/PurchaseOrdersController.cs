@@ -22,10 +22,10 @@ public class PurchaseOrdersController(IPurchaseOrderService service) : Controlle
 
     [HttpPut("{id:guid}"), HasPermission(PermissionCodes.PurchaseOrders.Write)]
     public async Task<ActionResult<PurchaseOrderDetailsResponse>> Update(Guid id, [FromBody] UpdatePurchaseOrderRequest request, CancellationToken ct)
-        => Ok(await service.UpdateAsync(id, request, ct));
+        => Ok(await service.UpdateAsync(id, request,ct));
     
     [HttpPatch("{id:guid}/status"), HasPermission(PermissionCodes.PurchaseOrders.UpdateStatus)]
     public async Task<ActionResult<PurchaseOrderResponse>> UpdateStatus(Guid id, [FromBody] UpdatePurchaseOrderStatusRequest request, CancellationToken ct)
-        => Ok(await service.UpdateStatusAsync(id, request, ct));
+        => Ok(await service.UpdateStatusAsync(id, request, User.GetUserId(), ct));
 
 }

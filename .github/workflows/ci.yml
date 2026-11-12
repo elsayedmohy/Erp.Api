@@ -33,6 +33,13 @@ jobs:
             echo "::error::Use Remove + SaveChanges for soft-delete entities"
             exit 1
           fi
+      - name: Block stock writes outside StockService
+        run: |
+          if git grep -nE 'WarehouseStocks\.(Add|AddRange|Update|Remove|RemoveRange)\(|(INSERT INTO|UPDATE) "(WarehouseStocks|StockMovements)"|StockMovements\.(Add|AddRange|Update|Remove|RemoveRange)\(' \
+               -- 'src/*.cs' ':!src/ErpDashboard.Api/Features/Inventory/Stock/StockService.cs' ':!src/ErpDashboard.Api/Migrations/*'; then
+            echo "::error::Change stock only through IStockService"
+            exit 1
+          fi
       - run: dotnet restore --locked-mode
       - run: dotnet build --no-restore -c Release
       - run: dotnet test --no-build -c Release --logger trx --results-directory TestResults

@@ -40,7 +40,7 @@ public class OrdersController(IOrderService service) : ControllerBase
     [HttpDelete("{id:guid}"), HasPermission(PermissionCodes.Orders.Write)]
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
     {
-        await service.DeleteAsync(id, ct);
+        await service.DeleteAsync(id, User.GetUserId(), ct);
         return NoContent();
     }
 }

@@ -560,28 +560,35 @@ namespace ErpDashboard.Api.Migrations
                     b.ToTable("Showrooms");
                 });
 
-            modelBuilder.Entity("ErpDashboard.Api.Data.Entities.StockAdjustment", b =>
+            modelBuilder.Entity("ErpDashboard.Api.Data.Entities.StockMovement", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<DateTime>("AdjustedAt")
+                    b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<Guid>("AdjustedById")
+                    b.Property<Guid?>("CreatedById")
                         .HasColumnType("uuid");
-
-                    b.Property<int>("Delta")
-                        .HasColumnType("integer");
 
                     b.Property<Guid>("ProductId")
                         .HasColumnType("uuid");
 
+                    b.Property<int>("Quantity")
+                        .HasColumnType("integer");
+
                     b.Property<string>("Reason")
-                        .IsRequired()
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
+
+                    b.Property<Guid?>("ReferenceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
 
                     b.Property<Guid>("WarehouseId")
                         .HasColumnType("uuid");
@@ -590,9 +597,14 @@ namespace ErpDashboard.Api.Migrations
 
                     b.HasIndex("ProductId");
 
-                    b.HasIndex("WarehouseId", "ProductId");
+                    b.HasIndex("ReferenceId");
 
-                    b.ToTable("StockAdjustments");
+                    b.HasIndex("WarehouseId", "ProductId", "CreatedAt");
+
+                    b.ToTable("StockMovements", t =>
+                        {
+                            t.HasCheckConstraint("CK_StockMovements_Quantity_NonZero", "\"Quantity\" <> 0");
+                        });
                 });
 
             modelBuilder.Entity("ErpDashboard.Api.Data.Entities.Supplier", b =>
@@ -962,7 +974,7 @@ namespace ErpDashboard.Api.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("ErpDashboard.Api.Data.Entities.StockAdjustment", b =>
+            modelBuilder.Entity("ErpDashboard.Api.Data.Entities.StockMovement", b =>
                 {
                     b.HasOne("ErpDashboard.Api.Data.Entities.Product", null)
                         .WithMany()
