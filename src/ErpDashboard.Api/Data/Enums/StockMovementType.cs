@@ -8,5 +8,6 @@ public enum StockMovementType
     SalesReversal,
     Adjustment,
     TransferOut,
-    TransferIn
+    TransferIn,
+    TransferReturn
 }

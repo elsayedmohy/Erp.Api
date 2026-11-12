@@ -28,6 +28,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentShowro
     
     public DbSet<ProductPriceHistory> ProductPriceHistory => Set<ProductPriceHistory>();
     public DbSet<Material> Materials => Set<Material>();
+    public DbSet<StockTransfer> StockTransfers => Set<StockTransfer>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

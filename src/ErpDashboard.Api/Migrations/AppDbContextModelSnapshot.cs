@@ -607,6 +607,92 @@ namespace ErpDashboard.Api.Migrations
                         });
                 });
 
+            modelBuilder.Entity("ErpDashboard.Api.Data.Entities.StockTransfer", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("CancelReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime?>("CancelledAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("CancelledById")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("DispatchedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("DispatchedById")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("FromWarehouseId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime?>("ReceivedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("ReceivedById")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<Guid>("ToWarehouseId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FromWarehouseId");
+
+                    b.HasIndex("ToWarehouseId");
+
+                    b.HasIndex("Status", "ToWarehouseId");
+
+                    b.ToTable("StockTransfers", t =>
+                        {
+                            t.HasCheckConstraint("CK_StockTransfers_DifferentWarehouses", "\"FromWarehouseId\" <> \"ToWarehouseId\"");
+                        });
+                });
+
+            modelBuilder.Entity("ErpDashboard.Api.Data.Entities.StockTransferLine", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Quantity")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("TransferId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProductId");
+
+                    b.HasIndex("TransferId", "ProductId")
+                        .IsUnique();
+
+                    b.ToTable("StockTransferLine", t =>
+                        {
+                            t.HasCheckConstraint("CK_StockTransferLines_Quantity", "\"Quantity\" > 0");
+                        });
+                });
+
             modelBuilder.Entity("ErpDashboard.Api.Data.Entities.Supplier", b =>
                 {
                     b.Property<Guid>("Id")
@@ -989,6 +1075,36 @@ namespace ErpDashboard.Api.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("ErpDashboard.Api.Data.Entities.StockTransfer", b =>
+                {
+                    b.HasOne("ErpDashboard.Api.Data.Entities.Warehouse", null)
+                        .WithMany()
+                        .HasForeignKey("FromWarehouseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ErpDashboard.Api.Data.Entities.Warehouse", null)
+                        .WithMany()
+                        .HasForeignKey("ToWarehouseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ErpDashboard.Api.Data.Entities.StockTransferLine", b =>
+                {
+                    b.HasOne("ErpDashboard.Api.Data.Entities.Product", null)
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ErpDashboard.Api.Data.Entities.StockTransfer", null)
+                        .WithMany("Lines")
+                        .HasForeignKey("TransferId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("ErpDashboard.Api.Data.Entities.User", b =>
                 {
                     b.HasOne("ErpDashboard.Api.Data.Entities.Role", "Role")
@@ -1103,6 +1219,11 @@ namespace ErpDashboard.Api.Migrations
                     b.Navigation("Invoices");
 
                     b.Navigation("Orders");
+                });
+
+            modelBuilder.Entity("ErpDashboard.Api.Data.Entities.StockTransfer", b =>
+                {
+                    b.Navigation("Lines");
                 });
 
             modelBuilder.Entity("ErpDashboard.Api.Data.Entities.Supplier", b =>
