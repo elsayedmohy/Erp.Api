@@ -245,7 +245,7 @@ public class OrderDiscountApprovalTests(ApiFactory factory)
         return await scope.ServiceProvider.GetRequiredService<AppDbContext>()
             .WarehouseStocks
             .Where(s => s.WarehouseId == warehouseId && s.ProductId == productId)
-            .Select(s => (int?)s.Quantity)
+            .Select(s => (int?)(s.Quantity - s.Reserved))
             .SingleOrDefaultAsync() ?? 0;
     }
 

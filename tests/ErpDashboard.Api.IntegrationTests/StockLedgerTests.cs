@@ -33,66 +33,48 @@ public class StockLedgerTests(ApiFactory factory)
         Assert.Equal(userId, m.CreatedById);
     }
 
-    [Fact]
-    public async Task OrderCreate_RecordsSalesIssue_WithOrderAndUser()
-    {
-        var (token, userId) = await ManagerAsync();
-        var s = await SeedAsync(stock: 10);
 
-        var orderId = await CreateOrderAsync(token, s, quantity: 3, discount: 0m);
-
-        var m = Assert.Single(await MovementsAsync(s.ProductId, StockMovementType.SalesIssue));
-        Assert.Equal(-3, m.Quantity);
-        Assert.Equal(orderId, m.ReferenceId);
-        Assert.Equal(userId, m.CreatedById);
-    }
 
     [Fact]
-    public async Task OrderCreate_WithInsufficientStock_RecordsNothing()
+    public async Task OrderCreate_WithInsufficientStock_ReservesNothing()
     {
         var (token, _) = await ManagerAsync();
-        var s = await SeedAsync(stock: 2);
+        var enough = await SeedAsync(stock: 10);
+        var shortOne = await SeedAsync(stock: 2);
 
-        var response = await SendAsync(HttpMethod.Post, "/api/orders", token, OrderBody(s, quantity: 5, discount: 0m));
+        var response = await SendAsync(HttpMethod.Post, "/api/orders", token, new
+        {
+            showroomId = enough.ShowroomId,
+            warehouseId = WarehouseIds.Main,
+            paymentMethod = Enum.GetValues<PaymentMethod>()[0].ToString(),
+            shippingAddress = "Test address",
+            lines = new[]
+            {
+                new { productId = enough.ProductId, quantity = 3, discount = 0m },
+                new { productId = shortOne.ProductId, quantity = 5, discount = 0m }
+            }
+        });
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
-        Assert.Empty(await MovementsAsync(s.ProductId, StockMovementType.SalesIssue));
+        Assert.Equal(0, await ReservedAsync(enough.ProductId));
+        Assert.Equal(0, await ReservedAsync(shortOne.ProductId));
     }
 
-    [Fact]
-    public async Task OrderReject_RecordsSalesReversal_ByReviewer()
+    private async Task<int> ReservedAsync(Guid productId)
     {
-        var (creator, _) = await ManagerAsync();
-        var (reviewer, reviewerId) = await ManagerAsync();
-        var s = await SeedAsync(stock: 10);
-        var orderId = await CreateOrderAsync(creator, s, quantity: 1, discount: 90m);
-
-        var reject = await SendAsync(HttpMethod.Post, $"/api/orders/{orderId}/reject", reviewer, new { reason = "Too much" });
-        Assert.True(reject.IsSuccessStatusCode, await reject.Content.ReadAsStringAsync());
-
-        var m = Assert.Single(await MovementsAsync(s.ProductId, StockMovementType.SalesReversal));
-        Assert.Equal(1, m.Quantity);
-        Assert.Equal(orderId, m.ReferenceId);
-        Assert.Equal(reviewerId, m.CreatedById);
+        using var scope = factory.Services.CreateScope();
+        return await scope.ServiceProvider.GetRequiredService<AppDbContext>().WarehouseStocks
+            .Where(x => x.WarehouseId == WarehouseIds.Main && x.ProductId == productId)
+            .Select(x => x.Reserved)
+            .SingleAsync();
     }
 
-    [Fact]
-    public async Task OrderDelete_RecordsSalesReversal_ByDeleter()
-    {
-        var (token, userId) = await ManagerAsync();
-        var s = await SeedAsync(stock: 10);
-        var orderId = await CreateOrderAsync(token, s, quantity: 4, discount: 0m);
 
-        var delete = await SendAsync(HttpMethod.Delete, $"/api/orders/{orderId}", token);
-        Assert.True(delete.IsSuccessStatusCode, await delete.Content.ReadAsStringAsync());
 
-        var m = Assert.Single(await MovementsAsync(s.ProductId, StockMovementType.SalesReversal));
-        Assert.Equal(4, m.Quantity);
-        Assert.Equal(userId, m.CreatedById);
-    }
+
 
     [Fact]
-    public async Task AfterMixedOperations_BalanceEqualsSumOfMovements()
+    public async Task AfterMixedOperations_ShelfEqualsLedger_AndReservationIsSeparate()
     {
         var (token, _) = await ManagerAsync();
         var s = await SeedAsync(stock: 0);
@@ -112,7 +94,7 @@ public class StockLedgerTests(ApiFactory factory)
             .Where(x => x.WarehouseId == WarehouseIds.Main && x.ProductId == s.ProductId)
             .SumAsync(x => x.Quantity);
 
-        Assert.Equal(15, balance);
+        Assert.Equal(20, balance);
         Assert.Equal(balance, ledger);
     }
 
