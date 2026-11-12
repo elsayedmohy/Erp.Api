@@ -106,7 +106,7 @@ public class OrderService(AppDbContext dbContext,
         var orderDate =  DateOnly.FromDateTime(DateTime.UtcNow);
         var orderLines = new List<OrderLine>();
         var invoiceLines = new List<InvoiceLineInput>();
-        var insufficient = new List<string>();
+        var insufficient = new List<StockShortage>();
         decimal total = 0;
         decimal taxRate = 14;
         var orderId = Guid.NewGuid();
@@ -130,7 +130,7 @@ public class OrderService(AppDbContext dbContext,
                     .Select(s => (int?)s.Quantity)
                     .SingleOrDefaultAsync(ct) ?? 0;
 
-                insufficient.Add($"{product.Name} (requested {line.Quantity}, available {available})");
+                insufficient.Add(new StockShortage(product.Id, product.Name, line.Quantity, available));
                 continue;
             }
 
@@ -153,7 +153,7 @@ public class OrderService(AppDbContext dbContext,
         }
 
         if (insufficient.Count > 0)
-            throw new ConflictException("Insufficient stock: " + string.Join("; ", insufficient));
+            throw new InsufficientStockException(warehouseId, insufficient);
 
         var invoice = InvoiceFactory.CreateDraft(
             showroomId, orderDate, orderDate.AddDays(InvoiceDueDays), invoiceLines);

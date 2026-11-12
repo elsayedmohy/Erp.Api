@@ -49,7 +49,7 @@ public sealed class StockTransferService(AppDbContext dbContext, IStockService s
 
         await using var transaction = await dbContext.Database.BeginTransactionAsync(ct);
 
-        var insufficient = new List<string>();
+        var insufficient = new List<StockShortage>();
         foreach (var line in transfer.Lines.OrderBy(l => l.ProductId))
         {
             if (await stock.TryApplyAsync(new StockChange(from, line.ProductId, -line.Quantity,
@@ -59,11 +59,11 @@ public sealed class StockTransferService(AppDbContext dbContext, IStockService s
             var available = await dbContext.WarehouseStocks
                 .Where(s => s.WarehouseId == from && s.ProductId == line.ProductId)
                 .Select(s => (int?)s.Quantity).SingleOrDefaultAsync(ct) ?? 0;
-            insufficient.Add($"{products[line.ProductId]} (requested {line.Quantity}, available {available})");
+            insufficient.Add(new StockShortage(line.ProductId, products[line.ProductId], line.Quantity, available));
         }
 
         if (insufficient.Count > 0)
-            throw new ConflictException("Insufficient stock: " + string.Join("; ", insufficient));
+            throw new InsufficientStockException(from, insufficient);
 
         dbContext.StockTransfers.Add(transfer);
         await dbContext.SaveChangesAsync(ct);
