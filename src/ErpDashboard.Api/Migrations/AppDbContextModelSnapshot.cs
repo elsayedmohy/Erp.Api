@@ -860,6 +860,9 @@ namespace ErpDashboard.Api.Migrations
                     b.Property<int>("Quantity")
                         .HasColumnType("integer");
 
+                    b.Property<int>("Reserved")
+                        .HasColumnType("integer");
+
                     b.HasKey("WarehouseId", "ProductId");
 
                     b.HasIndex("ProductId");
@@ -867,6 +870,8 @@ namespace ErpDashboard.Api.Migrations
                     b.ToTable("WarehouseStocks", t =>
                         {
                             t.HasCheckConstraint("CK_WarehouseStocks_Quantity", "\"Quantity\" >= 0");
+
+                            t.HasCheckConstraint("CK_WarehouseStocks_Reserved", "\"Reserved\" >= 0 AND \"Reserved\" <= \"Quantity\"");
                         });
                 });
 

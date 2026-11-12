@@ -7,4 +7,5 @@ public class WarehouseStock
     public int Quantity { get; set; }
     public Warehouse Warehouse { get; set; } = null!;
     public Product Product { get; set; } = null!;
+    public int Reserved { get; set; }
 }

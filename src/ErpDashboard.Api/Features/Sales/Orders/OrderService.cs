@@ -122,12 +122,11 @@ public class OrderService(AppDbContext dbContext,
                 throw new RequestValidationException("lines",
                     $"Discount for '{product.Name}' ({line.Discount}) exceeds the line value ({gross}).");
 
-            if (!await stock.TryApplyAsync(new StockChange(
-                    warehouseId, product.Id, -line.Quantity, StockMovementType.SalesIssue, createdById, orderId), ct))
+            if (!await stock.TryReserveAsync(warehouseId, product.Id, line.Quantity, ct))
             {
                 var available = await dbContext.WarehouseStocks
                     .Where(s => s.WarehouseId == warehouseId && s.ProductId == product.Id)
-                    .Select(s => (int?)s.Quantity)
+                    .Select(s => (int?)(s.Quantity - s.Reserved))
                     .SingleOrDefaultAsync(ct) ?? 0;
 
                 insufficient.Add(new StockShortage(product.Id, product.Name, line.Quantity, available));
@@ -199,27 +198,41 @@ public class OrderService(AppDbContext dbContext,
         return ToResponse(order);
     }
 
-    public async Task<OrderResponse> UpdateStatusAsync(Guid id, UpdateOrderStatusRequest request, CancellationToken ct)
+    public async Task<OrderResponse> UpdateStatusAsync(
+        Guid id, UpdateOrderStatusRequest request, Guid userId, CancellationToken ct)
     {
-        Order? order = await dbContext.Orders
-            .Include(o => o.Showroom)
-            .Include(o => o.Invoice)
-            .FirstOrDefaultAsync(o => o.Id == id, ct);
-        if (order is null)
-            throw new NotFoundException("Order", id);
+        var order = await dbContext.Orders
+                        .Include(o => o.Showroom)
+                        .Include(o => o.Invoice)
+                        .Include(o => o.OrderLines)
+                        .FirstOrDefaultAsync(o => o.Id == id, ct)
+                    ?? throw new NotFoundException("Order", id);
 
-        if (!NextStatus.TryGetValue(order.Status, out var allowed) || allowed != request.Status)
-        {
-            throw new ConflictException(
-                $"Cannot change order status from '{order.Status}' to '{request.Status}'.");
-        }
+        var current = order.Status;
+        if (!NextStatus.TryGetValue(current, out var allowed) || allowed != request.Status)
+            throw new ConflictException($"Cannot change order status from '{current}' to '{request.Status}'.");
 
-        order.Status = request.Status;
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(ct);
+
+        var claimed = await dbContext.Orders
+            .Where(o => o.Id == id && o.Status == current)
+            .ExecuteUpdateAsync(s => s.SetProperty(o => o.Status, request.Status), ct);
+        if (claimed == 0)
+            throw new ConflictException("The order status was changed by someone else. Reload and try again.");
+
+        if (request.Status == OrderStatus.Shipped)
+            foreach (var line in order.OrderLines.OrderBy(l => l.ProductId))
+                await stock.IssueReservedAsync(new StockChange(
+                    order.WarehouseId, line.ProductId, -line.Quantity,
+                    StockMovementType.SalesIssue, userId, order.Id), ct);
 
         if (request.Status == OrderStatus.Confirmed && order.Invoice is { Status: InvoiceStatus.Draft } invoice)
             invoice.Status = InvoiceStatus.Issued;
 
         await dbContext.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
+
+        order.Status = request.Status;
         return ToResponse(order);
     }
     
@@ -245,9 +258,7 @@ public async Task<OrderResponse> RejectAsync(
 
 
     foreach (var line in order.OrderLines)
-        await stock.TryApplyAsync(new StockChange(
-            order.WarehouseId, line.ProductId, line.Quantity, StockMovementType.SalesReversal,
-            reviewerId, order.Id, "Order rejected"), ct);
+        await stock.ReleaseAsync(order.WarehouseId, line.ProductId, line.Quantity, ct);
 
     if (order.Invoice is { Status: InvoiceStatus.Draft } invoice)
         invoice.Status = InvoiceStatus.Cancelled;
@@ -278,9 +289,7 @@ public async Task<OrderResponse> RejectAsync(
         await using var transaction = await dbContext.Database.BeginTransactionAsync(ct);
         
         foreach (var line in order.OrderLines)
-            await stock.TryApplyAsync(new StockChange(
-                order.WarehouseId, line.ProductId, line.Quantity, StockMovementType.SalesReversal,
-                deletedById, order.Id, "Order deleted"), ct);
+            await stock.ReleaseAsync(order.WarehouseId, line.ProductId, line.Quantity, ct);
 
         if (order.Invoice is not null)
             dbContext.Invoices.Remove(order.Invoice);

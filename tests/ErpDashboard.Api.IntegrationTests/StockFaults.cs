@@ -33,4 +33,23 @@ public sealed class FaultInjectingStockService(StockService inner, StockFaults f
             faults.OnChangeApplied();
         return applied;
     }
+    
+    public async Task<bool> TryReserveAsync(Guid w, Guid p, int q, CancellationToken ct)
+    {
+        var ok = await inner.TryReserveAsync(w, p, q, ct);
+        if (ok) faults.OnChangeApplied();
+        return ok;
+    }
+
+    public async Task ReleaseAsync(Guid w, Guid p, int q, CancellationToken ct)
+    {
+        await inner.ReleaseAsync(w, p, q, ct);
+        faults.OnChangeApplied();
+    }
+
+    public async Task IssueReservedAsync(StockChange change, CancellationToken ct)
+    {
+        await inner.IssueReservedAsync(change, ct);
+        faults.OnChangeApplied();
+    }
 }
