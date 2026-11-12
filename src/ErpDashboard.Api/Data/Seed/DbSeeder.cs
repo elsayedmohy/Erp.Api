@@ -12,6 +12,7 @@ public static class DbSeeder
         new(RoleIds.Accountant, RoleNames.Accountant, RolePermissions.Accountant),
         new(RoleIds.User, RoleNames.User, RolePermissions.User),
         new(RoleIds.ShowroomUser, RoleNames.ShowroomUser, RolePermissions.ShowroomUser),
+        new(RoleIds.Sales, RoleNames.Sales, RolePermissions.Sales),
     ];
 
 
