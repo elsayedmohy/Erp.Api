@@ -29,4 +29,9 @@ public class WarehousesController(IWarehouseService service) : ControllerBase
     public async Task<ActionResult<AdjustStockResponse>> AdjustStock(
         Guid id, [FromBody] AdjustStockRequest request, CancellationToken ct)
         => Ok(await service.AdjustStockAsync(id, request, User.GetUserId(), ct));
+    
+    [HttpGet("{id:guid}/movements"), HasPermission(PermissionCodes.Warehouses.Read)]
+    public Task<PagedResult<StockMovementResponse>> ListMovements(
+        Guid id, [FromQuery] StockMovementQuery query, CancellationToken ct)
+        => service.ListMovementsAsync(id, query, ct);
 }
