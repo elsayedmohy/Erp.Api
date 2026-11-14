@@ -116,8 +116,47 @@ public partial class InvoiceNumberingTests(ApiFactory factory)
         var retry = Sequence(await NumberOfAsync(await IssueFromOrderAsync(accountant, failing)));
         Assert.Equal(before + 1, retry);
     }
+    
+    [Fact]
+    public async Task ManualInvoice_GetsNumberOnlyWhenIssued()
+    {
+        var accountant = await TokenAsync(RoleIds.Accountant);
+        var showroomId = await SeedShowroomAsync();
+
+        var draft = await SendAsync(HttpMethod.Post, "/api/invoices", accountant, new
+        {
+            showroomId,
+            lines = new[] { new { description = "Delivery fee", quantity = 1, unitPrice = 500m, discount = 50m } }
+        });
+        Assert.Equal(HttpStatusCode.Created, draft.StatusCode);
+        var draftJson = await ReadJsonAsync(draft);
+        Assert.True(!draftJson.TryGetProperty("number", out var n) || n.ValueKind == JsonValueKind.Null);
+
+        var issued = await SendAsync(HttpMethod.Patch, $"/api/invoices/{draftJson.GetProperty("id").GetGuid()}/issue", accountant);
+
+        Assert.Equal(HttpStatusCode.OK, issued.StatusCode);
+        Assert.Matches(NumberFormat(), (await ReadJsonAsync(issued)).GetProperty("number").GetString()!);
+        Assert.Equal(513m, draftJson.GetProperty("totalAmount").GetDecimal()); // (500 − 50) × 1.14
+    }
 
     // ---------- helpers ----------
+    
+    private async Task<Guid> SeedShowroomAsync()
+    {
+        var suffix = Guid.NewGuid().ToString("N");
+        var showroom = new Showroom
+        {
+            Id = Guid.NewGuid(), Name = $"Showroom-{suffix}", Email = $"showroom-{suffix}@tests.local",
+            Address = "Test address", City = "Cairo", Country = "Egypt",
+            PhoneNumber = "01000000000", TaxId = $"TAX-{suffix[..12]}"
+        };
+        await UseDbAsync(async db =>
+        {
+            db.Showrooms.Add(showroom);
+            return await db.SaveChangesAsync();
+        });
+        return showroom.Id;
+    }
 
     private static int Sequence(string number) => int.Parse(NumberFormat().Match(number).Groups[2].Value);
 
