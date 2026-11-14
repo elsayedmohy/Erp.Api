@@ -37,7 +37,7 @@ public sealed class StockReconciliationService(AppDbContext dbContext) : IStockR
         var pendingApproval = (int)OrderStatus.PendingApproval;
         var preparing = (int)OrderStatus.Preparing;
         
-        var reservationRows = await dbContext.Database.SqlQuery<ReservationMismatchRow>($$"""
+        var reservationRows = await dbContext.Database.SqlQuery<ReservationMismatchRow>($"""
              SELECT COALESCE(s."WarehouseId", r."WarehouseId") AS "WarehouseId",
                     w."Code"                                   AS "WarehouseCode",
                     COALESCE(s."ProductId", r."ProductId")     AS "ProductId",

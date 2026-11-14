@@ -189,7 +189,7 @@ public class OrderService(
             WarehouseId = warehouseId,
             Showroom = showroom,
             OrderDate = orderDate,
-            Status = RequiresApproval(orderLines) ? OrderStatus.PendingApproval : OrderStatus.Draft,
+            Status = OrderStatus.Draft,
             CreatedById = createdById,
             PaymentMethod = request.PaymentMethod,
             ShippingAddress = request.ShippingAddress.Trim(),
