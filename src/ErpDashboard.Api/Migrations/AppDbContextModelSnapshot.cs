@@ -439,6 +439,38 @@ namespace ErpDashboard.Api.Migrations
                     b.ToTable("OrderLines");
                 });
 
+            modelBuilder.Entity("ErpDashboard.Api.Data.Entities.OrderStatusChange", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("ChangedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("ChangedById")
+                        .HasColumnType("uuid");
+
+                    b.Property<int?>("FromStatus")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("OrderId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<int>("ToStatus")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OrderId", "ChangedAt");
+
+                    b.ToTable("OrderStatusChanges");
+                });
+
             modelBuilder.Entity("ErpDashboard.Api.Data.Entities.Product", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1182,6 +1214,15 @@ namespace ErpDashboard.Api.Migrations
                         .IsRequired();
 
                     b.Navigation("Product");
+                });
+
+            modelBuilder.Entity("ErpDashboard.Api.Data.Entities.OrderStatusChange", b =>
+                {
+                    b.HasOne("ErpDashboard.Api.Data.Entities.Order", null)
+                        .WithMany()
+                        .HasForeignKey("OrderId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("ErpDashboard.Api.Data.Entities.Product", b =>

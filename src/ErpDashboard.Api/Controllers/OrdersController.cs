@@ -37,6 +37,10 @@ public class OrdersController(IOrderService service) : ControllerBase
         Guid id, [FromBody] RejectOrderRequest request, CancellationToken ct)
         => Ok(await service.RejectAsync(id, request, User.GetUserId(), ct));
     
+    [HttpGet("{id:guid}/history"), HasPermission(PermissionCodes.Orders.Read)]
+    public Task<IReadOnlyList<OrderStatusChangeResponse>> GetHistory(Guid id, CancellationToken ct)
+        => service.GetHistoryAsync(id, ct);
+    
     [HttpDelete("{id:guid}"), HasPermission(PermissionCodes.Orders.Write)]
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
     {

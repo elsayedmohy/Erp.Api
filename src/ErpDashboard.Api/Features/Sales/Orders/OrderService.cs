@@ -163,7 +163,8 @@ public class OrderService(
             TotalAmount = total,
             OrderLines = orderLines
         };
-
+        
+        RecordStatusChange(orderId, null, order.Status, createdById);
         dbContext.Orders.Add(order);
         await dbContext.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
@@ -216,7 +217,7 @@ public class OrderService(
                     order.WarehouseId, line.ProductId, -line.Quantity,
                     StockMovementType.SalesIssue, userId, order.Id), ct);
 
-
+        RecordStatusChange(id, current, request.Status, userId);
         await dbContext.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
 
@@ -228,7 +229,13 @@ public class OrderService(
     {
         var order = await GetForReviewAsync(id, reviewerId, ct);
 
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(ct);
+
         await ClaimReviewAsync(id, OrderStatus.Pending, reviewerId, null, ct);
+        RecordStatusChange(id, OrderStatus.PendingApproval, OrderStatus.Pending, reviewerId, "Discount approved");
+
+        await dbContext.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
 
         order.Status = OrderStatus.Pending;
         return ToResponse(order);
@@ -243,7 +250,7 @@ public class OrderService(
         await using var transaction = await dbContext.Database.BeginTransactionAsync(ct);
 
         await ClaimReviewAsync(id, OrderStatus.Rejected, reviewerId, request.Reason.Trim(), ct);
-
+        RecordStatusChange(id, OrderStatus.PendingApproval, OrderStatus.Rejected, reviewerId, request.Reason.Trim());
 
         foreach (var line in order.OrderLines)
             await stock.ReleaseAsync(order.WarehouseId, line.ProductId, line.Quantity, ct);
@@ -254,6 +261,27 @@ public class OrderService(
 
         order.Status = OrderStatus.Rejected;
         return ToResponse(order);
+    }
+
+    public async Task<IReadOnlyList<OrderStatusChangeResponse>> GetHistoryAsync(Guid id, CancellationToken ct)
+    {
+        if (!await dbContext.Orders.AnyAsync(o => o.Id == id, ct))
+            throw new NotFoundException("Order", id);
+
+        return await (
+                from c in dbContext.OrderStatusChanges.AsNoTracking()
+                where c.OrderId == id
+                join u in dbContext.Users on c.ChangedById equals (Guid?)u.Id into users
+                from u in users.DefaultIfEmpty()
+                orderby c.ChangedAt, c.Id
+                select new OrderStatusChangeResponse(
+                    c.FromStatus,
+                    c.ToStatus,
+                    c.ChangedById,
+                    u == null ? null : u.FirstName + " " + u.LastName,
+                    c.ChangedAt,
+                    c.Reason))
+            .ToListAsync(ct);
     }
 
 
@@ -314,6 +342,18 @@ public class OrderService(
         if (claimed == 0)
             throw new ConflictException("The order was already reviewed.");
     }
+    
+    private void RecordStatusChange(Guid orderId, OrderStatus? from, OrderStatus to, Guid userId, string? reason = null) =>
+        dbContext.OrderStatusChanges.Add(new OrderStatusChange
+        {
+            Id = Guid.NewGuid(),
+            OrderId = orderId,
+            FromStatus = from,
+            ToStatus = to,
+            ChangedById = userId,
+            ChangedAt = DateTime.UtcNow,
+            Reason = reason
+        });
 
     private static OrderDetailsResponse ToDetailedResponse(Order o) =>
         new(
