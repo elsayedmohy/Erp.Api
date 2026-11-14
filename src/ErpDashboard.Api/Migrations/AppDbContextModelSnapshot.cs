@@ -182,8 +182,6 @@ namespace ErpDashboard.Api.Migrations
 
                     b.ToTable("Invoices", t =>
                         {
-                            t.HasCheckConstraint("CK_InvoiceLines_Discount", "\"Discount\" >= 0");
-
                             t.HasCheckConstraint("CK_Invoices_IssuedHasNumber", "\"Status\" = 2 OR \"Number\" IS NOT NULL");
                         });
                 });
@@ -220,7 +218,10 @@ namespace ErpDashboard.Api.Migrations
 
                     b.HasIndex("InvoiceId");
 
-                    b.ToTable("InvoiceLines");
+                    b.ToTable("InvoiceLines", t =>
+                        {
+                            t.HasCheckConstraint("CK_InvoiceLines_Discount", "\"Discount\" >= 0");
+                        });
                 });
 
             modelBuilder.Entity("ErpDashboard.Api.Data.Entities.Material", b =>

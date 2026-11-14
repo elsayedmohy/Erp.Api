@@ -19,7 +19,7 @@ namespace ErpDashboard.Api.Migrations
 
             migrationBuilder.AddCheckConstraint(
                 name: "CK_InvoiceLines_Discount",
-                table: "Invoices",
+                table: "InvoiceLines",
                 sql: "\"Discount\" >= 0");
         }
 
@@ -28,7 +28,7 @@ namespace ErpDashboard.Api.Migrations
         {
             migrationBuilder.DropCheckConstraint(
                 name: "CK_InvoiceLines_Discount",
-                table: "Invoices");
+                table: "InvoiceLines");
 
             migrationBuilder.DropColumn(
                 name: "Discount",

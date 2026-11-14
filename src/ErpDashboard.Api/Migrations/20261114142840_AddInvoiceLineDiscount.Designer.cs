@@ -13,7 +13,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace ErpDashboard.Api.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20261114140502_AddInvoiceLineDiscount")]
+    [Migration("20261114142840_AddInvoiceLineDiscount")]
     partial class AddInvoiceLineDiscount
     {
         /// <inheritdoc />
@@ -185,8 +185,6 @@ namespace ErpDashboard.Api.Migrations
 
                     b.ToTable("Invoices", t =>
                         {
-                            t.HasCheckConstraint("CK_InvoiceLines_Discount", "\"Discount\" >= 0");
-
                             t.HasCheckConstraint("CK_Invoices_IssuedHasNumber", "\"Status\" = 2 OR \"Number\" IS NOT NULL");
                         });
                 });
@@ -223,7 +221,10 @@ namespace ErpDashboard.Api.Migrations
 
                     b.HasIndex("InvoiceId");
 
-                    b.ToTable("InvoiceLines");
+                    b.ToTable("InvoiceLines", t =>
+                        {
+                            t.HasCheckConstraint("CK_InvoiceLines_Discount", "\"Discount\" >= 0");
+                        });
                 });
 
             modelBuilder.Entity("ErpDashboard.Api.Data.Entities.Material", b =>
