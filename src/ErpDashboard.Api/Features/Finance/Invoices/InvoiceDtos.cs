@@ -25,7 +25,9 @@ public sealed record InvoiceLineRequest(
     [Required, MaxLength(200)] string Description,
     [Range(1, 1_000_000)] int Quantity,
     [Range(0.01, 1_000_000_000)] decimal UnitPrice,
-    [Range(0, 100)] decimal? TaxRate);
+    [Range(0, 100)] decimal? TaxRate,
+    [Range(0, 1_000_000_000)] decimal Discount = 0m
+    );
 
 public sealed record InvoiceLineResponse(
     Guid Id,
@@ -33,6 +35,8 @@ public sealed record InvoiceLineResponse(
     string Description,
     int Quantity,
     decimal UnitPrice,
+    decimal LineGross,
+    decimal Discount,
     decimal TaxRate,
     decimal LineNet,
     decimal LineTax,
@@ -47,6 +51,7 @@ public sealed record InvoiceDetailsResponse(
     DateOnly DueDate,
     InvoiceStatus Status,
     decimal Subtotal,
+    decimal DiscountTotal,
     decimal TaxAmount,
     decimal TotalAmount,
     DateTime? PaidAt,

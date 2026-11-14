@@ -24,5 +24,7 @@ public class InvoiceConfiguration : IEntityTypeConfiguration<Invoice>
         
         b.ToTable(t => t.HasCheckConstraint("CK_Invoices_IssuedHasNumber",
             "\"Status\" = 2 OR \"Number\" IS NOT NULL"));
+        
+        b.ToTable(t => t.HasCheckConstraint("CK_InvoiceLines_Discount", "\"Discount\" >= 0"));
     }
 }

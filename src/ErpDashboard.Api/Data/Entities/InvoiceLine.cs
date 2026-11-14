@@ -9,4 +9,5 @@ public class InvoiceLine
     public int Quantity { get; set; }
     public decimal UnitPrice { get; set; }
     public decimal TaxRate { get; set; }
+    public decimal Discount { get; set; }
 }

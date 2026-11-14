@@ -182,6 +182,8 @@ namespace ErpDashboard.Api.Migrations
 
                     b.ToTable("Invoices", t =>
                         {
+                            t.HasCheckConstraint("CK_InvoiceLines_Discount", "\"Discount\" >= 0");
+
                             t.HasCheckConstraint("CK_Invoices_IssuedHasNumber", "\"Status\" = 2 OR \"Number\" IS NOT NULL");
                         });
                 });
@@ -195,6 +197,9 @@ namespace ErpDashboard.Api.Migrations
                     b.Property<string>("Description")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<decimal>("Discount")
+                        .HasColumnType("numeric");
 
                     b.Property<Guid>("InvoiceId")
                         .HasColumnType("uuid");
