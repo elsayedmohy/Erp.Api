@@ -71,3 +71,11 @@ public sealed record OrderLineResponse(
     );
 
 public sealed record RejectOrderRequest([Required, MaxLength(500)] string Reason);
+
+public sealed record OrderStatusChangeResponse(
+    OrderStatus? FromStatus,
+    OrderStatus ToStatus,
+    Guid? ChangedById,
+    string? ChangedByName,
+    DateTime ChangedAt,
+    string? Reason);
