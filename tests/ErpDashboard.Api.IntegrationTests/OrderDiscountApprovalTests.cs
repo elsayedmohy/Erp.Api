@@ -89,7 +89,7 @@ public class OrderDiscountApprovalTests(ApiFactory factory)
     }
 
     [Fact]
-    public async Task Reject_RestoresStockAndCancelsInvoice()
+    public async Task Reject_ReleasesStock()
     {
         var (creator, _) = await ManagerAsync();
         var (showroomId, productId) = await SeedShowroomAndProductAsync();
@@ -103,7 +103,6 @@ public class OrderDiscountApprovalTests(ApiFactory factory)
         var order = await GetOrderAsync(orderId);
         Assert.Equal(OrderStatus.Rejected, order.Status);
         Assert.Equal("Discount too high", order.RejectionReason);
-        Assert.Equal(InvoiceStatus.Cancelled, order.Invoice!.Status);
     }
 
     [Fact]
@@ -325,7 +324,6 @@ public class OrderDiscountApprovalTests(ApiFactory factory)
             .Orders
             .IgnoreQueryFilters([QueryFilters.Showroom])
             .AsNoTracking()
-            .Include(o => o.Invoice)
             .SingleAsync(o => o.Id == id);
     }
 

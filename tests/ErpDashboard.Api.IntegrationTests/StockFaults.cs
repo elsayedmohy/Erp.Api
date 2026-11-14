@@ -1,3 +1,4 @@
+using ErpDashboard.Api.Features.Finance.Invoices.DocumentNumber;
 using ErpDashboard.Api.Features.Inventory.Stock;
 
 namespace ErpDashboard.Api.IntegrationTests;
@@ -51,5 +52,27 @@ public sealed class FaultInjectingStockService(StockService inner, StockFaults f
     {
         await inner.IssueReservedAsync(change, ct);
         faults.OnChangeApplied();
+    }
+}
+public sealed class NumberFaults
+{
+    private int _armed;
+    public void FailAfterNextNumber() => _armed = 1;
+    public void Reset() => _armed = 0;
+    internal void OnNumberTaken()
+    {
+        if (Interlocked.Exchange(ref _armed, 0) == 1)
+            throw new InjectedFaultException();
+    }
+}
+
+public sealed class FaultInjectingNumberGenerator(DocumentNumberGenerator inner, NumberFaults faults)
+    : IDocumentNumberGenerator
+{
+    public async Task<string> NextAsync(string series, int year, CancellationToken ct)
+    {
+        var number = await inner.NextAsync(series, year, ct);
+        faults.OnNumberTaken();
+        return number;
     }
 }

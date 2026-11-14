@@ -1,4 +1,4 @@
-using ErpDashboard.Api.Features.Inventory.Materials;
+
 
 namespace ErpDashboard.Api.Extensions;
 
@@ -205,6 +205,7 @@ public static class DependencyInjection
         builder.Services.AddScoped<IStockReconciliationService, StockReconciliationService>();
         builder.Services.AddScoped<IStockTransferService, StockTransferService>();
         builder.Services.AddScoped<ILowStockService, LowStockService>();
+        builder.Services.AddScoped<IDocumentNumberGenerator, DocumentNumberGenerator>();
 
         return builder;
     }

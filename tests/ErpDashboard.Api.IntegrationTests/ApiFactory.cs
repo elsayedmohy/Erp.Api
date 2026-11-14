@@ -1,6 +1,7 @@
 using ErpDashboard.Api.Data;
 using ErpDashboard.Api.Data.Entities;
 using ErpDashboard.Api.Data.Seed;
+using ErpDashboard.Api.Features.Finance.Invoices.DocumentNumber;
 using ErpDashboard.Api.Features.Inventory.Stock;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Identity;
@@ -15,6 +16,7 @@ namespace ErpDashboard.Api.IntegrationTests;
 public class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
     public StockFaults StockFaults { get; } = new();
+    public NumberFaults NumberFaults { get; } = new();
     public const string AdminEmail = "admin@tests.local";
     public const string AdminPassword = "Test-only-Passw0rd!";
     public const string JwtKey = "test-only-key-with-at-least-32-characters";
@@ -40,6 +42,9 @@ public class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
             services.AddScoped<StockService>();
             services.AddScoped<IStockService>(sp =>
                 new FaultInjectingStockService(sp.GetRequiredService<StockService>(), StockFaults));
+            services.AddScoped<DocumentNumberGenerator>();
+            services.AddScoped<IDocumentNumberGenerator>(sp =>
+                new FaultInjectingNumberGenerator(sp.GetRequiredService<DocumentNumberGenerator>(), NumberFaults)); 
         });
 
         builder.UseEnvironment("Testing");
