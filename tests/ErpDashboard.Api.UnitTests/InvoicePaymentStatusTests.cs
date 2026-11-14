@@ -18,7 +18,7 @@ public class InvoicePaymentStatusTests
     public void Issued_Invoice(decimal paid, string today, InvoicePaymentStatus expected)
     {
         Assert.Equal(expected,
-            InvoicePaymentStatusCalculator.Compute(InvoiceStatus.Issued, 1000m, paid, Due, DateOnly.Parse(today)));
+            InvoicePaymentStatusCalculator.Compute(InvoiceStatus.Issued, 1000m, paid, 0m,Due, DateOnly.Parse(today)));
     }
 
     [Theory]
@@ -26,6 +26,6 @@ public class InvoicePaymentStatusTests
     [InlineData(InvoiceStatus.Cancelled)]
     public void NonIssued_Invoice_HasNoPaymentStatus(InvoiceStatus status)
     {
-        Assert.Null(InvoicePaymentStatusCalculator.Compute(status, 1000m, 0m, Due, new DateOnly(2027, 1, 1)));
+        Assert.Null(InvoicePaymentStatusCalculator.Compute(status, 1000m, 0m, 0m,Due, new DateOnly(2027, 1, 1)));
     }
 }
