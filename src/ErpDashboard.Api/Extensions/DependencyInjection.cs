@@ -165,11 +165,21 @@ public static class DependencyInjection
 
     public static WebApplicationBuilder AddFeatureServices(this WebApplicationBuilder builder)
     {
+        
         builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("Jwt"));
         builder.Services.Configure<FinanceSettings>(builder.Configuration.GetSection(FinanceSettings.SectionName));
         builder.Services.Configure<CompanySettings>(builder.Configuration.GetSection(CompanySettings.SectionName));
         builder.Services.Configure<SalesSettings>(builder.Configuration.GetSection(SalesSettings.SectionName));
+
         builder.Services.AddSingleton<IInvoicePdfGenerator, InvoicePdfGenerator>();
+        builder.Services.AddSingleton(TimeProvider.System);
+        builder.Services.AddSingleton<IBusinessClock, BusinessClock>();
+        
+        builder.Services.AddOptions<CompanySettings>()
+            .Validate(s => TimeZoneInfo.TryFindSystemTimeZoneById(s.TimeZone, out _),
+                "Company:TimeZone is not a known time zone id.")
+            .ValidateOnStart();
+        
         builder.Services.AddScoped<IAuthService, AuthService>();
         builder.Services.AddScoped<ITokenService, TokenService>();
         builder.Services.AddScoped<IUserService, UserService>();
