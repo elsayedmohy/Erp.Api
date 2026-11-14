@@ -4,5 +4,6 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/ErpDashboard.Api.IntegrationTests/ErpDashboard.Api.IntegrationTests.csproj" />
+    <Project Path="tests/ErpDashboard.Api.UnitTests/ErpDashboard.Api.UnitTests.csproj" />
   </Folder>
 </Solution>

@@ -40,6 +40,13 @@ jobs:
             echo "::error::Change stock only through IStockService"
             exit 1
           fi
+      - name: Block UTC-based business dates
+        run: |
+          if git grep -nE 'DateOnly\.FromDateTime\(DateTime\.|ToDateTime\(TimeOnly\.MinValue, DateTimeKind\.Utc\)' \
+               -- 'src/*.cs' ':!src/ErpDashboard.Api/Common/BusinessClock.cs' ':!src/ErpDashboard.Api/Migrations/*'; then
+            echo "::error::Use IBusinessClock for business dates"
+            exit 1
+          fi
       - run: dotnet restore --locked-mode
       - run: dotnet build --no-restore -c Release
       - run: dotnet test --no-build -c Release --logger trx --results-directory TestResults

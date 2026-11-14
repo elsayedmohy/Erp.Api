@@ -1,6 +1,9 @@
 namespace ErpDashboard.Api.Features.Finance.Invoices;
 
-public sealed class InvoiceService(AppDbContext dbContext, IOptions<FinanceSettings> finance,IInvoicePdfGenerator pdfGenerator) : IInvoiceService
+public sealed class InvoiceService(AppDbContext dbContext,
+    IBusinessClock clock,
+    IOptions<FinanceSettings> finance,
+    IInvoicePdfGenerator pdfGenerator) : IInvoiceService
 {
     private readonly FinanceSettings _finance = finance.Value;
 
@@ -65,7 +68,7 @@ public sealed class InvoiceService(AppDbContext dbContext, IOptions<FinanceSetti
 
     public async Task<InvoiceDetailsResponse> CreateAsync(CreateInvoiceRequest request, CancellationToken ct)
     {
-        var invoiceDate = request.InvoiceDate ?? Today();
+        var invoiceDate = request.InvoiceDate ?? clock.Today;
         var dueDate = request.DueDate ?? invoiceDate.AddDays(_finance.DefaultDueDays);
         InvoiceFactory.ValidateDates(invoiceDate, dueDate);
 
@@ -131,17 +134,17 @@ public sealed class InvoiceService(AppDbContext dbContext, IOptions<FinanceSetti
         var invoice = await FindAsync(id, ct);
         EnsureTransition(invoice, InvoiceStatus.Paid);
 
-        var paymentDate = request.PaymentDate ?? Today();
+        var paymentDate = request.PaymentDate ?? clock.Today;
         if (paymentDate < invoice.InvoiceDate)
             throw new RequestValidationException("paymentDate", "Payment date cannot be before the invoice date.");
-        if (paymentDate > Today())
+        if (paymentDate > clock.Today)
             throw new RequestValidationException("paymentDate", "Payment date cannot be in the future.");
 
         invoice.Status = InvoiceStatus.Paid;
         invoice.PaymentMethod = request.PaymentMethod!.Value;
         invoice.PaidAt = request.PaymentDate is null
             ? DateTime.UtcNow
-            : paymentDate.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc); 
+            : clock.StartOfDayUtc(paymentDate);
 
         await dbContext.SaveChangesAsync(ct);
         return ToSummary(invoice);
@@ -186,8 +189,7 @@ public sealed class InvoiceService(AppDbContext dbContext, IOptions<FinanceSetti
             throw new ConflictException($"Cannot change invoice status from {invoice.Status} to {target}.");
     }
 
-
-    private static DateOnly Today() => DateOnly.FromDateTime(DateTime.UtcNow);
+    
 
     private async Task<Invoice> FindAsync(Guid id, CancellationToken ct) =>
         await dbContext.Invoices.FirstOrDefaultAsync(i => i.Id == id, ct)

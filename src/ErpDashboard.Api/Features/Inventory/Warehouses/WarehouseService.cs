@@ -1,7 +1,11 @@
 
 namespace ErpDashboard.Api.Features.Inventory.Warehouses;
 
-public sealed class WarehouseService(AppDbContext dbContext, IStockService stock,IWarehouseScope scope , ICurrentUserPermissions permissions) : IWarehouseService
+public sealed class WarehouseService(AppDbContext dbContext,
+    IBusinessClock clock,
+    IStockService stock,
+    IWarehouseScope scope,
+    ICurrentUserPermissions permissions) : IWarehouseService
 {
     private static readonly SortMap<Warehouse> Sorts = new SortMap<Warehouse>()
         .Add("code", w => w.Code)
@@ -145,12 +149,12 @@ public sealed class WarehouseService(AppDbContext dbContext, IStockService stock
         movements = movements.Where(m => m.ReferenceId == referenceId);
     if (query.From is { } from)
     {
-        var start = from.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+        var start = clock.StartOfDayUtc(from);
         movements = movements.Where(m => m.CreatedAt >= start);
     }
     if (query.To is { } to)
     {
-        var end = to.AddDays(1).ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+        var end = clock.StartOfDayUtc(to.AddDays(1));
         movements = movements.Where(m => m.CreatedAt < end);
     }
 

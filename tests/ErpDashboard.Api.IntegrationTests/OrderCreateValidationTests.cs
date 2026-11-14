@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using ErpDashboard.Api.Common;
 using ErpDashboard.Api.Data;
 using ErpDashboard.Api.Data.Entities;
 using ErpDashboard.Api.Data.Enums;
@@ -83,7 +84,8 @@ public class OrderCreateValidationTests(ApiFactory factory)
 
         var order = await GetJsonAsync(token, $"/api/orders/{orderId}");
         Assert.Equal("Deliver before Friday", order.GetProperty("notes").GetString());
-        Assert.Equal(DateOnly.FromDateTime(DateTime.UtcNow), DateOnly.Parse(order.GetProperty("orderDate").GetString()!));
+        var today = factory.Services.GetRequiredService<IBusinessClock>().Today;
+        Assert.Equal(today, DateOnly.Parse(order.GetProperty("orderDate").GetString()!));
     }
 
     private sealed record Seeded(Guid ProductId, Guid ShowroomId);

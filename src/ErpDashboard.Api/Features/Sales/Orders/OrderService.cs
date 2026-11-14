@@ -1,15 +1,14 @@
-using ErpDashboard.Api.Features.Finance.Invoices;
-using ErpDashboard.Api.Features.Inventory.Stock;
+
 
 namespace ErpDashboard.Api.Features.Sales.Orders;
 
-public class OrderService(AppDbContext dbContext,
-    IStockService stock, 
+public class OrderService(
+    AppDbContext dbContext,
+    IBusinessClock clock,
+    IStockService stock,
     IOptions<SalesSettings> salesOptions,
     IWarehouseScope scope) : IOrderService
 {
-
-    
     private static readonly SortMap<Order> Sorts = new SortMap<Order>()
         .Add("orderDate", o => o.OrderDate)
         .Add("totalAmount", o => o.TotalAmount)
@@ -35,7 +34,7 @@ public class OrderService(AppDbContext dbContext,
             q = q.Where(o =>
                 EF.Functions.ILike(o.Id.ToString(), p, @"\")
             );
-        
+
         if (query.Status is { } status) q = q.Where(o => o.Status == status);
         if (query.ShowroomId is { } cid) q = q.Where(o => o.ShowroomId == cid);
         if (query.From is { } from) q = q.Where(o => o.OrderDate >= from);
@@ -71,7 +70,8 @@ public class OrderService(AppDbContext dbContext,
 
     private const int InvoiceDueDays = 30;
 
-    public async Task<OrderDetailsResponse> CreateAsync(CreateOrderRequest request, Guid createdById,CancellationToken ct)
+    public async Task<OrderDetailsResponse> CreateAsync(CreateOrderRequest request, Guid createdById,
+        CancellationToken ct)
     {
         var threshold = salesOptions.Value.DiscountApprovalThresholdPercent;
         var requiresApproval = false;
@@ -86,7 +86,8 @@ public class OrderService(AppDbContext dbContext,
 
         var showroomId = request.ShowroomId!.Value;
         var showroom = await dbContext.Showrooms.FirstOrDefaultAsync(c => c.Id == showroomId, ct)
-                       ?? throw new RequestValidationException("showroomId", $"Showroom '{showroomId}' does not exist.");
+                       ?? throw new RequestValidationException("showroomId",
+                           $"Showroom '{showroomId}' does not exist.");
 
         var ids = request.Lines.Select(l => l.ProductId).ToList();
         var products = await dbContext.Products
@@ -102,8 +103,8 @@ public class OrderService(AppDbContext dbContext,
             throw new RequestValidationException("warehouseId", $"Warehouse '{warehouseId}' does not exist.");
 
         await using var transaction = await dbContext.Database.BeginTransactionAsync(ct);
-        
-        var orderDate =  DateOnly.FromDateTime(DateTime.UtcNow);
+
+        var orderDate = clock.Today;
         var orderLines = new List<OrderLine>();
         var invoiceLines = new List<InvoiceLineInput>();
         var insufficient = new List<StockShortage>();
@@ -114,10 +115,10 @@ public class OrderService(AppDbContext dbContext,
         {
             var product = products[line.ProductId];
             var gross = line.Quantity * product.UnitPrice;
-            
+
             if (line.Discount * 100 > gross * threshold)
                 requiresApproval = true;
-            
+
             if (line.Discount > gross)
                 throw new RequestValidationException("lines",
                     $"Discount for '{product.Name}' ({line.Discount}) exceeds the line value ({gross}).");
@@ -235,44 +236,43 @@ public class OrderService(AppDbContext dbContext,
         order.Status = request.Status;
         return ToResponse(order);
     }
-    
+
     public async Task<OrderResponse> ApproveAsync(Guid id, Guid reviewerId, CancellationToken ct)
-{
-    var order = await GetForReviewAsync(id, reviewerId, ct);
+    {
+        var order = await GetForReviewAsync(id, reviewerId, ct);
 
-    await ClaimReviewAsync(id, OrderStatus.Pending, reviewerId, null, ct);
+        await ClaimReviewAsync(id, OrderStatus.Pending, reviewerId, null, ct);
 
-    order.Status = OrderStatus.Pending;
-    return ToResponse(order);
-}
+        order.Status = OrderStatus.Pending;
+        return ToResponse(order);
+    }
 
-public async Task<OrderResponse> RejectAsync(
-    Guid id, RejectOrderRequest request,
-    Guid reviewerId, CancellationToken ct)
-{
-    var order = await GetForReviewAsync(id, reviewerId, ct);
+    public async Task<OrderResponse> RejectAsync(
+        Guid id, RejectOrderRequest request,
+        Guid reviewerId, CancellationToken ct)
+    {
+        var order = await GetForReviewAsync(id, reviewerId, ct);
 
-    await using var transaction = await dbContext.Database.BeginTransactionAsync(ct);
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(ct);
 
-    await ClaimReviewAsync(id, OrderStatus.Rejected, reviewerId, request.Reason.Trim(), ct);
-
-
-    foreach (var line in order.OrderLines)
-        await stock.ReleaseAsync(order.WarehouseId, line.ProductId, line.Quantity, ct);
-
-    if (order.Invoice is { Status: InvoiceStatus.Draft } invoice)
-        invoice.Status = InvoiceStatus.Cancelled;
-
-    await dbContext.SaveChangesAsync(ct);
-    await transaction.CommitAsync(ct);
-
-    order.Status = OrderStatus.Rejected;
-    return ToResponse(order);
-}
+        await ClaimReviewAsync(id, OrderStatus.Rejected, reviewerId, request.Reason.Trim(), ct);
 
 
+        foreach (var line in order.OrderLines)
+            await stock.ReleaseAsync(order.WarehouseId, line.ProductId, line.Quantity, ct);
 
-    public async Task DeleteAsync(Guid id,Guid deletedById, CancellationToken ct)
+        if (order.Invoice is { Status: InvoiceStatus.Draft } invoice)
+            invoice.Status = InvoiceStatus.Cancelled;
+
+        await dbContext.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
+
+        order.Status = OrderStatus.Rejected;
+        return ToResponse(order);
+    }
+
+
+    public async Task DeleteAsync(Guid id, Guid deletedById, CancellationToken ct)
     {
         var order = await dbContext.Orders
                         .Include(o => o.OrderLines)
@@ -287,7 +287,7 @@ public async Task<OrderResponse> RejectAsync(
             throw new ConflictException("The order's invoice is no longer a draft.");
 
         await using var transaction = await dbContext.Database.BeginTransactionAsync(ct);
-        
+
         foreach (var line in order.OrderLines)
             await stock.ReleaseAsync(order.WarehouseId, line.ProductId, line.Quantity, ct);
 
@@ -298,7 +298,7 @@ public async Task<OrderResponse> RejectAsync(
         await dbContext.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
     }
-    
+
     private async Task<Order> GetForReviewAsync(Guid id, Guid reviewerId, CancellationToken ct)
     {
         var order = await dbContext.Orders

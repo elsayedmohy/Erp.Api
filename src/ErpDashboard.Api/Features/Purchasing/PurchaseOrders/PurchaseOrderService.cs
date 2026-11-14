@@ -2,7 +2,10 @@ using ErpDashboard.Api.Features.Inventory.Stock;
 
 namespace ErpDashboard.Api.Features.Purchasing.PurchaseOrders;
 
-public class PurchaseOrderService(AppDbContext dbContext , IStockService stock, IWarehouseScope scope) : IPurchaseOrderService
+public class PurchaseOrderService(AppDbContext dbContext,
+    IBusinessClock clock,
+    IStockService stock,
+    IWarehouseScope scope) : IPurchaseOrderService
 {
     private static readonly SortMap<PurchaseOrder> Sorts = new SortMap<PurchaseOrder>()
         .Add("orderDate", o => o.OrderDate)
@@ -67,7 +70,7 @@ public class PurchaseOrderService(AppDbContext dbContext , IStockService stock, 
 
         var (lines, total) = await BuildLinesAsync(request.Lines, ct);
 
-        var orderDate = request.OrderDate ?? DateOnly.FromDateTime(DateTime.UtcNow);
+        var orderDate = request.OrderDate ?? clock.Today;
 
         if (request.ExpectedDelivery < orderDate)
             throw new RequestValidationException("expectedDelivery", "Expected delivery cannot be before the order date.");

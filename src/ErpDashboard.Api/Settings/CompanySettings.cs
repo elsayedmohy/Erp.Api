@@ -7,4 +7,5 @@ public sealed class CompanySettings
     public string Address { get; init; } = "";
     public string TaxId { get; init; } = "";
     public string Currency { get; init; } = "EGP";
+    public string TimeZone { get; init; } = "Africa/Cairo";
 }
