@@ -17,5 +17,7 @@ public class OrderConfiguration : IEntityTypeConfiguration<Order>
         b.HasOne<Warehouse>().WithMany()
             .HasForeignKey(o => o.WarehouseId).OnDelete(DeleteBehavior.Restrict);
         b.Property(o => o.Notes).HasMaxLength(1000);
+        
+        b.Property(o => o.Version).IsRowVersion();
     }
 }

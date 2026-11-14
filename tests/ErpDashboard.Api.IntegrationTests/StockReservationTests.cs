@@ -99,7 +99,7 @@ public class StockReservationTests(ApiFactory factory)
         var s = await SeedAsync(stock: 10);
         var orderId = await CreateOrderAsync(creator, s, quantity: 2, discount: 180m);
         await OrderFlow.SubmitAsync(_client, creator, orderId);
-        var response = await SendAsync(HttpMethod.Post, $"/api/orders/{orderId}/reject", reviewer, new { reason = "Too much" });
+        var response = await OrderFlow.RejectAsync(_client, reviewer, orderId, "Too much");
 
         Assert.True(response.IsSuccessStatusCode, await response.Content.ReadAsStringAsync());
         Assert.Equal((10, 0), await StockAsync(s.ProductId));
@@ -132,12 +132,15 @@ public class StockReservationTests(ApiFactory factory)
         var orderId = await CreateOrderAsync(manager, s, quantity: 3);
         await OrderFlow.AdvanceAsync(_client, manager, orderId, "Preparing");
 
+        var version = await OrderFlow.VersionAsync(_client, manager, orderId);
         var responses = await Task.WhenAll(
-            SetStatusAsync(manager, orderId, "Shipped"),
-            SetStatusAsync(manager, orderId, "Shipped"));
+            OrderFlow.SendAsync(_client, HttpMethod.Patch, $"/api/orders/{orderId}/status", manager, version, new { status = "Shipped" }),
+            OrderFlow.SendAsync(_client, HttpMethod.Patch, $"/api/orders/{orderId}/status", manager, version, new { status = "Shipped" }));
 
         Assert.Single(responses, r => r.StatusCode == HttpStatusCode.OK);
-        Assert.Single(responses, r => r.StatusCode == HttpStatusCode.Conflict);
+        var conflict = Assert.Single(responses, r => r.StatusCode == HttpStatusCode.Conflict);
+        using var json = JsonDocument.Parse(await conflict.Content.ReadAsStringAsync());
+        Assert.Equal("order_changed", json.RootElement.GetProperty("code").GetString());
         Assert.Equal((7, 0), await StockAsync(s.ProductId));
     }
 
@@ -178,7 +181,7 @@ public class StockReservationTests(ApiFactory factory)
     }
 
     private Task<HttpResponseMessage> SetStatusAsync(string token, Guid orderId, string status) =>
-        SendAsync(HttpMethod.Patch, $"/api/orders/{orderId}/status", token, new { status });
+        OrderFlow.SetStatusAsync(_client, token, orderId, status);
 
     private Task<HttpResponseMessage> PostOrderAsync(string token, Seeded s, int quantity, decimal discount = 0m) =>
         SendAsync(HttpMethod.Post, "/api/orders", token, new

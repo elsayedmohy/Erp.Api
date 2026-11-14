@@ -172,7 +172,7 @@ public partial class InvoiceNumberingTests(ApiFactory factory)
         SendAsync(HttpMethod.Post, $"/api/invoices/from-order/{orderId}", token);
 
     private Task<HttpResponseMessage> SetStatusAsync(string token, Guid orderId, string status) =>
-        SendAsync(HttpMethod.Patch, $"/api/orders/{orderId}/status", token, new { status });
+        OrderFlow.SetStatusAsync(_client, token, orderId, status);
 
     private async Task<Guid> ShippedOrderAsync()
     {

@@ -45,9 +45,8 @@ public class OrderStatusHistoryTests(ApiFactory factory)
         await OrderFlow.SubmitAsync(_client, creator, approved);
         await OrderFlow.SubmitAsync(_client, creator, rejected);
 
-        Assert.True((await SendAsync(HttpMethod.Post, $"/api/orders/{approved}/approve", reviewer)).IsSuccessStatusCode);
-        Assert.True((await SendAsync(HttpMethod.Post, $"/api/orders/{rejected}/reject", reviewer,
-            new { reason = "Too much discount" })).IsSuccessStatusCode);
+        Assert.True((await OrderFlow.ApproveAsync(_client, reviewer, approved)).IsSuccessStatusCode);
+        Assert.True((await OrderFlow.RejectAsync(_client, reviewer, rejected, "Too much discount")).IsSuccessStatusCode);
 
         var a = (await HistoryAsync(creator, approved)).Last();
         Assert.Equal(("PendingApproval", "Confirmed"), (From(a), a.GetProperty("toStatus").GetString()));
@@ -115,7 +114,7 @@ public class OrderStatusHistoryTests(ApiFactory factory)
     }
 
     private Task<HttpResponseMessage> SetStatusAsync(string token, Guid orderId, string status) =>
-        SendAsync(HttpMethod.Patch, $"/api/orders/{orderId}/status", token, new { status });
+        OrderFlow.SetStatusAsync(_client, token, orderId, status);
 
 
 
