@@ -21,12 +21,20 @@ public sealed class InvoicePdfGenerator(IOptions<CompanySettings> options) : IIn
             page.Margin(40);
             page.DefaultTextStyle(x => x.FontSize(10));
 
-            if (inv.Status is InvoiceStatus.Draft or InvoiceStatus.Cancelled)
+            var watermark = inv.Status switch
+            {
+                InvoiceStatus.Draft => "DRAFT",
+                InvoiceStatus.Cancelled => "CANCELLED",
+                _ when inv.PaymentStatus == InvoicePaymentStatus.Paid => "PAID",
+                _ => null
+            };
+
+            if (watermark is not null)
             {
                 page.Foreground()
                     .AlignCenter().AlignMiddle()
                     .Rotate(-30)
-                    .Text(inv.Status.ToString().ToUpperInvariant())
+                    .Text(watermark)
                     .FontSize(90).Bold().FontColor(Colors.Grey.Lighten3);
             }
 
@@ -45,7 +53,7 @@ public sealed class InvoicePdfGenerator(IOptions<CompanySettings> options) : IIn
                     col.Item().Text($"No: {inv.Number ?? "DRAFT"}");
                     col.Item().Text($"Date: {inv.InvoiceDate:yyyy-MM-dd}");
                     col.Item().Text($"Due: {inv.DueDate:yyyy-MM-dd}");
-                    col.Item().Text($"Status: {inv.Status}").Bold();
+                    col.Item().Text($"Status: {inv.PaymentStatus?.ToString() ?? inv.Status.ToString()}").Bold();
                 });
             });
 
@@ -102,10 +110,13 @@ public sealed class InvoicePdfGenerator(IOptions<CompanySettings> options) : IIn
                         TotalRow(totals, "Discount", -inv.DiscountTotal);
                     TotalRow(totals, "Tax (after discount)", inv.TaxAmount);
                     TotalRow(totals, "Total", inv.TotalAmount, bold: true);
+                    if (inv.Payments.Count > 0)
+                    {
+                        TotalRow(totals, "Paid", -inv.AmountPaid);
+                        TotalRow(totals, "Balance due", inv.Balance, bold: true);
+                    }
                 });
-
-                if (inv.Status == InvoiceStatus.Paid && inv.PaidAt is { } paidAt)
-                    col.Item().Text($"Paid on {paidAt:yyyy-MM-dd} via {inv.PaymentMethod}").Italic();
+                
             });
 
             page.Footer().AlignCenter().Text(t =>

@@ -2,8 +2,7 @@ namespace ErpDashboard.Api.Data.Enums;
 
 public enum InvoiceStatus
 {
-    Issued,
-    Paid,
-    Draft,
-    Cancelled
+    Issued = 0,
+    Draft = 2,
+    Cancelled = 3
 }

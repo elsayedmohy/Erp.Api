@@ -25,5 +25,9 @@ public class InvoiceConfiguration : IEntityTypeConfiguration<Invoice>
         b.ToTable(t => t.HasCheckConstraint("CK_Invoices_IssuedHasNumber",
             "\"Status\" = 2 OR \"Number\" IS NOT NULL"));
         
+        b.HasMany(i => i.Payments)
+            .WithOne()
+            .HasForeignKey(p => p.InvoiceId)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }

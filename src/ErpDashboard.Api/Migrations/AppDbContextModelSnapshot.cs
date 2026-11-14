@@ -154,12 +154,6 @@ namespace ErpDashboard.Api.Migrations
                     b.Property<Guid?>("OrderId")
                         .HasColumnType("uuid");
 
-                    b.Property<DateTime?>("PaidAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int?>("PaymentMethod")
-                        .HasColumnType("integer");
-
                     b.Property<Guid>("ShowroomId")
                         .HasColumnType("uuid");
 
@@ -221,6 +215,44 @@ namespace ErpDashboard.Api.Migrations
                     b.ToTable("InvoiceLines", t =>
                         {
                             t.HasCheckConstraint("CK_InvoiceLines_Discount", "\"Discount\" >= 0");
+                        });
+                });
+
+            modelBuilder.Entity("ErpDashboard.Api.Data.Entities.InvoicePayment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("numeric");
+
+                    b.Property<Guid>("InvoiceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Method")
+                        .HasColumnType("integer");
+
+                    b.Property<DateOnly>("PaymentDate")
+                        .HasColumnType("date");
+
+                    b.Property<DateTime>("RecordedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("RecordedById")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Reference")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("InvoiceId");
+
+                    b.ToTable("InvoicePayments", t =>
+                        {
+                            t.HasCheckConstraint("CK_InvoicePayments_Amount", "\"Amount\" > 0");
                         });
                 });
 
@@ -1014,6 +1046,15 @@ namespace ErpDashboard.Api.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("ErpDashboard.Api.Data.Entities.InvoicePayment", b =>
+                {
+                    b.HasOne("ErpDashboard.Api.Data.Entities.Invoice", null)
+                        .WithMany("Payments")
+                        .HasForeignKey("InvoiceId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("ErpDashboard.Api.Data.Entities.Order", b =>
                 {
                     b.HasOne("ErpDashboard.Api.Data.Entities.Showroom", "Showroom")
@@ -1247,6 +1288,8 @@ namespace ErpDashboard.Api.Migrations
             modelBuilder.Entity("ErpDashboard.Api.Data.Entities.Invoice", b =>
                 {
                     b.Navigation("InvoiceLines");
+
+                    b.Navigation("Payments");
                 });
 
             modelBuilder.Entity("ErpDashboard.Api.Data.Entities.Order", b =>

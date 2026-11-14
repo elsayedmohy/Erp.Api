@@ -16,6 +16,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentShowro
     public DbSet<Order> Orders => Set<Order>();
     public DbSet<OrderLine> OrderLines => Set<OrderLine>();
     public DbSet<Invoice> Invoices => Set<Invoice>();
+    public DbSet<InvoicePayment> InvoicePayments => Set<InvoicePayment>();
     public DbSet<InvoiceLine> InvoiceLines => Set<InvoiceLine>();
     public DbSet<Employee> Employees => Set<Employee>();
     public DbSet<Department> Departments => Set<Department>();
