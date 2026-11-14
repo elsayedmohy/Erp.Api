@@ -16,12 +16,49 @@ public class OrderService(
         .Default("orderDate", descending: true)
         .TieBreaker(o => o.Id);
 
-    private static readonly Dictionary<OrderStatus, OrderStatus> NextStatus = new()
+    private static readonly Dictionary<OrderStatus, OrderStatus[]> Transitions = new()
     {
-        [OrderStatus.Pending] = OrderStatus.Confirmed,
-        [OrderStatus.Confirmed] = OrderStatus.Shipped,
-        [OrderStatus.Shipped] = OrderStatus.Delivered,
+        [OrderStatus.Draft]           = [OrderStatus.PendingApproval, OrderStatus.Confirmed, OrderStatus.Cancelled],
+        [OrderStatus.PendingApproval] = [OrderStatus.Confirmed, OrderStatus.Cancelled],
+        [OrderStatus.Confirmed]       = [OrderStatus.Preparing, OrderStatus.Cancelled],
+        [OrderStatus.Preparing]       = [OrderStatus.Shipped, OrderStatus.Cancelled],
+        [OrderStatus.Shipped]         = [OrderStatus.Delivered],
+        [OrderStatus.Delivered]       = [],
+        [OrderStatus.Cancelled]       = []
     };
+    
+    private static readonly OrderStatus[] OperationalTargets =
+        [OrderStatus.Preparing, OrderStatus.Shipped, OrderStatus.Delivered];
+
+    private static void EnsureTransition(OrderStatus from, OrderStatus to)
+    {
+        var allowed = Transitions[from];
+        if (allowed.Contains(to)) return;
+
+        throw new ConflictException(
+            allowed.Length == 0
+                ? $"An order that is {from} cannot change status."
+                : $"Cannot change an order from {from} to {to}. Allowed: {string.Join(", ", allowed)}.",
+            code: "invalid_transition",
+            extensions: new Dictionary<string, object?>
+            {
+                ["currentStatus"] = from.ToString(),
+                ["allowedTransitions"] = allowed.Select(s => s.ToString()).ToArray()
+            });
+    }
+    
+    private async Task ClaimAsync(Guid id, OrderStatus from, OrderStatus to, CancellationToken ct)
+    {
+        var claimed = await dbContext.Orders
+            .Where(o => o.Id == id && o.Status == from)
+            .ExecuteUpdateAsync(s => s.SetProperty(o => o.Status, to), ct);
+
+        if (claimed == 0)
+            throw new ConflictException(
+                "The order was changed by someone else. Refresh and try again.",
+                code: "order_changed");
+    }
+    
 
     public Task<PagedResult<OrderResponse>> ListAsync(OrderQuery query, CancellationToken ct)
     {
@@ -72,8 +109,6 @@ public class OrderService(
     public async Task<OrderDetailsResponse> CreateAsync(CreateOrderRequest request, Guid createdById,
         CancellationToken ct)
     {
-        var threshold = salesOptions.Value.DiscountApprovalThresholdPercent;
-        var requiresApproval = false;
         var duplicates = request.Lines
             .GroupBy(l => l.ProductId)
             .Where(g => g.Count() > 1)
@@ -113,8 +148,6 @@ public class OrderService(
             var product = products[line.ProductId];
             var gross = line.Quantity * product.UnitPrice;
 
-            if (line.Discount * 100 > gross * threshold)
-                requiresApproval = true;
 
             if (line.Discount > gross)
                 throw new RequestValidationException("lines",
@@ -156,7 +189,7 @@ public class OrderService(
             WarehouseId = warehouseId,
             Showroom = showroom,
             OrderDate = orderDate,
-            Status = requiresApproval ? OrderStatus.PendingApproval : OrderStatus.Pending,
+            Status = OrderStatus.Draft,
             CreatedById = createdById,
             PaymentMethod = request.PaymentMethod,
             ShippingAddress = request.ShippingAddress.Trim(),
@@ -179,8 +212,8 @@ public class OrderService(
         if (order is null)
             throw new NotFoundException("Order", id);
 
-        if (order.Status != OrderStatus.Pending)
-            throw new ConflictException("Only pending orders can be updated.");
+        if (order.Status != OrderStatus.Draft)
+            throw new ConflictException("Only Draft orders can be updated.");
 
         order.ShippingAddress = request.ShippingAddress.Trim();
         order.PaymentMethod = request.PaymentMethod;
@@ -192,24 +225,16 @@ public class OrderService(
     public async Task<OrderResponse> UpdateStatusAsync(
         Guid id, UpdateOrderStatusRequest request, Guid userId, CancellationToken ct)
     {
-        var order = await dbContext.Orders
-                        .Include(o => o.Showroom)
-                        .Include(o => o.Invoice)
-                        .Include(o => o.OrderLines)
-                        .FirstOrDefaultAsync(o => o.Id == id, ct)
-                    ?? throw new NotFoundException("Order", id);
-
+        var order = await LoadAsync(id, ct);
         var current = order.Status;
-        if (!NextStatus.TryGetValue(current, out var allowed) || allowed != request.Status)
-            throw new ConflictException($"Cannot change order status from '{current}' to '{request.Status}'.");
+        if (!OperationalTargets.Contains(request.Status))
+            throw new ConflictException(
+                $"Use the dedicated endpoint to move an order to {request.Status}.",
+                code: "invalid_transition");
+        EnsureTransition(current, request.Status);
 
         await using var transaction = await dbContext.Database.BeginTransactionAsync(ct);
-
-        var claimed = await dbContext.Orders
-            .Where(o => o.Id == id && o.Status == current)
-            .ExecuteUpdateAsync(s => s.SetProperty(o => o.Status, request.Status), ct);
-        if (claimed == 0)
-            throw new ConflictException("The order status was changed by someone else. Reload and try again.");
+        await ClaimAsync(id, current, request.Status, ct);
 
         if (request.Status == OrderStatus.Shipped)
             foreach (var line in order.OrderLines.OrderBy(l => l.ProductId))
@@ -224,6 +249,22 @@ public class OrderService(
         order.Status = request.Status;
         return ToResponse(order);
     }
+    
+    public async Task<OrderResponse> SubmitAsync(Guid id, Guid userId, CancellationToken ct)
+    {
+        var order = await LoadAsync(id, ct);
+        var target = RequiresApproval(order.OrderLines) ? OrderStatus.PendingApproval : OrderStatus.Confirmed;
+        EnsureTransition(order.Status, target);
+
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(ct);
+        await ClaimAsync(id, order.Status, target, ct);
+        RecordStatusChange(id, order.Status, target, userId);
+        await dbContext.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
+
+        order.Status = target;
+        return ToResponse(order);
+    }
 
     public async Task<OrderResponse> ApproveAsync(Guid id, Guid reviewerId, CancellationToken ct)
     {
@@ -231,13 +272,13 @@ public class OrderService(
 
         await using var transaction = await dbContext.Database.BeginTransactionAsync(ct);
 
-        await ClaimReviewAsync(id, OrderStatus.Pending, reviewerId, null, ct);
-        RecordStatusChange(id, OrderStatus.PendingApproval, OrderStatus.Pending, reviewerId, "Discount approved");
+        await ClaimReviewAsync(id, OrderStatus.Confirmed, reviewerId, null, ct);
+        RecordStatusChange(id, OrderStatus.PendingApproval, OrderStatus.Confirmed, reviewerId, "Discount approved");
 
         await dbContext.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
 
-        order.Status = OrderStatus.Pending;
+        order.Status = OrderStatus.Confirmed;
         return ToResponse(order);
     }
 
@@ -249,9 +290,8 @@ public class OrderService(
 
         await using var transaction = await dbContext.Database.BeginTransactionAsync(ct);
 
-        await ClaimReviewAsync(id, OrderStatus.Rejected, reviewerId, request.Reason.Trim(), ct);
-        RecordStatusChange(id, OrderStatus.PendingApproval, OrderStatus.Rejected, reviewerId, request.Reason.Trim());
-
+        await ClaimReviewAsync(id, OrderStatus.Cancelled, reviewerId, request.Reason.Trim(), ct);
+        RecordStatusChange(id, OrderStatus.PendingApproval, OrderStatus.Cancelled, reviewerId, $"Rejected: {request.Reason.Trim()}");
         foreach (var line in order.OrderLines)
             await stock.ReleaseAsync(order.WarehouseId, line.ProductId, line.Quantity, ct);
 
@@ -259,7 +299,7 @@ public class OrderService(
         await dbContext.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
 
-        order.Status = OrderStatus.Rejected;
+        order.Status = OrderStatus.Cancelled;
         return ToResponse(order);
     }
 
@@ -285,28 +325,34 @@ public class OrderService(
     }
 
 
-    public async Task DeleteAsync(Guid id, Guid deletedById, CancellationToken ct)
+    public async Task<OrderResponse> CancelAsync(Guid id, CancelOrderRequest request, Guid userId, CancellationToken ct)
     {
-        var order = await dbContext.Orders
-                        .Include(o => o.OrderLines)
-                        .FirstOrDefaultAsync(o => o.Id == id, ct)
-                    ?? throw new NotFoundException("Order", id);
-
-        if (order.Status != OrderStatus.Pending)
-            throw new ConflictException("Only pending orders can be deleted.");
-
+        var order = await LoadAsync(id, ct);
+        EnsureTransition(order.Status, OrderStatus.Cancelled);
 
         await using var transaction = await dbContext.Database.BeginTransactionAsync(ct);
 
-        foreach (var line in order.OrderLines)
+        await ClaimAsync(id, order.Status, OrderStatus.Cancelled, ct);
+
+        foreach (var line in order.OrderLines.OrderBy(l => l.ProductId))
             await stock.ReleaseAsync(order.WarehouseId, line.ProductId, line.Quantity, ct);
 
-        dbContext.Orders.Remove(order);
-
+        RecordStatusChange(id, order.Status, OrderStatus.Cancelled, userId, request.Reason.Trim());
         await dbContext.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
+
+        order.Status = OrderStatus.Cancelled;
+        return ToResponse(order);
     }
 
+    private async Task<Order> LoadAsync(Guid id, CancellationToken ct) =>
+        await dbContext.Orders
+            .Include(o => o.Showroom)
+            .Include(o => o.Invoice)
+            .Include(o => o.OrderLines)
+            .FirstOrDefaultAsync(o => o.Id == id, ct)
+        ?? throw new NotFoundException("Order", id);
+    
     private async Task<Order> GetForReviewAsync(Guid id, Guid reviewerId, CancellationToken ct)
     {
         var order = await dbContext.Orders
@@ -323,6 +369,12 @@ public class OrderService(
             throw new ForbiddenException("You cannot review an order you created.");
 
         return order;
+    }
+    
+    private bool RequiresApproval(IEnumerable<OrderLine> lines)
+    {
+        var threshold = salesOptions.Value.DiscountApprovalThresholdPercent;
+        return lines.Any(l => l.Discount * 100 > l.Quantity * l.UnitPrice * threshold);
     }
 
     private async Task ClaimReviewAsync(

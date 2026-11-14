@@ -32,9 +32,10 @@ public sealed class StockReconciliationService(AppDbContext dbContext) : IStockR
                                                                         ORDER BY w."Code", p."Sku"
                                                                         """).ToListAsync(ct);
 
-        var pending = (int)OrderStatus.Pending;
+        var draft = (int)OrderStatus.Draft;
         var confirmed = (int)OrderStatus.Confirmed;
         var pendingApproval = (int)OrderStatus.PendingApproval;
+        var preparing = (int)OrderStatus.Preparing;
         
         var reservationRows = await dbContext.Database.SqlQuery<ReservationMismatchRow>($"""
              SELECT COALESCE(s."WarehouseId", r."WarehouseId") AS "WarehouseId",
@@ -48,7 +49,7 @@ public sealed class StockReconciliationService(AppDbContext dbContext) : IStockR
                  SELECT o."WarehouseId", l."ProductId", SUM(l."Quantity") AS "Total"
                  FROM "Orders" o
                  JOIN "OrderLines" l ON l."OrderId" = o."Id"
-                 WHERE o."Status" IN ({pending}, {confirmed}, {pendingApproval})
+                 WHERE o."Status" IN ({draft}, {confirmed}, {pendingApproval}, {preparing})
                  GROUP BY o."WarehouseId", l."ProductId"
              ) r ON r."WarehouseId" = s."WarehouseId" AND r."ProductId" = s."ProductId"
              JOIN "Warehouses" w ON w."Id" = COALESCE(s."WarehouseId", r."WarehouseId")

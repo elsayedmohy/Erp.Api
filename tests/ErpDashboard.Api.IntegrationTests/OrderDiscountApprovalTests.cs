@@ -21,17 +21,20 @@ public class OrderDiscountApprovalTests(ApiFactory factory)
     private readonly HttpClient _client = factory.CreateClient();
 
     [Theory]
-    [InlineData(0, "Pending")]
-    [InlineData(10, "Pending")]
+    [InlineData(0, "Confirmed")]
+    [InlineData(10, "Confirmed")]
     [InlineData(10.01, "PendingApproval")]
-    public async Task Create_SetsStatusByDiscount(decimal discount, string expected)
+    public async Task Submit_SetsStatusByDiscount(decimal discount, string expected)
     {
         var (creator, _) = await ManagerAsync();
         var (showroomId, productId) = await SeedShowroomAndProductAsync();
+        var created = await CreateOrderAsync(creator, showroomId, productId, discount);
+        Assert.Equal("Draft", created.GetProperty("status").GetString());
 
-        var order = await CreateOrderAsync(creator, showroomId, productId, discount);
+        var response = await OrderFlow.SubmitAsync(_client, creator, created.GetProperty("id").GetGuid());
 
-        Assert.Equal(expected, order.GetProperty("status").GetString());
+        using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal(expected, json.RootElement.GetProperty("status").GetString());
     }
 
     [Fact]
@@ -51,7 +54,7 @@ public class OrderDiscountApprovalTests(ApiFactory factory)
     {
         var (creator, _) = await ManagerAsync();
         var (showroomId, productId) = await SeedShowroomAndProductAsync();
-        var orderId = (await CreateOrderAsync(creator, showroomId, productId, 50)).GetProperty("id").GetGuid();
+        var orderId = await CreateAndSubmitAsync(creator, showroomId, productId, 50);
 
         var response = await SendAsync(HttpMethod.Post, $"/api/orders/{orderId}/approve", creator);
 
@@ -71,19 +74,16 @@ public class OrderDiscountApprovalTests(ApiFactory factory)
     }
 
     [Fact]
-    public async Task OtherManager_Approves_ThenOrderCanBeConfirmed()
+    public async Task OtherManager_Approves_AndOrderIsConfirmed()
     {
         var orderId = await CreatePendingApprovalOrderAsync();
         var (reviewer, reviewerId) = await ManagerAsync();
 
         var approve = await SendAsync(HttpMethod.Post, $"/api/orders/{orderId}/approve", reviewer);
-        var confirm = await SendAsync(HttpMethod.Patch, $"/api/orders/{orderId}/status", reviewer,
-            new { status = "Confirmed" });
 
         Assert.Equal(HttpStatusCode.OK, approve.StatusCode);
-        Assert.Equal(HttpStatusCode.OK, confirm.StatusCode);
-
         var order = await GetOrderAsync(orderId);
+        Assert.Equal(OrderStatus.Confirmed, order.Status);
         Assert.Equal(reviewerId, order.ReviewedById);
         Assert.NotNull(order.ReviewedAt);
     }
@@ -93,7 +93,7 @@ public class OrderDiscountApprovalTests(ApiFactory factory)
     {
         var (creator, _) = await ManagerAsync();
         var (showroomId, productId) = await SeedShowroomAndProductAsync();
-        var orderId = (await CreateOrderAsync(creator, showroomId, productId, 50)).GetProperty("id").GetGuid();
+        var orderId = await CreateAndSubmitAsync(creator, showroomId, productId, 50);
         var (reviewer, _) = await ManagerAsync();
 
         var response = await SendAsync(HttpMethod.Post, $"/api/orders/{orderId}/reject", reviewer,
@@ -101,7 +101,7 @@ public class OrderDiscountApprovalTests(ApiFactory factory)
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var order = await GetOrderAsync(orderId);
-        Assert.Equal(OrderStatus.Rejected, order.Status);
+        Assert.Equal(OrderStatus.Cancelled, order.Status);
         Assert.Equal("Discount too high", order.RejectionReason);
     }
 
@@ -121,7 +121,7 @@ public class OrderDiscountApprovalTests(ApiFactory factory)
     {
         var (creator, _) = await ManagerAsync();
         var (showroomId, productId) = await SeedShowroomAndProductAsync();
-        var orderId = (await CreateOrderAsync(creator, showroomId, productId, 50)).GetProperty("id").GetGuid();
+        var orderId = await CreateAndSubmitAsync(creator, showroomId, productId, 50);
         var (approver, _) = await ManagerAsync();
         var (rejecter, _) = await ManagerAsync();
 
@@ -133,28 +133,28 @@ public class OrderDiscountApprovalTests(ApiFactory factory)
         Assert.Single(responses, r => r.StatusCode == HttpStatusCode.Conflict);
 
         var order = await GetOrderAsync(orderId);
-        var expectedStock = order.Status == OrderStatus.Rejected ? Stock : Stock - 1;
+        var expectedStock = order.Status == OrderStatus.Cancelled ? Stock : Stock - 1;
+        Assert.Equal(expectedStock, await GetStockAsync(WarehouseIds.Main, productId));
     }
 
     private async Task<Guid> CreatePendingApprovalOrderAsync()
     {
         var (creator, _) = await ManagerAsync();
         var (showroomId, productId) = await SeedShowroomAndProductAsync();
-
-        return (await CreateOrderAsync(creator, showroomId, productId, 50)).GetProperty("id").GetGuid();
+        return await CreateAndSubmitAsync(creator, showroomId, productId, 50);
     }
 
     [Fact]
-    public async Task Delete_RestoresStockToOrderWarehouse()
+    public async Task Cancel_RestoresStockToOrderWarehouse()
     {
         var (token, _) = await ManagerAsync();
         var (showroomId, productId) = await SeedShowroomAndProductAsync();
         var orderId = (await CreateOrderAsync(token, showroomId, productId, 0)).GetProperty("id").GetGuid();
         Assert.Equal(Stock - 1, await GetStockAsync(WarehouseIds.Main, productId));
 
-        var response = await SendAsync(HttpMethod.Delete, $"/api/orders/{orderId}", token);
+        var response = await OrderFlow.CancelAsync(_client, token, orderId);
 
-        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Equal(Stock, await GetStockAsync(WarehouseIds.Main, productId));
     }
 
@@ -346,5 +346,13 @@ public class OrderDiscountApprovalTests(ApiFactory factory)
             request.Content = JsonContent.Create(body);
 
         return _client.SendAsync(request);
+    }
+    
+    private async Task<Guid> CreateAndSubmitAsync(string token, Guid showroomId, Guid productId, decimal discount)
+    {
+        var orderId = (await CreateOrderAsync(token, showroomId, productId, discount)).GetProperty("id").GetGuid();
+        var submit = await OrderFlow.SubmitAsync(_client, token, orderId);
+        Assert.True(submit.IsSuccessStatusCode, await submit.Content.ReadAsStringAsync());
+        return orderId;
     }
 }

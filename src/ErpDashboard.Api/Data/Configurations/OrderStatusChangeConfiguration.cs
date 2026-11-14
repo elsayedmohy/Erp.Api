@@ -8,6 +8,6 @@ public class OrderStatusChangeConfiguration : IEntityTypeConfiguration<OrderStat
         b.HasIndex(c => new { c.OrderId, c.ChangedAt });
         b.HasOne<Order>().WithMany()
             .HasForeignKey(c => c.OrderId)
-            .OnDelete(DeleteBehavior.Cascade);
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }

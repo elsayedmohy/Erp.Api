@@ -23,13 +23,13 @@ public class OrderStatusHistoryTests(ApiFactory factory)
         var (manager, managerId) = await LoginAsync(RoleIds.Manager);
         var orderId = await CreateOrderAsync(manager, discount: 0m);
 
-        await ExpectStatusAsync(manager, orderId, "Confirmed");
-        await ExpectStatusAsync(manager, orderId, "Shipped");
+
+        await OrderFlow.AdvanceAsync(_client, manager, orderId, "Shipped");
 
         var history = await HistoryAsync(manager, orderId);
 
         Assert.Equal(
-            [(null, "Pending"), ("Pending", "Confirmed"), ("Confirmed", "Shipped")],
+            [(null, "Draft"), ("Draft", "Confirmed"), ("Confirmed", "Preparing"), ("Preparing", "Shipped")],
             history.Select(h => (From(h), h.GetProperty("toStatus").GetString())));
         Assert.All(history, h => Assert.Equal(managerId, h.GetProperty("changedById").GetGuid()));
         Assert.All(history, h => Assert.False(string.IsNullOrWhiteSpace(h.GetProperty("changedByName").GetString())));
@@ -42,18 +42,20 @@ public class OrderStatusHistoryTests(ApiFactory factory)
         var (reviewer, reviewerId) = await LoginAsync(RoleIds.Manager);
         var approved = await CreateOrderAsync(creator, discount: 180m);
         var rejected = await CreateOrderAsync(creator, discount: 180m);
+        await OrderFlow.SubmitAsync(_client, creator, approved);
+        await OrderFlow.SubmitAsync(_client, creator, rejected);
 
         Assert.True((await SendAsync(HttpMethod.Post, $"/api/orders/{approved}/approve", reviewer)).IsSuccessStatusCode);
         Assert.True((await SendAsync(HttpMethod.Post, $"/api/orders/{rejected}/reject", reviewer,
             new { reason = "Too much discount" })).IsSuccessStatusCode);
 
         var a = (await HistoryAsync(creator, approved)).Last();
-        Assert.Equal(("PendingApproval", "Pending"), (From(a), a.GetProperty("toStatus").GetString()));
+        Assert.Equal(("PendingApproval", "Confirmed"), (From(a), a.GetProperty("toStatus").GetString()));
         Assert.Equal(reviewerId, a.GetProperty("changedById").GetGuid());
 
         var r = (await HistoryAsync(creator, rejected)).Last();
-        Assert.Equal("Rejected", r.GetProperty("toStatus").GetString());
-        Assert.Equal("Too much discount", r.GetProperty("reason").GetString());
+        Assert.Equal("Cancelled", r.GetProperty("toStatus").GetString());
+        Assert.Equal("Rejected: Too much discount", r.GetProperty("reason").GetString());
     }
 
     [Fact]
@@ -73,7 +75,7 @@ public class OrderStatusHistoryTests(ApiFactory factory)
     {
         var (manager, _) = await LoginAsync(RoleIds.Manager);
         var orderId = await CreateOrderAsync(manager, discount: 0m);
-        await ExpectStatusAsync(manager, orderId, "Confirmed");
+        await OrderFlow.AdvanceAsync(_client, manager, orderId, "Preparing");
 
         factory.StockFaults.FailAfterChange(1);
         HttpResponseMessage response;
@@ -82,8 +84,8 @@ public class OrderStatusHistoryTests(ApiFactory factory)
 
         Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
         var history = await HistoryAsync(manager, orderId);
-        Assert.Equal("Confirmed", history.Last().GetProperty("toStatus").GetString());
-        Assert.Equal(OrderStatus.Confirmed, await StatusAsync(orderId));
+        Assert.Equal("Preparing", history.Last().GetProperty("toStatus").GetString());
+        Assert.Equal(OrderStatus.Preparing, await StatusAsync(orderId));
     }
 
     [Fact]
@@ -91,7 +93,7 @@ public class OrderStatusHistoryTests(ApiFactory factory)
     {
         var (manager, _) = await LoginAsync(RoleIds.Manager);
         var orderId = await CreateOrderAsync(manager, discount: 0m);
-        await ExpectStatusAsync(manager, orderId, "Confirmed");
+        await OrderFlow.AdvanceAsync(_client, manager, orderId, "Preparing");
 
         await Task.WhenAll(SetStatusAsync(manager, orderId, "Shipped"), SetStatusAsync(manager, orderId, "Shipped"));
 
@@ -115,11 +117,7 @@ public class OrderStatusHistoryTests(ApiFactory factory)
     private Task<HttpResponseMessage> SetStatusAsync(string token, Guid orderId, string status) =>
         SendAsync(HttpMethod.Patch, $"/api/orders/{orderId}/status", token, new { status });
 
-    private async Task ExpectStatusAsync(string token, Guid orderId, string status)
-    {
-        var response = await SetStatusAsync(token, orderId, status);
-        Assert.True(response.IsSuccessStatusCode, await response.Content.ReadAsStringAsync());
-    }
+
 
     private async Task<OrderStatus> StatusAsync(Guid orderId)
     {

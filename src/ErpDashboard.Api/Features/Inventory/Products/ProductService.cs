@@ -214,7 +214,10 @@ public class ProductService(AppDbContext dbContext , IWarehouseScope scope , ICu
         if (await dbContext.Orders
                 .IgnoreQueryFilters([QueryFilters.Showroom])
                 .AnyAsync(o =>
-                    (o.Status == OrderStatus.Pending || o.Status == OrderStatus.PendingApproval) &&
+                    (o.Status == OrderStatus.Draft ||
+                     o.Status == OrderStatus.PendingApproval ||
+                     o.Status == OrderStatus.Confirmed ||
+                     o.Status == OrderStatus.Preparing) &&
                     o.OrderLines.Any(l => l.ProductId == id), ct))
             throw new ConflictException("Cannot delete a product on an open order.");
 

@@ -78,15 +78,15 @@ public class StockReservationTests(ApiFactory factory)
     }
 
     [Fact]
-    public async Task Delete_ReleasesReservation_WithoutMovement()
+    public async Task Cancel_ReleasesReservation_WithoutMovement()
     {
         var manager = await TokenAsync(RoleIds.Manager);
         var s = await SeedAsync(stock: 10);
         var orderId = await CreateOrderAsync(manager, s, quantity: 4);
 
-        var response = await SendAsync(HttpMethod.Delete, $"/api/orders/{orderId}", manager);
+        var response = await OrderFlow.CancelAsync(_client, manager, orderId);
 
-        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Equal((10, 0), await StockAsync(s.ProductId));
         Assert.Empty(await MovementsAsync(s.ProductId, StockMovementType.SalesReversal));
     }
@@ -98,7 +98,7 @@ public class StockReservationTests(ApiFactory factory)
         var reviewer = await TokenAsync(RoleIds.Manager);
         var s = await SeedAsync(stock: 10);
         var orderId = await CreateOrderAsync(creator, s, quantity: 2, discount: 180m);
-
+        await OrderFlow.SubmitAsync(_client, creator, orderId);
         var response = await SendAsync(HttpMethod.Post, $"/api/orders/{orderId}/reject", reviewer, new { reason = "Too much" });
 
         Assert.True(response.IsSuccessStatusCode, await response.Content.ReadAsStringAsync());
@@ -112,7 +112,7 @@ public class StockReservationTests(ApiFactory factory)
         var s = await SeedAsync(stock: 10);
         var orderId = await CreateOrderAsync(manager, s, quantity: 3);
 
-        await SetStatusAsync(manager, orderId, "Confirmed");
+        await OrderFlow.AdvanceAsync(_client, manager, orderId, "Preparing");
         var ship = await SetStatusAsync(manager, orderId, "Shipped");
 
         Assert.Equal(HttpStatusCode.OK, ship.StatusCode);
@@ -130,7 +130,7 @@ public class StockReservationTests(ApiFactory factory)
         var manager = await TokenAsync(RoleIds.Manager);
         var s = await SeedAsync(stock: 10);
         var orderId = await CreateOrderAsync(manager, s, quantity: 3);
-        await SetStatusAsync(manager, orderId, "Confirmed");
+        await OrderFlow.AdvanceAsync(_client, manager, orderId, "Preparing");
 
         var responses = await Task.WhenAll(
             SetStatusAsync(manager, orderId, "Shipped"),

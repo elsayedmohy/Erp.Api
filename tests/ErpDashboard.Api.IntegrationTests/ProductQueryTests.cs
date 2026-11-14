@@ -76,8 +76,10 @@ public class ProductQueryTests(ApiFactory factory)
     }
 
     [Theory]
-    [InlineData(OrderStatus.Pending)]
+    [InlineData(OrderStatus.Draft)]
     [InlineData(OrderStatus.PendingApproval)]
+    [InlineData(OrderStatus.Confirmed)]
+    [InlineData(OrderStatus.Preparing)]
     public async Task Delete_OnOpenOrder_Returns409(OrderStatus status)
     {
         var token = await TokenAsync();
