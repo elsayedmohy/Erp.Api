@@ -42,6 +42,77 @@ namespace ErpDashboard.Api.Migrations
                     b.ToTable("Categories");
                 });
 
+            modelBuilder.Entity("ErpDashboard.Api.Data.Entities.CreditNote", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateOnly>("CreditDate")
+                        .HasColumnType("date");
+
+                    b.Property<Guid>("InvoiceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("IssuedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("IssuedById")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Number")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<decimal>("TotalAmount")
+                        .HasColumnType("numeric");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("InvoiceId");
+
+                    b.HasIndex("Number")
+                        .IsUnique();
+
+                    b.ToTable("CreditNotes");
+                });
+
+            modelBuilder.Entity("ErpDashboard.Api.Data.Entities.CreditNoteLine", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CreditNoteId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("InvoiceLineId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("NetAmount")
+                        .HasColumnType("numeric");
+
+                    b.Property<decimal>("TaxRate")
+                        .HasColumnType("numeric");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreditNoteId");
+
+                    b.HasIndex("InvoiceLineId");
+
+                    b.ToTable("CreditNoteLine", t =>
+                        {
+                            t.HasCheckConstraint("CK_CreditNoteLines_NetAmount", "\"NetAmount\" > 0");
+                        });
+                });
+
             modelBuilder.Entity("ErpDashboard.Api.Data.Entities.Department", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1014,6 +1085,30 @@ namespace ErpDashboard.Api.Migrations
                     b.ToTable("AspNetUserTokens", (string)null);
                 });
 
+            modelBuilder.Entity("ErpDashboard.Api.Data.Entities.CreditNote", b =>
+                {
+                    b.HasOne("ErpDashboard.Api.Data.Entities.Invoice", null)
+                        .WithMany("CreditNotes")
+                        .HasForeignKey("InvoiceId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ErpDashboard.Api.Data.Entities.CreditNoteLine", b =>
+                {
+                    b.HasOne("ErpDashboard.Api.Data.Entities.CreditNote", null)
+                        .WithMany("Lines")
+                        .HasForeignKey("CreditNoteId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("ErpDashboard.Api.Data.Entities.InvoiceLine", null)
+                        .WithMany()
+                        .HasForeignKey("InvoiceLineId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("ErpDashboard.Api.Data.Entities.Employee", b =>
                 {
                     b.HasOne("ErpDashboard.Api.Data.Entities.Department", null)
@@ -1280,6 +1375,11 @@ namespace ErpDashboard.Api.Migrations
                     b.Navigation("Products");
                 });
 
+            modelBuilder.Entity("ErpDashboard.Api.Data.Entities.CreditNote", b =>
+                {
+                    b.Navigation("Lines");
+                });
+
             modelBuilder.Entity("ErpDashboard.Api.Data.Entities.Department", b =>
                 {
                     b.Navigation("Employees");
@@ -1287,6 +1387,8 @@ namespace ErpDashboard.Api.Migrations
 
             modelBuilder.Entity("ErpDashboard.Api.Data.Entities.Invoice", b =>
                 {
+                    b.Navigation("CreditNotes");
+
                     b.Navigation("InvoiceLines");
 
                     b.Navigation("Payments");

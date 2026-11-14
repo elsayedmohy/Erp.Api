@@ -22,8 +22,7 @@ public sealed class InvoiceService(
 
     private static readonly Dictionary<InvoiceStatus, InvoiceStatus[]> AllowedTransitions = new()
     {
-        [InvoiceStatus.Draft] = [InvoiceStatus.Issued],
-        [InvoiceStatus.Cancelled] = []
+        [InvoiceStatus.Draft] = [InvoiceStatus.Issued]
     };
 
 
@@ -47,32 +46,43 @@ public sealed class InvoiceService(
                 InvoicePaymentStatus.Paid => q.Where(i => i.Status == InvoiceStatus.Issued
                                                           && i.Payments.Sum(p => (decimal?)p.Amount) >= i.TotalAmount),
                 InvoicePaymentStatus.Overdue => q.Where(i => i.Status == InvoiceStatus.Issued
-                                                             && (i.Payments.Sum(p => (decimal?)p.Amount) ?? 0) < i.TotalAmount
+                                                             && ((i.Payments.Sum(p => (decimal?)p.Amount) ?? 0) +
+                                                                 (i.CreditNotes.Sum(c => (decimal?)c.TotalAmount) ??
+                                                                  0)) < i.TotalAmount
                                                              && today > i.DueDate),
                 InvoicePaymentStatus.PartiallyPaid => q.Where(i => i.Status == InvoiceStatus.Issued
-                                                                   && (i.Payments.Sum(p => (decimal?)p.Amount) ?? 0) > 0
-                                                                   && (i.Payments.Sum(p => (decimal?)p.Amount) ?? 0) < i.TotalAmount
+                                                                   && ((i.Payments.Sum(p => (decimal?)p.Amount) ?? 0) +
+                                                                       (i.CreditNotes.Sum(c =>
+                                                                           (decimal?)c.TotalAmount) ?? 0)) > 0
+                                                                   && ((i.Payments.Sum(p => (decimal?)p.Amount) ?? 0) +
+                                                                       (i.CreditNotes.Sum(c =>
+                                                                           (decimal?)c.TotalAmount) ?? 0)) <
+                                                                   i.TotalAmount
                                                                    && today <= i.DueDate),
                 _ => q.Where(i => i.Status == InvoiceStatus.Issued
                                   && !i.Payments.Any()
                                   && today <= i.DueDate)
             };
-        
+
         return Sorts.Apply(q, query.SortBy, query.SortDir)
             .Select(i => new
             {
                 Invoice = i,
-                Paid = i.Payments.Sum(p => (decimal?)p.Amount) ?? 0m
+                Paid = (i.Payments.Sum(p => (decimal?)p.Amount) ?? 0) +
+                       (i.CreditNotes.Sum(c => (decimal?)c.TotalAmount) ?? 0m),
+                Credited = i.CreditNotes.Sum(c => c.TotalAmount)
             })
             .Select(x => new InvoiceResponse(
                 x.Invoice.Id, x.Invoice.OrderId, x.Invoice.ShowroomId, x.Invoice.InvoiceDate, x.Invoice.DueDate,
                 x.Invoice.Status, x.Invoice.TotalAmount, x.Invoice.Number,
                 x.Paid,
+                x.Credited,
                 x.Invoice.TotalAmount - x.Paid,
+                Math.Max(0, x.Invoice.TotalAmount - x.Paid),
                 x.Invoice.Status != InvoiceStatus.Issued ? null
-                : x.Paid >= x.Invoice.TotalAmount ? InvoicePaymentStatus.Paid
+                : x.Paid + x.Credited >= x.Invoice.TotalAmount ? InvoicePaymentStatus.Paid
                 : today > x.Invoice.DueDate ? InvoicePaymentStatus.Overdue
-                : x.Paid > 0 ? InvoicePaymentStatus.PartiallyPaid
+                : x.Paid + x.Credited > 0 ? InvoicePaymentStatus.PartiallyPaid
                 : InvoicePaymentStatus.Due))
             .ToPagedResultAsync(query, ct);
     }
@@ -82,6 +92,7 @@ public sealed class InvoiceService(
         var invoice = await dbContext.Invoices.AsNoTracking()
                           .Include(i => i.InvoiceLines)
                           .Include(i => i.Payments)
+                          .Include(i => i.CreditNotes)
                           .FirstOrDefaultAsync(i => i.Id == id, ct)
                       ?? throw new NotFoundException(nameof(Invoice), id);
 
@@ -201,64 +212,100 @@ public sealed class InvoiceService(
     }
 
     public async Task<InvoiceDetailsResponse> RecordPaymentAsync(
-    Guid id, RecordPaymentRequest request, Guid userId, CancellationToken ct)
-{
-    if (request.Amount != Math.Round(request.Amount, 2))
-        throw new RequestValidationException("amount", "Amount cannot have more than 2 decimal places.");
-
-    await using var transaction = await dbContext.Database.BeginTransactionAsync(ct);
-
-    await dbContext.Database.ExecuteSqlInterpolatedAsync(
-        $"""SELECT 1 FROM "Invoices" WHERE "Id" = {id} FOR UPDATE""", ct);
-
-    var invoice = await dbContext.Invoices
-                      .Include(i => i.InvoiceLines)
-                      .Include(i => i.Payments)
-                      .FirstOrDefaultAsync(i => i.Id == id, ct)
-                  ?? throw new NotFoundException(nameof(Invoice), id);
-
-    if (invoice.Status != InvoiceStatus.Issued)
-        throw new ConflictException($"Only issued invoices can be paid. Current status: {invoice.Status}.");
-
-    var paymentDate = request.PaymentDate ?? clock.Today;
-    if (paymentDate < invoice.InvoiceDate)
-        throw new RequestValidationException("paymentDate", "Payment date cannot be before the invoice date.");
-    if (paymentDate > clock.Today)
-        throw new RequestValidationException("paymentDate", "Payment date cannot be in the future.");
-
-    var balance = invoice.TotalAmount - invoice.Payments.Sum(p => p.Amount);
-    if (request.Amount > balance)
-        throw new ConflictException($"Payment of {request.Amount:0.00} exceeds the remaining balance of {balance:0.00}.");
-
-    invoice.Payments.Add(new InvoicePayment
+        Guid id, RecordPaymentRequest request, Guid userId, CancellationToken ct)
     {
-        Id = Guid.NewGuid(),
-        Amount = request.Amount,
-        PaymentDate = paymentDate,
-        Method = request.Method!.Value,
-        Reference = string.IsNullOrWhiteSpace(request.Reference) ? null : request.Reference.Trim(),
-        RecordedById = userId,
-        RecordedAt = DateTime.UtcNow
-    });
+        if (request.Amount != Math.Round(request.Amount, 2))
+            throw new RequestValidationException("amount", "Amount cannot have more than 2 decimal places.");
 
-    await dbContext.SaveChangesAsync(ct);
-    await transaction.CommitAsync(ct);
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(ct);
 
-    return ToDetails(invoice, await GetShowroomNameAsync(invoice.ShowroomId, invoice, ct));
-}
+        await dbContext.Database.ExecuteSqlInterpolatedAsync(
+            $"""SELECT 1 FROM "Invoices" WHERE "Id" = {id} FOR UPDATE""", ct);
 
-    public async Task<InvoiceResponse> CancelAsync(Guid id, CancellationToken ct)
-    {
-        var invoice = await FindAsync(id, ct);
-        
-        if (await dbContext.Set<InvoicePayment>().AnyAsync(p => p.InvoiceId == id, ct))
-            throw new ConflictException("An invoice with payments cannot be cancelled. Issue a credit note instead.");
-        EnsureManual(invoice, "cancelled");
-        EnsureTransition(invoice, InvoiceStatus.Cancelled);
+        var invoice = await dbContext.Invoices
+                          .Include(i => i.InvoiceLines)
+                          .Include(i => i.Payments)
+                          .FirstOrDefaultAsync(i => i.Id == id, ct)
+                      ?? throw new NotFoundException(nameof(Invoice), id);
 
-        invoice.Status = InvoiceStatus.Cancelled;
+        if (invoice.Status != InvoiceStatus.Issued)
+            throw new ConflictException($"Only issued invoices can be paid. Current status: {invoice.Status}.");
+
+        var paymentDate = request.PaymentDate ?? clock.Today;
+        if (paymentDate < invoice.InvoiceDate)
+            throw new RequestValidationException("paymentDate", "Payment date cannot be before the invoice date.");
+        if (paymentDate > clock.Today)
+            throw new RequestValidationException("paymentDate", "Payment date cannot be in the future.");
+
+        var balance = invoice.TotalAmount - invoice.Payments.Sum(p => p.Amount);
+        if (request.Amount > balance)
+            throw new ConflictException(
+                $"Payment of {request.Amount:0.00} exceeds the remaining balance of {balance:0.00}.");
+
+        invoice.Payments.Add(new InvoicePayment
+        {
+            Id = Guid.NewGuid(),
+            Amount = request.Amount,
+            PaymentDate = paymentDate,
+            Method = request.Method!.Value,
+            Reference = string.IsNullOrWhiteSpace(request.Reference) ? null : request.Reference.Trim(),
+            RecordedById = userId,
+            RecordedAt = DateTime.UtcNow
+        });
+
         await dbContext.SaveChangesAsync(ct);
-        return ToSummary(invoice);
+        await transaction.CommitAsync(ct);
+
+        return ToDetails(invoice, await GetShowroomNameAsync(invoice.ShowroomId, invoice, ct));
+    }
+
+    public async Task<CreditNoteResponse> IssueCreditNoteAsync(
+        Guid invoiceId, CreateCreditNoteRequest request, Guid userId, CancellationToken ct)
+    {
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(ct);
+
+        await dbContext.Database.ExecuteSqlInterpolatedAsync(
+            $"""SELECT 1 FROM "Invoices" WHERE "Id" = {invoiceId} FOR UPDATE""", ct);
+
+        var invoice = await dbContext.Invoices
+                          .Include(i => i.InvoiceLines)
+                          .Include(i => i.CreditNotes).ThenInclude(c => c.Lines)
+                          .FirstOrDefaultAsync(i => i.Id == invoiceId, ct)
+                      ?? throw new NotFoundException(nameof(Invoice), invoiceId);
+
+        if (invoice.Status != InvoiceStatus.Issued)
+            throw new ConflictException(
+                $"Credit notes can only be issued for issued invoices. Current status: {invoice.Status}.");
+
+        var alreadyCredited = invoice.CreditNotes
+            .SelectMany(c => c.Lines)
+            .GroupBy(l => l.InvoiceLineId)
+            .ToDictionary(g => g.Key, g => g.Sum(l => l.NetAmount));
+
+        var lines = CreditNoteFactory.BuildLines(
+            invoice.InvoiceLines,
+            alreadyCredited,
+            request.Lines.Select(l => new CreditLineInput(l.InvoiceLineId!.Value, l.NetAmount)).ToList());
+
+        var today = clock.Today;
+        var creditNote = new CreditNote
+        {
+            Id = Guid.NewGuid(),
+            Number = await numbers.NextAsync("CN", today.Year, ct),
+            InvoiceId = invoiceId,
+            CreditDate = today,
+            Reason = request.Reason.Trim(),
+            TotalAmount = CreditNoteFactory.Total(lines),
+            IssuedById = userId,
+            IssuedAt = DateTime.UtcNow,
+            Lines = lines
+        };
+
+        dbContext.CreditNotes.Add(creditNote);
+        await dbContext.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
+
+        return ToCreditNoteResponse(creditNote);
     }
 
     public async Task DeleteAsync(Guid id, CancellationToken ct)
@@ -299,7 +346,10 @@ public sealed class InvoiceService(
 
 
     private async Task<Invoice> FindAsync(Guid id, CancellationToken ct) =>
-        await dbContext.Invoices.Include(i => i.Payments).FirstOrDefaultAsync(i => i.Id == id, ct)
+        await dbContext.Invoices
+            .Include(i => i.Payments)
+            .Include(i => i.CreditNotes)
+            .FirstOrDefaultAsync(i => i.Id == id, ct)
         ?? throw new NotFoundException(nameof(Invoice), id);
 
     private async Task<string> GetActiveShowroomNameAsync(Guid ShowroomId, CancellationToken ct) =>
@@ -327,7 +377,7 @@ public sealed class InvoiceService(
             throw new RequestValidationException("lines", $"Products not found: {string.Join(", ", missing)}");
     }
 
-    private async Task<string> GetShowroomNameAsync(Guid ShowroomId, Invoice invoice, CancellationToken ct) => 
+    private async Task<string> GetShowroomNameAsync(Guid ShowroomId, Invoice invoice, CancellationToken ct) =>
         await dbContext.Showrooms.IgnoreQueryFilters()
             .Where(c => c.Id == invoice.ShowroomId)
             .Select(c => c.Name)
@@ -339,19 +389,28 @@ public sealed class InvoiceService(
             l.TaxRate ?? _finance.DefaultTaxRate,
             l.Discount)).ToList();
 
-    private (decimal Paid, decimal Balance, InvoicePaymentStatus? Status) PaymentState(Invoice i)
+    private (decimal Paid, decimal Credited, decimal Balance, InvoicePaymentStatus? Status) PaymentState(Invoice i)
     {
         var paid = i.Payments.Sum(p => p.Amount);
-        var status = InvoicePaymentStatusCalculator.Compute(i.Status, i.TotalAmount, paid, i.DueDate, clock.Today);
-        return (paid, i.TotalAmount - paid, status);
+        var credited = i.CreditNotes.Sum(c => c.TotalAmount);
+        var status =
+            InvoicePaymentStatusCalculator.Compute(i.Status, i.TotalAmount, paid, credited, i.DueDate, clock.Today);
+        return (paid, credited, i.TotalAmount - paid - credited, status);
+    }
+
+    private static CreditNoteResponse ToCreditNoteResponse(CreditNote c)
+    {
+        var net = c.Lines.Sum(l => l.NetAmount);
+        var tax = c.Lines.Sum(CreditNoteFactory.LineTax);
+        return new CreditNoteResponse(c.Id, c.Number, c.InvoiceId, c.CreditDate, c.Reason, net, tax, c.TotalAmount);
     }
 
     private InvoiceResponse ToSummary(Invoice i)
     {
-        var (paid, balance, status) = PaymentState(i);
+        var (paid, creditedAmount, balance, status) = PaymentState(i);
         return new InvoiceResponse(
             i.Id, i.OrderId, i.ShowroomId, i.InvoiceDate, i.DueDate, i.Status, i.TotalAmount, i.Number,
-            paid, balance, status);
+            paid, creditedAmount, balance, Math.Max(0, -balance), status);
     }
 
     private InvoiceDetailsResponse ToDetails(Invoice i, string showroomName)
@@ -371,7 +430,9 @@ public sealed class InvoiceService(
                 p.Id, p.Amount, p.PaymentDate, p.Method, p.Reference, p.RecordedById, p.RecordedAt))
             .ToList();
 
-        var (paid, balance, status) = PaymentState(i);
+        var creditNotes = i.CreditNotes.OrderBy(c => c.Number).Select(ToCreditNoteResponse).ToList();
+
+        var (paid, creditedAmount, balance, status) = PaymentState(i);
 
         return new InvoiceDetailsResponse(
             i.Id, i.OrderId, i.ShowroomId, showroomName,
@@ -382,9 +443,12 @@ public sealed class InvoiceService(
             TotalAmount: i.TotalAmount,
             Number: i.Number,
             AmountPaid: paid,
+            CreditedAmount: creditedAmount,
             Balance: balance,
+            RefundDue: Math.Max(0, -balance),
             PaymentStatus: status,
             Lines: lines,
-            Payments: payments);
+            Payments: payments,
+            CreditNotes: creditNotes);
     }
 }

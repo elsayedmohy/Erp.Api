@@ -29,5 +29,8 @@ public class InvoiceConfiguration : IEntityTypeConfiguration<Invoice>
             .WithOne()
             .HasForeignKey(p => p.InvoiceId)
             .OnDelete(DeleteBehavior.Restrict);
+        
+        b.HasMany(i => i.CreditNotes).WithOne()
+            .HasForeignKey(c => c.InvoiceId).OnDelete(DeleteBehavior.Restrict);
     }
 }

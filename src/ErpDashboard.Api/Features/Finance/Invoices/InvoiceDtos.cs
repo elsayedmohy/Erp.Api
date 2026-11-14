@@ -1,3 +1,5 @@
+using ErpDashboard.Api.Features.Finance.Invoices.CreditNotes;
+
 namespace ErpDashboard.Api.Features.Finance.Invoices;
 
 public sealed class InvoiceQuery : PageQuery
@@ -57,10 +59,13 @@ public sealed record InvoiceDetailsResponse(
     decimal TotalAmount,
     string? Number,
     decimal AmountPaid,
+    decimal CreditedAmount,
     decimal Balance,
+    decimal RefundDue,
     InvoicePaymentStatus? PaymentStatus,
     IReadOnlyList<InvoiceLineResponse> Lines,
-    IReadOnlyList<InvoicePaymentResponse> Payments);
+    IReadOnlyList<InvoicePaymentResponse> Payments,
+    IReadOnlyList<CreditNoteResponse>  CreditNotes);
 
 public sealed record InvoiceResponse(
     Guid Id,
@@ -72,7 +77,9 @@ public sealed record InvoiceResponse(
     decimal TotalAmount,
     string? Number,
     decimal AmountPaid,
+    decimal CreditedAmount,
     decimal Balance,
+    decimal RefundDue,
     InvoicePaymentStatus? PaymentStatus);
 
     
