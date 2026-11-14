@@ -279,7 +279,8 @@ public sealed class InvoiceService(
     private List<InvoiceLineInput> ToInputs(IEnumerable<InvoiceLineRequest> lines) =>
         lines.Select(l => new InvoiceLineInput(
             l.ProductId, l.Description, l.Quantity, l.UnitPrice,
-            l.TaxRate ?? _finance.DefaultTaxRate)).ToList();
+            l.TaxRate ?? _finance.DefaultTaxRate,
+            l.Discount)).ToList();
 
     private static InvoiceResponse ToSummary(Invoice i) =>
         new(i.Id, i.OrderId, i.ShowroomId, i.InvoiceDate, i.DueDate, i.Status, i.TotalAmount, i.Number, i.PaidAt);
@@ -288,16 +289,18 @@ public sealed class InvoiceService(
     {
         var lines = i.InvoiceLines.Select(l =>
         {
+            var gross = InvoiceFactory.LineGross(l);
             var net = InvoiceFactory.LineNet(l);
             var tax = InvoiceFactory.LineTax(l);
             return new InvoiceLineResponse(l.Id, l.ProductId, l.Description, l.Quantity,
-                l.UnitPrice, l.TaxRate, net, tax, net + tax);
+                l.UnitPrice, gross, l.Discount, l.TaxRate, net, tax, net + tax);
         }).ToList();
 
         return new InvoiceDetailsResponse(
             i.Id, i.OrderId, i.ShowroomId, ShowroomName,
             i.InvoiceDate, i.DueDate, i.Status,
-            Subtotal: lines.Sum(x => x.LineNet),
+            Subtotal: lines.Sum(x => x.LineGross),
+            DiscountTotal: lines.Sum(x => x.Discount),
             TaxAmount: lines.Sum(x => x.LineTax),
             TotalAmount: i.TotalAmount,
             i.PaidAt, i.Number, i.PaymentMethod, lines);

@@ -5,7 +5,8 @@ public sealed record InvoiceLineInput(
     string Description,
     int Quantity,
     decimal UnitPrice,
-    decimal TaxRate);
+    decimal TaxRate,
+    decimal Discount = 0m);
 
 public static class InvoiceFactory
 {
@@ -31,12 +32,26 @@ public static class InvoiceFactory
         if (lines.Count == 0)
             throw new RequestValidationException("lines", "An invoice must have at least one line.");
 
+        var errors = new Dictionary<string, string[]>();
+        var index = 0;
+        foreach (var l in lines)
+        {
+            if (l.Discount != Math.Round(l.Discount, 2))
+                errors[$"lines[{index}].discount"] = ["Discount cannot have more than 2 decimal places."];
+            else if (l.Discount > Round(l.Quantity * l.UnitPrice))
+                errors[$"lines[{index}].discount"] = ["Discount cannot exceed the line amount."];
+            index++;
+        }
+        if (errors.Count > 0)
+            throw new RequestValidationException(errors);
+
         return lines.Select(l => new InvoiceLine
         {
             ProductId = l.ProductId,
             Description = l.Description.Trim(),
             Quantity = l.Quantity,
             UnitPrice = l.UnitPrice,
+            Discount = l.Discount,
             TaxRate = l.TaxRate
         }).ToList();
     }
@@ -50,11 +65,11 @@ public static class InvoiceFactory
     public static decimal CalculateTotal(IEnumerable<InvoiceLine> lines) =>
         lines.Sum(l => LineNet(l) + LineTax(l));
 
-    public static decimal LineNet(InvoiceLine l) =>
-        Round(l.Quantity * l.UnitPrice);
+    public static decimal LineGross(InvoiceLine l) => Round(l.Quantity * l.UnitPrice);
 
-    public static decimal LineTax(InvoiceLine l) =>
-        Round(LineNet(l) * l.TaxRate / 100m);
+    public static decimal LineNet(InvoiceLine l) => LineGross(l) - l.Discount;
+
+    public static decimal LineTax(InvoiceLine l) => Round(LineNet(l) * l.TaxRate / 100m);
 
     private static decimal Round(decimal value) =>
         Math.Round(value, 2, MidpointRounding.AwayFromZero);

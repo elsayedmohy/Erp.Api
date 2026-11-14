@@ -42,7 +42,7 @@ public sealed class InvoicePdfGenerator(IOptions<CompanySettings> options) : IIn
                 row.ConstantItem(200).AlignRight().Column(col =>
                 {
                     col.Item().Text("INVOICE").FontSize(20).Bold();
-                    col.Item().Text($"No: {ShortId(inv.Id)}");
+                    col.Item().Text($"No: {inv.Number ?? "DRAFT"}");
                     col.Item().Text($"Date: {inv.InvoiceDate:yyyy-MM-dd}");
                     col.Item().Text($"Due: {inv.DueDate:yyyy-MM-dd}");
                     col.Item().Text($"Status: {inv.Status}").Bold();
@@ -68,6 +68,7 @@ public sealed class InvoicePdfGenerator(IOptions<CompanySettings> options) : IIn
                     {
                         c.RelativeColumn(4); 
                         c.RelativeColumn(1); 
+                        c.RelativeColumn(2);
                         c.RelativeColumn(2); 
                         c.RelativeColumn(1); 
                         c.RelativeColumn(2); 
@@ -78,6 +79,7 @@ public sealed class InvoicePdfGenerator(IOptions<CompanySettings> options) : IIn
                         h.Cell().Element(HeaderCell).Text("Description");
                         h.Cell().Element(HeaderCell).AlignRight().Text("Qty");
                         h.Cell().Element(HeaderCell).AlignRight().Text("Unit price");
+                        h.Cell().Element(HeaderCell).AlignRight().Text("Discount");
                         h.Cell().Element(HeaderCell).AlignRight().Text("Tax %");
                         h.Cell().Element(HeaderCell).AlignRight().Text("Total");
                     });
@@ -87,6 +89,7 @@ public sealed class InvoicePdfGenerator(IOptions<CompanySettings> options) : IIn
                         table.Cell().Element(BodyCell).Text(l.Description);
                         table.Cell().Element(BodyCell).AlignRight().Text(l.Quantity.ToString(CultureInfo.InvariantCulture));
                         table.Cell().Element(BodyCell).AlignRight().Text(Money(l.UnitPrice));
+                        table.Cell().Element(BodyCell).AlignRight().Text(l.Discount == 0 ? "-" : Money(l.Discount));
                         table.Cell().Element(BodyCell).AlignRight().Text(l.TaxRate.ToString("0.##", CultureInfo.InvariantCulture));
                         table.Cell().Element(BodyCell).AlignRight().Text(Money(l.LineTotal));
                     }
@@ -95,7 +98,9 @@ public sealed class InvoicePdfGenerator(IOptions<CompanySettings> options) : IIn
                 col.Item().AlignRight().Width(230).Column(totals =>
                 {
                     TotalRow(totals, "Subtotal", inv.Subtotal);
-                    TotalRow(totals, "Tax", inv.TaxAmount);
+                    if (inv.DiscountTotal > 0)
+                        TotalRow(totals, "Discount", -inv.DiscountTotal);
+                    TotalRow(totals, "Tax (after discount)", inv.TaxAmount);
                     TotalRow(totals, "Total", inv.TotalAmount, bold: true);
                 });
 
