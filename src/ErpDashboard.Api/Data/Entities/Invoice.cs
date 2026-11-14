@@ -14,4 +14,5 @@ public class Invoice
     public DateTime? IssuedAt { get; set; }
     public Guid? IssuedById { get; set; }
     public List<InvoiceLine> InvoiceLines { get; set; }  = new List<InvoiceLine>();
+    public List<CreditNote> CreditNotes { get; set; } = [];
 }

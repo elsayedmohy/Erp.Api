@@ -31,6 +31,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentShowro
     public DbSet<Material> Materials => Set<Material>();
     public DbSet<StockTransfer> StockTransfers => Set<StockTransfer>();
     public DbSet<DocumentNumberCounter> DocumentNumberCounters => Set<DocumentNumberCounter>();
+    public DbSet<CreditNote> CreditNotes => Set<CreditNote>();
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
