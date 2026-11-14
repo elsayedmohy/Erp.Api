@@ -33,7 +33,7 @@ public class SalesRoleTests(ApiFactory factory)
         var s = await SeedAsync();
         var orderId = await CreateOrderAsync(sales, s);
 
-        var put = await SendAsync(HttpMethod.Put, $"/api/orders/{orderId}", sales,
+        var put = await OrderFlow.UpdateAsync(_client, sales, orderId,
             new { paymentMethod = Enum.GetValues<PaymentMethod>()[0].ToString(), shippingAddress = "Changed" });
         var cancel = await OrderFlow.CancelAsync(_client, sales, orderId);
 

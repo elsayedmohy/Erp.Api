@@ -51,7 +51,7 @@ public class OrderLifecycleTests(ApiFactory factory)
         var (orderId, _) = await CreateOrderAsync(creator, discount: 180m);
         await OrderFlow.SubmitAsync(_client, creator, orderId);
 
-        var response = await SendAsync(HttpMethod.Post, $"/api/orders/{orderId}/approve", reviewer);
+        var response = await OrderFlow.ApproveAsync(_client, reviewer, orderId);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Equal(OrderStatus.Confirmed, await StatusAsync(orderId));
@@ -65,7 +65,7 @@ public class OrderLifecycleTests(ApiFactory factory)
         var (orderId, productId) = await CreateOrderAsync(creator, discount: 180m);
         await OrderFlow.SubmitAsync(_client, creator, orderId);
 
-        await SendAsync(HttpMethod.Post, $"/api/orders/{orderId}/reject", reviewer, new { reason = "Too much" });
+        await OrderFlow.RejectAsync(_client, reviewer, orderId, "Too much");
 
         Assert.Equal(OrderStatus.Cancelled, await StatusAsync(orderId));
         Assert.Equal(0, await ReservedAsync(productId));
@@ -143,7 +143,7 @@ public class OrderLifecycleTests(ApiFactory factory)
         var manager = await TokenAsync(RoleIds.Manager);
         var (orderId, _) = await CreateOrderAsync(manager, discount: 0m);
 
-        var response = await SendAsync(HttpMethod.Post, $"/api/orders/{orderId}/cancel", manager, new { reason = "" });
+        var response = await OrderFlow.CancelAsync(_client, manager, orderId, reason: "");
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }

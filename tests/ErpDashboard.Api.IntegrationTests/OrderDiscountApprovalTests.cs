@@ -43,8 +43,7 @@ public class OrderDiscountApprovalTests(ApiFactory factory)
         var orderId = await CreatePendingApprovalOrderAsync();
         var (manager, _) = await ManagerAsync();
 
-        var response = await SendAsync(HttpMethod.Patch, $"/api/orders/{orderId}/status", manager,
-            new { status = "Confirmed" });
+        var response = await OrderFlow.SetStatusAsync(_client, manager, orderId, "Confirmed");
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
     }
@@ -56,7 +55,7 @@ public class OrderDiscountApprovalTests(ApiFactory factory)
         var (showroomId, productId) = await SeedShowroomAndProductAsync();
         var orderId = await CreateAndSubmitAsync(creator, showroomId, productId, 50);
 
-        var response = await SendAsync(HttpMethod.Post, $"/api/orders/{orderId}/approve", creator);
+        var response = await OrderFlow.ApproveAsync(_client, creator, orderId);
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
         Assert.Equal(OrderStatus.PendingApproval, (await GetOrderAsync(orderId)).Status);
@@ -67,8 +66,11 @@ public class OrderDiscountApprovalTests(ApiFactory factory)
     {
         var orderId = await CreatePendingApprovalOrderAsync();
         var accountant = await LoginAsync(await factory.CreateUserAsync(RoleIds.Accountant));
+        var (manager, _) = await ManagerAsync();
+        // The accountant can't read the order, so the version comes from someone who can.
+        var version = await OrderFlow.VersionAsync(_client, manager, orderId);
 
-        var response = await SendAsync(HttpMethod.Post, $"/api/orders/{orderId}/approve", accountant);
+        var response = await OrderFlow.SendAsync(_client, HttpMethod.Post, $"/api/orders/{orderId}/approve", accountant, version);
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
@@ -79,7 +81,7 @@ public class OrderDiscountApprovalTests(ApiFactory factory)
         var orderId = await CreatePendingApprovalOrderAsync();
         var (reviewer, reviewerId) = await ManagerAsync();
 
-        var approve = await SendAsync(HttpMethod.Post, $"/api/orders/{orderId}/approve", reviewer);
+        var approve = await OrderFlow.ApproveAsync(_client, reviewer, orderId);
 
         Assert.Equal(HttpStatusCode.OK, approve.StatusCode);
         var order = await GetOrderAsync(orderId);
@@ -96,8 +98,7 @@ public class OrderDiscountApprovalTests(ApiFactory factory)
         var orderId = await CreateAndSubmitAsync(creator, showroomId, productId, 50);
         var (reviewer, _) = await ManagerAsync();
 
-        var response = await SendAsync(HttpMethod.Post, $"/api/orders/{orderId}/reject", reviewer,
-            new { reason = "Discount too high" });
+        var response = await OrderFlow.RejectAsync(_client, reviewer, orderId, "Discount too high");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var order = await GetOrderAsync(orderId);
@@ -111,7 +112,8 @@ public class OrderDiscountApprovalTests(ApiFactory factory)
         var orderId = await CreatePendingApprovalOrderAsync();
         var (reviewer, _) = await ManagerAsync();
 
-        var response = await SendAsync(HttpMethod.Post, $"/api/orders/{orderId}/reject", reviewer, new { });
+        var response = await OrderFlow.SendAsync(_client, HttpMethod.Post, $"/api/orders/{orderId}/reject", reviewer,
+            await OrderFlow.VersionAsync(_client, reviewer, orderId), new { });
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
@@ -125,12 +127,15 @@ public class OrderDiscountApprovalTests(ApiFactory factory)
         var (approver, _) = await ManagerAsync();
         var (rejecter, _) = await ManagerAsync();
 
+        var version = await OrderFlow.VersionAsync(_client, approver, orderId);
         var responses = await Task.WhenAll(
-            SendAsync(HttpMethod.Post, $"/api/orders/{orderId}/approve", approver),
-            SendAsync(HttpMethod.Post, $"/api/orders/{orderId}/reject", rejecter, new { reason = "No" }));
+            OrderFlow.SendAsync(_client, HttpMethod.Post, $"/api/orders/{orderId}/approve", approver, version),
+            OrderFlow.SendAsync(_client, HttpMethod.Post, $"/api/orders/{orderId}/reject", rejecter, version, new { reason = "No" }));
 
         Assert.Single(responses, r => r.StatusCode == HttpStatusCode.OK);
-        Assert.Single(responses, r => r.StatusCode == HttpStatusCode.Conflict);
+        var conflict = Assert.Single(responses, r => r.StatusCode == HttpStatusCode.Conflict);
+        using var json = JsonDocument.Parse(await conflict.Content.ReadAsStringAsync());
+        Assert.Equal("order_changed", json.RootElement.GetProperty("code").GetString());
 
         var order = await GetOrderAsync(orderId);
         var expectedStock = order.Status == OrderStatus.Cancelled ? Stock : Stock - 1;

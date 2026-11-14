@@ -6,6 +6,7 @@ public class Order
     public Guid ShowroomId { get; set; }
     public Guid WarehouseId { get; set; }
     public DateOnly OrderDate { get; set; }
+    public uint Version { get; set; }
     public OrderStatus Status { get; set; }
     public PaymentMethod PaymentMethod { get; set; }
     public string ShippingAddress { get; set; }

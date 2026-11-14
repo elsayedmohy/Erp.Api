@@ -10,6 +10,7 @@ public sealed class OrderQuery : PageQuery
 
 public sealed record OrderResponse(
     Guid Id,
+    uint Version,
     Guid ShowroomId,
     Guid WarehouseId,
     string ShowroomName,
@@ -22,6 +23,7 @@ public sealed record OrderResponse(
 
 public sealed record OrderDetailsResponse(
     Guid Id,
+    uint Version,
     Guid ShowroomId,
     Guid WarehouseId,
     Guid? InvoiceId,

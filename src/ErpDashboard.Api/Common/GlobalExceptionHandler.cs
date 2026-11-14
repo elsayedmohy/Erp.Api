@@ -28,6 +28,31 @@ public class GlobalExceptionHandler(
                 }
             });
         }
+
+        if (ex is PreconditionRequiredException)
+        {
+            var problem = new ProblemDetails
+            {
+                Status = StatusCodes.Status428PreconditionRequired,
+                Title = "Precondition required",
+                Detail = ex.Message
+            };
+            ctx.Response.StatusCode = StatusCodes.Status428PreconditionRequired;
+            return await problemDetailsService.TryWriteAsync(new ProblemDetailsContext { HttpContext = ctx, Exception = ex, ProblemDetails = problem });
+        }
+
+        if (ex is DbUpdateConcurrencyException)
+        {
+            var problem = new ProblemDetails
+            {
+                Status = StatusCodes.Status409Conflict,
+                Title = "Conflict",
+                Detail = "The record was changed by someone else. Refresh and try again."
+            };
+            problem.Extensions["code"] = "concurrency_conflict";
+            ctx.Response.StatusCode = StatusCodes.Status409Conflict;
+            return await problemDetailsService.TryWriteAsync(new ProblemDetailsContext { HttpContext = ctx, Exception = ex, ProblemDetails = problem });
+        }
         
         if (ex is DbUpdateException { InnerException: PostgresException { SqlState: PostgresErrorCodes.UniqueViolation } })
         {
@@ -149,3 +174,4 @@ public sealed class InsufficientStockException(Guid warehouseId, IReadOnlyList<S
     public Guid WarehouseId { get; } = warehouseId;
     public IReadOnlyList<StockShortage> Lines { get; } = lines;
 }
+public sealed class PreconditionRequiredException(string message) : Exception(message);
