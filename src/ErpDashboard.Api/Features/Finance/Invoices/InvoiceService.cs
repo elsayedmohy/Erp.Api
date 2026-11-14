@@ -225,6 +225,7 @@ public sealed class InvoiceService(
         var invoice = await dbContext.Invoices
                           .Include(i => i.InvoiceLines)
                           .Include(i => i.Payments)
+                          .Include(i => i.CreditNotes).ThenInclude(c => c.Lines)
                           .FirstOrDefaultAsync(i => i.Id == id, ct)
                       ?? throw new NotFoundException(nameof(Invoice), id);
 
@@ -237,21 +238,25 @@ public sealed class InvoiceService(
         if (paymentDate > clock.Today)
             throw new RequestValidationException("paymentDate", "Payment date cannot be in the future.");
 
-        var balance = invoice.TotalAmount - invoice.Payments.Sum(p => p.Amount);
+        var balance = invoice.TotalAmount
+                      - invoice.Payments.Sum(p => p.Amount)
+                      - invoice.CreditNotes.Sum(c => c.TotalAmount);
         if (request.Amount > balance)
             throw new ConflictException(
                 $"Payment of {request.Amount:0.00} exceeds the remaining balance of {balance:0.00}.");
 
-        invoice.Payments.Add(new InvoicePayment
+        var payment = new InvoicePayment
         {
             Id = Guid.NewGuid(),
+            InvoiceId = invoice.Id,
             Amount = request.Amount,
             PaymentDate = paymentDate,
             Method = request.Method!.Value,
             Reference = string.IsNullOrWhiteSpace(request.Reference) ? null : request.Reference.Trim(),
             RecordedById = userId,
             RecordedAt = DateTime.UtcNow
-        });
+        };
+        dbContext.Set<InvoicePayment>().Add(payment);
 
         await dbContext.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
