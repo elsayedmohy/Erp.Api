@@ -27,6 +27,10 @@ public class OrdersController(IOrderService service) : ControllerBase
     [HttpPatch("{id:guid}/status"), HasPermission(PermissionCodes.Orders.UpdateStatus)]
     public async Task<ActionResult<OrderResponse>> UpdateStatus(Guid id, [FromBody] UpdateOrderStatusRequest request, CancellationToken ct)
         => Ok(await service.UpdateStatusAsync(id, request, User.GetUserId(),ct));
+    
+    [HttpPost("{id:guid}/submit"), HasPermission(PermissionCodes.Orders.Create)]
+    public async Task<ActionResult<OrderResponse>> Submit(Guid id, CancellationToken ct)
+        => Ok(await service.SubmitAsync(id, User.GetUserId(), ct));
 
     [HttpPost("{id:guid}/approve"), HasPermission(PermissionCodes.Orders.ApproveDiscount)]
     public async Task<ActionResult<OrderResponse>> Approve(Guid id, CancellationToken ct)
@@ -41,10 +45,7 @@ public class OrdersController(IOrderService service) : ControllerBase
     public Task<IReadOnlyList<OrderStatusChangeResponse>> GetHistory(Guid id, CancellationToken ct)
         => service.GetHistoryAsync(id, ct);
     
-    [HttpDelete("{id:guid}"), HasPermission(PermissionCodes.Orders.Write)]
-    public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
-    {
-        await service.DeleteAsync(id, User.GetUserId(), ct);
-        return NoContent();
-    }
+    [HttpPost("{id:guid}/cancel"), HasPermission(PermissionCodes.Orders.Write)]
+    public async Task<ActionResult<OrderResponse>> Cancel(Guid id, [FromBody] CancelOrderRequest request, CancellationToken ct)
+        => Ok(await service.CancelAsync(id, request, User.GetUserId(), ct));
 }

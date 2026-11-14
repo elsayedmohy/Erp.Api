@@ -66,6 +66,29 @@ public class GlobalExceptionHandler(
             });
         }
 
+        if (ex is ConflictException conflict)
+        {
+            ctx.Response.StatusCode = StatusCodes.Status409Conflict;
+            var problem = new ProblemDetails
+            {
+                Status = StatusCodes.Status409Conflict,
+                Title = "Conflict",
+                Detail = ex.Message
+            };
+            
+            if (conflict.Code is not null)
+                problem.Extensions["code"] = conflict.Code;
+            foreach (var (key, value) in conflict.Extensions)
+                problem.Extensions[key] = value;
+
+            return await problemDetailsService.TryWriteAsync(new ProblemDetailsContext
+            {
+                HttpContext = ctx,
+                Exception = ex,
+                ProblemDetails = problem
+            });
+        }
+        
         var (status, title) = ex switch
         {
             NotFoundException => (404, "Not Found"),
@@ -98,7 +121,14 @@ public class UnauthorizedException(string message = "401 Unauthorized") : AppExc
 
 public class ForbiddenException(string message = "403 Forbidden") : AppException(message);
 
-public class ConflictException(string message) : AppException(message);
+public class ConflictException(
+    string message,
+    string? code = null,
+    IReadOnlyDictionary<string, object?>? extensions = null) : Exception(message)
+{
+    public string? Code { get; } = code;
+    public IReadOnlyDictionary<string, object?> Extensions { get; } = extensions ?? new Dictionary<string, object?>();
+}
 
 public class RequestValidationException(IDictionary<string, string[]> errors)
     : AppException("One or more validation errors occurred.")

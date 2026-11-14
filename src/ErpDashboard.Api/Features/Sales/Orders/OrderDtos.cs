@@ -79,3 +79,5 @@ public sealed record OrderStatusChangeResponse(
     string? ChangedByName,
     DateTime ChangedAt,
     string? Reason);
+    
+public sealed record CancelOrderRequest([Required, MaxLength(500)] string Reason);
