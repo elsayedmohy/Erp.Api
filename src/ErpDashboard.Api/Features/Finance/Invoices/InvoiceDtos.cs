@@ -50,6 +50,7 @@ public sealed record InvoiceDetailsResponse(
     decimal TaxAmount,
     decimal TotalAmount,
     DateTime? PaidAt,
+    string Number,
     PaymentMethod? PaymentMethod,
     IReadOnlyList<InvoiceLineResponse> Lines);
 
@@ -61,6 +62,7 @@ public sealed record InvoiceResponse(
     DateOnly DueDate,
     InvoiceStatus Status,
     decimal TotalAmount,
+    string Number,
     DateTime? PaidAt
 );
 

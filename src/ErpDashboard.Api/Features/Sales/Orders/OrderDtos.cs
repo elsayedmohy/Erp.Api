@@ -24,7 +24,7 @@ public sealed record OrderDetailsResponse(
     Guid Id,
     Guid ShowroomId,
     Guid WarehouseId,
-    Guid InvoiceId,
+    Guid? InvoiceId,
     string ShowroomName,
     DateOnly OrderDate,
     OrderStatus Status,

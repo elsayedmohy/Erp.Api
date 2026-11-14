@@ -12,6 +12,8 @@ public class Invoice
     public DateTime? PaidAt { get; set; }
     public PaymentMethod? PaymentMethod { get; set; }
     
+    public string? Number { get; set; }
+    public DateTime? IssuedAt { get; set; }
+    public Guid? IssuedById { get; set; }
     public List<InvoiceLine> InvoiceLines { get; set; }  = new List<InvoiceLine>();
 }
-

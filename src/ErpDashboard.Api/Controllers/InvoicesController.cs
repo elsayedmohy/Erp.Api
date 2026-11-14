@@ -31,9 +31,13 @@ public sealed class InvoicesController(IInvoiceService invoiceService) : Control
     public async Task<IActionResult> Update(Guid id, UpdateInvoiceRequest request, CancellationToken ct)
         => Ok(await invoiceService.UpdateAsync(id, request, ct));
 
+    [HttpPost("from-order/{orderId:guid}"), HasPermission(PermissionCodes.Invoices.Write)]
+    public async Task<ActionResult<InvoiceDetailsResponse>> IssueFromOrder(Guid orderId, CancellationToken ct)
+        => StatusCode(StatusCodes.Status201Created, await invoiceService.IssueFromOrderAsync(orderId, User.GetUserId(), ct));
+    
     [HttpPatch("{id:guid}/issue"), HasPermission(PermissionCodes.Invoices.Write)]
-    public async Task<IActionResult> Issue(Guid id, CancellationToken ct)
-        => Ok(await invoiceService.IssueAsync(id, ct));
+    public async Task<ActionResult<InvoiceResponse>> Issue(Guid id, CancellationToken ct)
+        => Ok(await invoiceService.IssueAsync(id, User.GetUserId(), ct));
 
     [HttpPatch("{id:guid}/pay"), HasPermission(PermissionCodes.Invoices.Pay)]
     public async Task<IActionResult> Pay(Guid id, PayInvoiceRequest request, CancellationToken ct)

@@ -1,25 +1,29 @@
 namespace ErpDashboard.Api.Features.Finance.Invoices;
 
-public sealed class InvoiceService(AppDbContext dbContext,
+public sealed class InvoiceService(
+    AppDbContext dbContext,
     IBusinessClock clock,
     IOptions<FinanceSettings> finance,
-    IInvoicePdfGenerator pdfGenerator) : IInvoiceService
+    IInvoicePdfGenerator pdfGenerator,
+    IDocumentNumberGenerator numbers) : IInvoiceService
 {
     private readonly FinanceSettings _finance = finance.Value;
+    private static readonly OrderStatus[] InvoiceableStatuses = [OrderStatus.Shipped, OrderStatus.Delivered];
 
     private static readonly SortMap<Invoice> Sorts = new SortMap<Invoice>()
         .Add("invoiceDate", i => i.InvoiceDate)
         .Add("dueDate", i => i.DueDate)
         .Add("totalAmount", i => i.TotalAmount)
         .Add("status", i => i.Status)
+        .Add("number", i => i.Number)
         .Default("invoiceDate", descending: true)
         .TieBreaker(i => i.Id);
 
     private static readonly Dictionary<InvoiceStatus, InvoiceStatus[]> AllowedTransitions = new()
     {
-        [InvoiceStatus.Draft]     = [InvoiceStatus.Issued],
-        [InvoiceStatus.Issued]    = [InvoiceStatus.Paid, InvoiceStatus.Cancelled],
-        [InvoiceStatus.Paid]      = [],
+        [InvoiceStatus.Draft] = [InvoiceStatus.Issued],
+        [InvoiceStatus.Issued] = [InvoiceStatus.Paid, InvoiceStatus.Cancelled],
+        [InvoiceStatus.Paid] = [],
         [InvoiceStatus.Cancelled] = []
     };
 
@@ -31,6 +35,9 @@ public sealed class InvoiceService(AppDbContext dbContext,
 
         var q = dbContext.Invoices.AsNoTracking();
 
+        if (query.GetSearchPattern() is { } p)
+            q = q.Where(i => i.Number != null && EF.Functions.ILike(i.Number, p, @"\"));
+
         if (query.Status is { } status) q = q.Where(i => i.Status == status);
         if (query.ShowroomId is { } cid) q = q.Where(i => i.ShowroomId == cid);
         if (query.From is { } from) q = q.Where(i => i.InvoiceDate >= from);
@@ -39,16 +46,16 @@ public sealed class InvoiceService(AppDbContext dbContext,
         return Sorts.Apply(q, query.SortBy, query.SortDir)
             .Select(i => new InvoiceResponse(
                 i.Id, i.OrderId, i.ShowroomId, i.InvoiceDate, i.DueDate,
-                i.Status, i.TotalAmount, i.PaidAt))
+                i.Status, i.TotalAmount, i.Number, i.PaidAt))
             .ToPagedResultAsync(query, ct);
     }
 
     public async Task<InvoiceDetailsResponse> GetByIdAsync(Guid id, CancellationToken ct)
     {
         var invoice = await dbContext.Invoices.AsNoTracking()
-            .Include(i => i.InvoiceLines)
-            .FirstOrDefaultAsync(i => i.Id == id, ct)
-            ?? throw new NotFoundException(nameof(Invoice), id);
+                          .Include(i => i.InvoiceLines)
+                          .FirstOrDefaultAsync(i => i.Id == id, ct)
+                      ?? throw new NotFoundException(nameof(Invoice), id);
 
         var ShowroomName = await dbContext.Showrooms.IgnoreQueryFilters()
             .Where(c => c.Id == invoice.ShowroomId)
@@ -58,12 +65,12 @@ public sealed class InvoiceService(AppDbContext dbContext,
         return ToDetails(invoice, ShowroomName);
     }
 
-    
+
     public async Task<(byte[] Content, string FileName)> GetPdfAsync(Guid id, CancellationToken ct)
     {
         var details = await GetByIdAsync(id, ct);
         var bytes = pdfGenerator.Generate(details);
-        return (bytes, $"invoice-{details.Id:N}.pdf");
+        return (bytes, $"invoice-{details.Number ?? details.Id.ToString("N")}.pdf");
     }
 
     public async Task<InvoiceDetailsResponse> CreateAsync(CreateInvoiceRequest request, CancellationToken ct)
@@ -87,9 +94,9 @@ public sealed class InvoiceService(AppDbContext dbContext,
     public async Task<InvoiceDetailsResponse> UpdateAsync(Guid id, UpdateInvoiceRequest request, CancellationToken ct)
     {
         var invoice = await dbContext.Invoices
-            .Include(i => i.InvoiceLines)
-            .FirstOrDefaultAsync(i => i.Id == id, ct)
-            ?? throw new NotFoundException(nameof(Invoice), id);
+                          .Include(i => i.InvoiceLines)
+                          .FirstOrDefaultAsync(i => i.Id == id, ct)
+                      ?? throw new NotFoundException(nameof(Invoice), id);
 
         EnsureManual(invoice, "edited");
         if (invoice.Status != InvoiceStatus.Draft)
@@ -117,15 +124,56 @@ public sealed class InvoiceService(AppDbContext dbContext,
         return ToDetails(invoice, ShowroomName);
     }
 
-    public async Task<InvoiceResponse> IssueAsync(Guid id, CancellationToken ct)
+    public async Task<InvoiceDetailsResponse> IssueFromOrderAsync(Guid orderId, Guid userId, CancellationToken ct)
+    {
+        var order = await dbContext.Orders.AsNoTracking()
+                        .Include(o => o.OrderLines)
+                        .FirstOrDefaultAsync(o => o.Id == orderId, ct)
+                    ?? throw new NotFoundException(nameof(Order), orderId);
+
+        if (!InvoiceableStatuses.Contains(order.Status))
+            throw new ConflictException(
+                $"Only shipped or delivered orders can be invoiced. Current status: {order.Status}.");
+
+        if (await dbContext.Invoices.AnyAsync(i => i.OrderId == orderId, ct))
+            throw new ConflictException("This order already has an invoice.");
+
+        var showroomName = await GetActiveShowroomNameAsync(order.ShowroomId, ct);
+        var today = clock.Today;
+
+        var invoice = InvoiceFactory.CreateDraft(
+            order.ShowroomId, today, today.AddDays(_finance.DefaultDueDays),
+            OrderInvoiceBuilder.Lines(order.OrderLines, _finance.DefaultTaxRate));
+        invoice.OrderId = orderId;
+
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(ct);
+
+        MarkIssued(invoice, await numbers.NextAsync("INV", today.Year, ct), userId);
+        dbContext.Invoices.Add(invoice);
+        await dbContext.SaveChangesAsync(ct);
+
+        await transaction.CommitAsync(ct);
+        return ToDetails(invoice, showroomName);
+    }
+
+    public async Task<InvoiceResponse> IssueAsync(Guid id, Guid userId, CancellationToken ct)
     {
         var invoice = await FindAsync(id, ct);
-
         EnsureManual(invoice, "issued manually");
         EnsureTransition(invoice, InvoiceStatus.Issued);
 
-        invoice.Status = InvoiceStatus.Issued;
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(ct);
+
+        var claimed = await dbContext.Invoices
+            .Where(i => i.Id == id && i.Status == InvoiceStatus.Draft)
+            .ExecuteUpdateAsync(s => s.SetProperty(i => i.Status, InvoiceStatus.Draft), ct);
+        if (claimed == 0)
+            throw new ConflictException("The invoice was already issued.");
+
+        MarkIssued(invoice, await numbers.NextAsync("INV", invoice.InvoiceDate.Year, ct), userId);
         await dbContext.SaveChangesAsync(ct);
+
+        await transaction.CommitAsync(ct);
         return ToSummary(invoice);
     }
 
@@ -176,6 +224,15 @@ public sealed class InvoiceService(AppDbContext dbContext,
     }
 
 
+    private static void MarkIssued(Invoice invoice, string number, Guid userId)
+    {
+        invoice.Number = number;
+        invoice.Status = InvoiceStatus.Issued;
+        invoice.IssuedAt = DateTime.UtcNow;
+        invoice.IssuedById = userId;
+    }
+
+
     private static void EnsureManual(Invoice invoice, string action)
     {
         if (invoice.OrderId is not null)
@@ -189,7 +246,6 @@ public sealed class InvoiceService(AppDbContext dbContext,
             throw new ConflictException($"Cannot change invoice status from {invoice.Status} to {target}.");
     }
 
-    
 
     private async Task<Invoice> FindAsync(Guid id, CancellationToken ct) =>
         await dbContext.Invoices.FirstOrDefaultAsync(i => i.Id == id, ct)
@@ -226,7 +282,7 @@ public sealed class InvoiceService(AppDbContext dbContext,
             l.TaxRate ?? _finance.DefaultTaxRate)).ToList();
 
     private static InvoiceResponse ToSummary(Invoice i) =>
-        new(i.Id, i.OrderId, i.ShowroomId, i.InvoiceDate, i.DueDate, i.Status, i.TotalAmount, i.PaidAt);
+        new(i.Id, i.OrderId, i.ShowroomId, i.InvoiceDate, i.DueDate, i.Status, i.TotalAmount, i.Number, i.PaidAt);
 
     private static InvoiceDetailsResponse ToDetails(Invoice i, string ShowroomName)
     {
@@ -244,6 +300,6 @@ public sealed class InvoiceService(AppDbContext dbContext,
             Subtotal: lines.Sum(x => x.LineNet),
             TaxAmount: lines.Sum(x => x.LineTax),
             TotalAmount: i.TotalAmount,
-            i.PaidAt, i.PaymentMethod, lines);
+            i.PaidAt, i.Number, i.PaymentMethod, lines);
     }
 }

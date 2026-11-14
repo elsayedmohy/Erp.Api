@@ -68,7 +68,6 @@ public class OrderService(
         return ToDetailedResponse(order);
     }
 
-    private const int InvoiceDueDays = 30;
 
     public async Task<OrderDetailsResponse> CreateAsync(CreateOrderRequest request, Guid createdById,
         CancellationToken ct)
@@ -106,10 +105,8 @@ public class OrderService(
 
         var orderDate = clock.Today;
         var orderLines = new List<OrderLine>();
-        var invoiceLines = new List<InvoiceLineInput>();
         var insufficient = new List<StockShortage>();
         decimal total = 0;
-        decimal taxRate = 14;
         var orderId = Guid.NewGuid();
         foreach (var line in request.Lines.OrderBy(l => l.ProductId))
         {
@@ -146,17 +143,10 @@ public class OrderService(
                 Discount = line.Discount
             });
 
-            invoiceLines.Add(new InvoiceLineInput(product.Id, product.Name, line.Quantity, product.UnitPrice, taxRate));
-            if (line.Discount > 0)
-                invoiceLines.Add(new InvoiceLineInput(product.Id, $"Discount - {product.Name}", 1, -line.Discount,
-                    taxRate));
         }
 
         if (insufficient.Count > 0)
             throw new InsufficientStockException(warehouseId, insufficient);
-
-        var invoice = InvoiceFactory.CreateDraft(
-            showroomId, orderDate, orderDate.AddDays(InvoiceDueDays), invoiceLines);
 
         var order = new Order
         {
@@ -171,8 +161,7 @@ public class OrderService(
             PaymentMethod = request.PaymentMethod,
             ShippingAddress = request.ShippingAddress.Trim(),
             TotalAmount = total,
-            OrderLines = orderLines,
-            Invoice = invoice
+            OrderLines = orderLines
         };
 
         dbContext.Orders.Add(order);
@@ -227,8 +216,6 @@ public class OrderService(
                     order.WarehouseId, line.ProductId, -line.Quantity,
                     StockMovementType.SalesIssue, userId, order.Id), ct);
 
-        if (request.Status == OrderStatus.Confirmed && order.Invoice is { Status: InvoiceStatus.Draft } invoice)
-            invoice.Status = InvoiceStatus.Issued;
 
         await dbContext.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
@@ -261,8 +248,6 @@ public class OrderService(
         foreach (var line in order.OrderLines)
             await stock.ReleaseAsync(order.WarehouseId, line.ProductId, line.Quantity, ct);
 
-        if (order.Invoice is { Status: InvoiceStatus.Draft } invoice)
-            invoice.Status = InvoiceStatus.Cancelled;
 
         await dbContext.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
@@ -276,23 +261,18 @@ public class OrderService(
     {
         var order = await dbContext.Orders
                         .Include(o => o.OrderLines)
-                        .Include(o => o.Invoice).ThenInclude(i => i!.InvoiceLines)
                         .FirstOrDefaultAsync(o => o.Id == id, ct)
                     ?? throw new NotFoundException("Order", id);
 
         if (order.Status != OrderStatus.Pending)
             throw new ConflictException("Only pending orders can be deleted.");
 
-        if (order.Invoice is { Status: not InvoiceStatus.Draft })
-            throw new ConflictException("The order's invoice is no longer a draft.");
 
         await using var transaction = await dbContext.Database.BeginTransactionAsync(ct);
 
         foreach (var line in order.OrderLines)
             await stock.ReleaseAsync(order.WarehouseId, line.ProductId, line.Quantity, ct);
 
-        if (order.Invoice is not null)
-            dbContext.Invoices.Remove(order.Invoice);
         dbContext.Orders.Remove(order);
 
         await dbContext.SaveChangesAsync(ct);
@@ -340,7 +320,7 @@ public class OrderService(
             o.Id,
             o.ShowroomId,
             o.WarehouseId,
-            o.Invoice.Id,
+            o.Invoice.Id == null ? null : o.Invoice.Id,
             o.Showroom.Name,
             o.OrderDate,
             o.Status,

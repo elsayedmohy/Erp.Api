@@ -18,5 +18,11 @@ public class InvoiceConfiguration : IEntityTypeConfiguration<Invoice>
             .WithOne()
             .HasForeignKey(l => l.InvoiceId)
             .OnDelete(DeleteBehavior.Cascade);
+        
+        b.Property(i => i.Number).HasMaxLength(20);
+        b.HasIndex(i => i.Number).IsUnique().HasFilter("\"Number\" IS NOT NULL");
+        
+        b.ToTable(t => t.HasCheckConstraint("CK_Invoices_IssuedHasNumber",
+            "\"Status\" = 2 OR \"Number\" IS NOT NULL"));
     }
 }

@@ -52,6 +52,7 @@ global using ErpDashboard.Api.Features.Profiles;
 global using ErpDashboard.Api.Features.Inventory.Stock;
 global using ErpDashboard.Api.Features.Inventory.Warehouses;
 global using ErpDashboard.Api.Features.Inventory.Materials;
+global using ErpDashboard.Api.Features.Finance.Invoices.DocumentNumber;
 global using ErpDashboard.Api.Common.Authorization;
 global using ErpDashboard.Api.Middlewares;
 

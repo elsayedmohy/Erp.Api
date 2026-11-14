@@ -57,6 +57,26 @@ namespace ErpDashboard.Api.Migrations
                     b.ToTable("Departments");
                 });
 
+            modelBuilder.Entity("ErpDashboard.Api.Data.Entities.DocumentNumberCounter", b =>
+                {
+                    b.Property<string>("Series")
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.Property<int>("Year")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("LastNumber")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Series", "Year");
+
+                    b.ToTable("DocumentNumberCounters", t =>
+                        {
+                            t.HasCheckConstraint("CK_DocumentNumberCounters_Positive", "\"LastNumber\" > 0");
+                        });
+                });
+
             modelBuilder.Entity("ErpDashboard.Api.Data.Entities.Employee", b =>
                 {
                     b.Property<Guid>("Id")
@@ -121,6 +141,16 @@ namespace ErpDashboard.Api.Migrations
                     b.Property<DateOnly>("InvoiceDate")
                         .HasColumnType("date");
 
+                    b.Property<DateTime?>("IssuedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("IssuedById")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Number")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
                     b.Property<Guid?>("OrderId")
                         .HasColumnType("uuid");
 
@@ -141,12 +171,19 @@ namespace ErpDashboard.Api.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("Number")
+                        .IsUnique()
+                        .HasFilter("\"Number\" IS NOT NULL");
+
                     b.HasIndex("OrderId")
                         .IsUnique();
 
                     b.HasIndex("ShowroomId");
 
-                    b.ToTable("Invoices");
+                    b.ToTable("Invoices", t =>
+                        {
+                            t.HasCheckConstraint("CK_Invoices_IssuedHasNumber", "\"Status\" = 2 OR \"Number\" IS NOT NULL");
+                        });
                 });
 
             modelBuilder.Entity("ErpDashboard.Api.Data.Entities.InvoiceLine", b =>
