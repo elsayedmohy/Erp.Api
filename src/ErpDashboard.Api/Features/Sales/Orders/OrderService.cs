@@ -320,7 +320,7 @@ public class OrderService(
             o.Id,
             o.ShowroomId,
             o.WarehouseId,
-            o.Invoice.Id == null ? null : o.Invoice.Id,
+            o.Invoice?.Id,
             o.Showroom.Name,
             o.OrderDate,
             o.Status,
