@@ -3,6 +3,7 @@ namespace ErpDashboard.Api.Features.Finance.Invoices;
 public sealed class InvoiceQuery : PageQuery
 {
     public InvoiceStatus? Status { get; set; }
+    public InvoicePaymentStatus? PaymentStatus { get; set; }
     public Guid? ShowroomId { get; set; }
     public DateOnly? From { get; set; }
     public DateOnly? To { get; set; }
@@ -54,10 +55,12 @@ public sealed record InvoiceDetailsResponse(
     decimal DiscountTotal,
     decimal TaxAmount,
     decimal TotalAmount,
-    DateTime? PaidAt,
-    string Number,
-    PaymentMethod? PaymentMethod,
-    IReadOnlyList<InvoiceLineResponse> Lines);
+    string? Number,
+    decimal AmountPaid,
+    decimal Balance,
+    InvoicePaymentStatus? PaymentStatus,
+    IReadOnlyList<InvoiceLineResponse> Lines,
+    IReadOnlyList<InvoicePaymentResponse> Payments);
 
 public sealed record InvoiceResponse(
     Guid Id,
@@ -67,10 +70,18 @@ public sealed record InvoiceResponse(
     DateOnly DueDate,
     InvoiceStatus Status,
     decimal TotalAmount,
-    string Number,
-    DateTime? PaidAt
-);
+    string? Number,
+    decimal AmountPaid,
+    decimal Balance,
+    InvoicePaymentStatus? PaymentStatus);
 
-public sealed record PayInvoiceRequest(
-    [Required, EnumDataType(typeof(PaymentMethod))] PaymentMethod? PaymentMethod,
-    DateOnly? PaymentDate);
+    
+public sealed record RecordPaymentRequest(
+    [Range(0.01, 1_000_000_000)] decimal Amount,
+    [Required, EnumDataType(typeof(PaymentMethod))] PaymentMethod? Method,
+    DateOnly? PaymentDate,
+    [MaxLength(100)] string? Reference);
+    
+public sealed record InvoicePaymentResponse(
+    Guid Id, decimal Amount, DateOnly PaymentDate, PaymentMethod Method,
+    string? Reference, Guid? RecordedById, DateTime RecordedAt);

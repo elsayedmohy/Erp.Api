@@ -8,6 +8,7 @@ public sealed class InvoiceService(
     IDocumentNumberGenerator numbers) : IInvoiceService
 {
     private readonly FinanceSettings _finance = finance.Value;
+    private readonly DateOnly Today = clock.Today;
     private static readonly OrderStatus[] InvoiceableStatuses = [OrderStatus.Shipped, OrderStatus.Delivered];
 
     private static readonly SortMap<Invoice> Sorts = new SortMap<Invoice>()
@@ -22,8 +23,6 @@ public sealed class InvoiceService(
     private static readonly Dictionary<InvoiceStatus, InvoiceStatus[]> AllowedTransitions = new()
     {
         [InvoiceStatus.Draft] = [InvoiceStatus.Issued],
-        [InvoiceStatus.Issued] = [InvoiceStatus.Paid, InvoiceStatus.Cancelled],
-        [InvoiceStatus.Paid] = [],
         [InvoiceStatus.Cancelled] = []
     };
 
@@ -34,19 +33,47 @@ public sealed class InvoiceService(
             throw new RequestValidationException("from", "'from' must be before or equal to 'to'.");
 
         var q = dbContext.Invoices.AsNoTracking();
-
+        var today = clock.Today;
         if (query.GetSearchPattern() is { } p)
             q = q.Where(i => i.Number != null && EF.Functions.ILike(i.Number, p, @"\"));
 
-        if (query.Status is { } status) q = q.Where(i => i.Status == status);
         if (query.ShowroomId is { } cid) q = q.Where(i => i.ShowroomId == cid);
         if (query.From is { } from) q = q.Where(i => i.InvoiceDate >= from);
         if (query.To is { } to) q = q.Where(i => i.InvoiceDate <= to);
 
+        if (query.PaymentStatus is { } ps)
+            q = ps switch
+            {
+                InvoicePaymentStatus.Paid => q.Where(i => i.Status == InvoiceStatus.Issued
+                                                          && i.Payments.Sum(p => (decimal?)p.Amount) >= i.TotalAmount),
+                InvoicePaymentStatus.Overdue => q.Where(i => i.Status == InvoiceStatus.Issued
+                                                             && (i.Payments.Sum(p => (decimal?)p.Amount) ?? 0) < i.TotalAmount
+                                                             && today > i.DueDate),
+                InvoicePaymentStatus.PartiallyPaid => q.Where(i => i.Status == InvoiceStatus.Issued
+                                                                   && (i.Payments.Sum(p => (decimal?)p.Amount) ?? 0) > 0
+                                                                   && (i.Payments.Sum(p => (decimal?)p.Amount) ?? 0) < i.TotalAmount
+                                                                   && today <= i.DueDate),
+                _ => q.Where(i => i.Status == InvoiceStatus.Issued
+                                  && !i.Payments.Any()
+                                  && today <= i.DueDate)
+            };
+        
         return Sorts.Apply(q, query.SortBy, query.SortDir)
-            .Select(i => new InvoiceResponse(
-                i.Id, i.OrderId, i.ShowroomId, i.InvoiceDate, i.DueDate,
-                i.Status, i.TotalAmount, i.Number, i.PaidAt))
+            .Select(i => new
+            {
+                Invoice = i,
+                Paid = i.Payments.Sum(p => (decimal?)p.Amount) ?? 0m
+            })
+            .Select(x => new InvoiceResponse(
+                x.Invoice.Id, x.Invoice.OrderId, x.Invoice.ShowroomId, x.Invoice.InvoiceDate, x.Invoice.DueDate,
+                x.Invoice.Status, x.Invoice.TotalAmount, x.Invoice.Number,
+                x.Paid,
+                x.Invoice.TotalAmount - x.Paid,
+                x.Invoice.Status != InvoiceStatus.Issued ? null
+                : x.Paid >= x.Invoice.TotalAmount ? InvoicePaymentStatus.Paid
+                : today > x.Invoice.DueDate ? InvoicePaymentStatus.Overdue
+                : x.Paid > 0 ? InvoicePaymentStatus.PartiallyPaid
+                : InvoicePaymentStatus.Due))
             .ToPagedResultAsync(query, ct);
     }
 
@@ -54,15 +81,11 @@ public sealed class InvoiceService(
     {
         var invoice = await dbContext.Invoices.AsNoTracking()
                           .Include(i => i.InvoiceLines)
+                          .Include(i => i.Payments)
                           .FirstOrDefaultAsync(i => i.Id == id, ct)
                       ?? throw new NotFoundException(nameof(Invoice), id);
 
-        var ShowroomName = await dbContext.Showrooms.IgnoreQueryFilters()
-            .Where(c => c.Id == invoice.ShowroomId)
-            .Select(c => c.Name)
-            .FirstAsync(ct);
-
-        return ToDetails(invoice, ShowroomName);
+        return ToDetails(invoice, await GetShowroomNameAsync(invoice.ShowroomId, invoice, ct));
     }
 
 
@@ -177,31 +200,59 @@ public sealed class InvoiceService(
         return ToSummary(invoice);
     }
 
-    public async Task<InvoiceResponse> PayAsync(Guid id, PayInvoiceRequest request, CancellationToken ct)
+    public async Task<InvoiceDetailsResponse> RecordPaymentAsync(
+    Guid id, RecordPaymentRequest request, Guid userId, CancellationToken ct)
+{
+    if (request.Amount != Math.Round(request.Amount, 2))
+        throw new RequestValidationException("amount", "Amount cannot have more than 2 decimal places.");
+
+    await using var transaction = await dbContext.Database.BeginTransactionAsync(ct);
+
+    await dbContext.Database.ExecuteSqlInterpolatedAsync(
+        $"""SELECT 1 FROM "Invoices" WHERE "Id" = {id} FOR UPDATE""", ct);
+
+    var invoice = await dbContext.Invoices
+                      .Include(i => i.InvoiceLines)
+                      .Include(i => i.Payments)
+                      .FirstOrDefaultAsync(i => i.Id == id, ct)
+                  ?? throw new NotFoundException(nameof(Invoice), id);
+
+    if (invoice.Status != InvoiceStatus.Issued)
+        throw new ConflictException($"Only issued invoices can be paid. Current status: {invoice.Status}.");
+
+    var paymentDate = request.PaymentDate ?? clock.Today;
+    if (paymentDate < invoice.InvoiceDate)
+        throw new RequestValidationException("paymentDate", "Payment date cannot be before the invoice date.");
+    if (paymentDate > clock.Today)
+        throw new RequestValidationException("paymentDate", "Payment date cannot be in the future.");
+
+    var balance = invoice.TotalAmount - invoice.Payments.Sum(p => p.Amount);
+    if (request.Amount > balance)
+        throw new ConflictException($"Payment of {request.Amount:0.00} exceeds the remaining balance of {balance:0.00}.");
+
+    invoice.Payments.Add(new InvoicePayment
     {
-        var invoice = await FindAsync(id, ct);
-        EnsureTransition(invoice, InvoiceStatus.Paid);
+        Id = Guid.NewGuid(),
+        Amount = request.Amount,
+        PaymentDate = paymentDate,
+        Method = request.Method!.Value,
+        Reference = string.IsNullOrWhiteSpace(request.Reference) ? null : request.Reference.Trim(),
+        RecordedById = userId,
+        RecordedAt = DateTime.UtcNow
+    });
 
-        var paymentDate = request.PaymentDate ?? clock.Today;
-        if (paymentDate < invoice.InvoiceDate)
-            throw new RequestValidationException("paymentDate", "Payment date cannot be before the invoice date.");
-        if (paymentDate > clock.Today)
-            throw new RequestValidationException("paymentDate", "Payment date cannot be in the future.");
+    await dbContext.SaveChangesAsync(ct);
+    await transaction.CommitAsync(ct);
 
-        invoice.Status = InvoiceStatus.Paid;
-        invoice.PaymentMethod = request.PaymentMethod!.Value;
-        invoice.PaidAt = request.PaymentDate is null
-            ? DateTime.UtcNow
-            : clock.StartOfDayUtc(paymentDate);
-
-        await dbContext.SaveChangesAsync(ct);
-        return ToSummary(invoice);
-    }
+    return ToDetails(invoice, await GetShowroomNameAsync(invoice.ShowroomId, invoice, ct));
+}
 
     public async Task<InvoiceResponse> CancelAsync(Guid id, CancellationToken ct)
     {
         var invoice = await FindAsync(id, ct);
-
+        
+        if (await dbContext.Set<InvoicePayment>().AnyAsync(p => p.InvoiceId == id, ct))
+            throw new ConflictException("An invoice with payments cannot be cancelled. Issue a credit note instead.");
         EnsureManual(invoice, "cancelled");
         EnsureTransition(invoice, InvoiceStatus.Cancelled);
 
@@ -248,7 +299,7 @@ public sealed class InvoiceService(
 
 
     private async Task<Invoice> FindAsync(Guid id, CancellationToken ct) =>
-        await dbContext.Invoices.FirstOrDefaultAsync(i => i.Id == id, ct)
+        await dbContext.Invoices.Include(i => i.Payments).FirstOrDefaultAsync(i => i.Id == id, ct)
         ?? throw new NotFoundException(nameof(Invoice), id);
 
     private async Task<string> GetActiveShowroomNameAsync(Guid ShowroomId, CancellationToken ct) =>
@@ -276,16 +327,34 @@ public sealed class InvoiceService(
             throw new RequestValidationException("lines", $"Products not found: {string.Join(", ", missing)}");
     }
 
+    private async Task<string> GetShowroomNameAsync(Guid ShowroomId, Invoice invoice, CancellationToken ct) => 
+        await dbContext.Showrooms.IgnoreQueryFilters()
+            .Where(c => c.Id == invoice.ShowroomId)
+            .Select(c => c.Name)
+            .FirstAsync(ct);
+
     private List<InvoiceLineInput> ToInputs(IEnumerable<InvoiceLineRequest> lines) =>
         lines.Select(l => new InvoiceLineInput(
             l.ProductId, l.Description, l.Quantity, l.UnitPrice,
             l.TaxRate ?? _finance.DefaultTaxRate,
             l.Discount)).ToList();
 
-    private static InvoiceResponse ToSummary(Invoice i) =>
-        new(i.Id, i.OrderId, i.ShowroomId, i.InvoiceDate, i.DueDate, i.Status, i.TotalAmount, i.Number, i.PaidAt);
+    private (decimal Paid, decimal Balance, InvoicePaymentStatus? Status) PaymentState(Invoice i)
+    {
+        var paid = i.Payments.Sum(p => p.Amount);
+        var status = InvoicePaymentStatusCalculator.Compute(i.Status, i.TotalAmount, paid, i.DueDate, clock.Today);
+        return (paid, i.TotalAmount - paid, status);
+    }
 
-    private static InvoiceDetailsResponse ToDetails(Invoice i, string ShowroomName)
+    private InvoiceResponse ToSummary(Invoice i)
+    {
+        var (paid, balance, status) = PaymentState(i);
+        return new InvoiceResponse(
+            i.Id, i.OrderId, i.ShowroomId, i.InvoiceDate, i.DueDate, i.Status, i.TotalAmount, i.Number,
+            paid, balance, status);
+    }
+
+    private InvoiceDetailsResponse ToDetails(Invoice i, string showroomName)
     {
         var lines = i.InvoiceLines.Select(l =>
         {
@@ -296,13 +365,26 @@ public sealed class InvoiceService(
                 l.UnitPrice, gross, l.Discount, l.TaxRate, net, tax, net + tax);
         }).ToList();
 
+        var payments = i.Payments
+            .OrderBy(p => p.PaymentDate).ThenBy(p => p.RecordedAt)
+            .Select(p => new InvoicePaymentResponse(
+                p.Id, p.Amount, p.PaymentDate, p.Method, p.Reference, p.RecordedById, p.RecordedAt))
+            .ToList();
+
+        var (paid, balance, status) = PaymentState(i);
+
         return new InvoiceDetailsResponse(
-            i.Id, i.OrderId, i.ShowroomId, ShowroomName,
+            i.Id, i.OrderId, i.ShowroomId, showroomName,
             i.InvoiceDate, i.DueDate, i.Status,
             Subtotal: lines.Sum(x => x.LineGross),
             DiscountTotal: lines.Sum(x => x.Discount),
             TaxAmount: lines.Sum(x => x.LineTax),
             TotalAmount: i.TotalAmount,
-            i.PaidAt, i.Number, i.PaymentMethod, lines);
+            Number: i.Number,
+            AmountPaid: paid,
+            Balance: balance,
+            PaymentStatus: status,
+            Lines: lines,
+            Payments: payments);
     }
 }

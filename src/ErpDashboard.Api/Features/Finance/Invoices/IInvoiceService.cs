@@ -7,7 +7,7 @@ public interface IInvoiceService
     Task<(byte[] Content, string FileName)> GetPdfAsync(Guid id, CancellationToken ct);
     Task<InvoiceDetailsResponse> CreateAsync(CreateInvoiceRequest request, CancellationToken ct);
     Task<InvoiceDetailsResponse> UpdateAsync(Guid id, UpdateInvoiceRequest request, CancellationToken ct);
-    Task<InvoiceResponse> PayAsync(Guid id, PayInvoiceRequest request, CancellationToken ct);
+    Task<InvoiceDetailsResponse> RecordPaymentAsync(Guid id, RecordPaymentRequest request, Guid userId,CancellationToken ct);
     Task<InvoiceResponse> CancelAsync(Guid id, CancellationToken ct);
     Task DeleteAsync(Guid id, CancellationToken ct);
     

@@ -9,9 +9,7 @@ public class Invoice
     public DateOnly DueDate { get; set; }
     public InvoiceStatus  Status { get; set; }
     public decimal TotalAmount { get; set; }
-    public DateTime? PaidAt { get; set; }
-    public PaymentMethod? PaymentMethod { get; set; }
-    
+    public List<InvoicePayment> Payments { get; set; } = [];
     public string? Number { get; set; }
     public DateTime? IssuedAt { get; set; }
     public Guid? IssuedById { get; set; }
