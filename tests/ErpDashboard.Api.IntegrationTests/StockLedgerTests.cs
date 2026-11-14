@@ -82,8 +82,8 @@ public class StockLedgerTests(ApiFactory factory)
         var poId = await CreatePoAsync(token, s.SupplierId, s.ProductId, quantity: 20);
         await SendAsync(HttpMethod.Patch, $"/api/purchaseorders/{poId}/status", token, new { status = "Received" });
         await CreateOrderAsync(token, s, quantity: 5, discount: 0m);
-        var deleted = await CreateOrderAsync(token, s, quantity: 3, discount: 0m);
-        await SendAsync(HttpMethod.Delete, $"/api/orders/{deleted}", token);
+        var cancelled = await CreateOrderAsync(token, s, quantity: 3, discount: 0m);
+        await OrderFlow.CancelAsync(_client, token, cancelled);
 
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();

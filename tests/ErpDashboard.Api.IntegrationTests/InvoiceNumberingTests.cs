@@ -57,8 +57,8 @@ public partial class InvoiceNumberingTests(ApiFactory factory)
         var manager = await TokenAsync(RoleIds.Manager);
         var accountant = await TokenAsync(RoleIds.Accountant);
         var orderId = await CreateOrderAsync(manager);
-        if (confirm) await SetStatusAsync(manager, orderId, "Confirmed");
-
+        if (confirm) await OrderFlow.SubmitAsync(_client, manager, orderId);
+        
         var response = await IssueFromOrderAsync(accountant, orderId);
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
@@ -178,8 +178,7 @@ public partial class InvoiceNumberingTests(ApiFactory factory)
     {
         var manager = await TokenAsync(RoleIds.Manager);
         var orderId = await CreateOrderAsync(manager);
-        Assert.Equal(HttpStatusCode.OK, (await SetStatusAsync(manager, orderId, "Confirmed")).StatusCode);
-        Assert.Equal(HttpStatusCode.OK, (await SetStatusAsync(manager, orderId, "Shipped")).StatusCode);
+        await OrderFlow.AdvanceAsync(_client, manager, orderId, "Shipped");
         return orderId;
     }
 

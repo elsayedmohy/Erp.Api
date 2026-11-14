@@ -27,7 +27,7 @@ public class SalesRoleTests(ApiFactory factory)
     }
 
     [Fact]
-    public async Task Sales_CannotEditOrDeleteOrders()
+    public async Task Sales_CannotEditOrCancelOrders()
     {
         var sales = await TokenAsync(RoleIds.Sales);
         var s = await SeedAsync();
@@ -35,10 +35,22 @@ public class SalesRoleTests(ApiFactory factory)
 
         var put = await SendAsync(HttpMethod.Put, $"/api/orders/{orderId}", sales,
             new { paymentMethod = Enum.GetValues<PaymentMethod>()[0].ToString(), shippingAddress = "Changed" });
-        var delete = await SendAsync(HttpMethod.Delete, $"/api/orders/{orderId}", sales);
+        var cancel = await OrderFlow.CancelAsync(_client, sales, orderId);
 
         Assert.Equal(HttpStatusCode.Forbidden, put.StatusCode);
-        Assert.Equal(HttpStatusCode.Forbidden, delete.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, cancel.StatusCode);
+    }
+    
+    [Fact]
+    public async Task Sales_CanSubmitOrder()
+    {
+        var sales = await TokenAsync(RoleIds.Sales);
+        var s = await SeedAsync();
+        var orderId = await CreateOrderAsync(sales, s);
+
+        var response = await OrderFlow.SubmitAsync(_client, sales, orderId);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
     [Fact]
