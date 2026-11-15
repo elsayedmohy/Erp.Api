@@ -4,6 +4,7 @@ using ErpDashboard.Api.Data.Seed;
 using ErpDashboard.Api.Features.Finance.Invoices.DocumentNumber;
 using ErpDashboard.Api.Features.Inventory.Stock;
 using ErpDashboard.Api.Features.Payments;
+using ErpDashboard.Api.Features.Payments.Webhooks;
 using ErpDashboard.Api.Infrastructure.Payments.PaymentWebhooks;
 using ErpDashboard.Api.Infrastructure.Payments.Paymob;
 using Microsoft.AspNetCore.Hosting;
@@ -22,6 +23,7 @@ public class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
     public StockFaults StockFaults { get; } = new();
     public FakePaymentGateway Payments { get; } = new();
     public NumberFaults NumberFaults { get; } = new();
+    public WebhookFaults WebhookFaults { get; } = new();
     public const string AdminEmail = "admin@tests.local";
     public const string AdminPassword = "Test-only-Passw0rd!";
     public const string JwtKey = "test-only-key-with-at-least-32-characters";
@@ -53,6 +55,9 @@ public class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
             
             services.AddSingleton<IPaymentWebhookVerifier>(
                 new PaymobWebhookVerifier(Options.Create(new PaymobOptions { HmacSecret = WebhookSigning.Secret })));
+            services.AddScoped<PaymentNotificationHandler>();
+            services.AddScoped<IPaymentNotificationHandler>(sp =>
+                new FaultInjectingNotificationHandler(sp.GetRequiredService<PaymentNotificationHandler>(), WebhookFaults));
         });
 
         builder.UseEnvironment("Testing");
@@ -65,6 +70,7 @@ public class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         builder.UseSetting("Seed:AdminPassword", AdminPassword);
         builder.UseSetting("Cors:AllowedOrigins:0", "http://localhost:4200");
         builder.UseSetting("ApiSettings:BaseUrl", "http://localhost");
+        builder.UseSetting("Payments:Webhooks:Enabled", "false");
     }
 
     public async Task<TestUser> CreateUserAsync(Guid? roleId = null, IEnumerable<Guid>? warehouseIds = null)

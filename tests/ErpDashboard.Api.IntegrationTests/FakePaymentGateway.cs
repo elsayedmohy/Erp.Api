@@ -7,7 +7,7 @@ public sealed class FakePaymentGateway : IPaymentGateway
 {
     private readonly List<CheckoutRequest> _requests = [];
 
-    public string Name => "fake";
+    public string Name => "paymob";
     public bool Unavailable { get; set; }
     public IReadOnlyList<CheckoutRequest> Requests { get { lock (_requests) return [.. _requests]; } }
 

@@ -45,4 +45,16 @@ public class WebhookSigning
                    $"{o["source_data"]!["pan"]}{o["source_data"]!["sub_type"]}{o["source_data"]!["type"]}{B("success")}";
         return Convert.ToHexStringLower(HMACSHA512.HashData(Encoding.UTF8.GetBytes(secret), Encoding.UTF8.GetBytes(text)));
     }
+    
+    public static JsonObject For(Guid attemptId, long amount, bool success = true, bool pending = false,
+        bool refunded = false, long? transactionId = null)
+    {
+        var p = Payload(success, amount);
+        var o = p["obj"]!;
+        o["id"] = transactionId ?? Random.Shared.NextInt64(1, long.MaxValue);
+        o["pending"] = pending;
+        o["is_refunded"] = refunded;
+        o["order"]!["merchant_order_id"] = attemptId.ToString("N");
+        return p;
+    }
 }
