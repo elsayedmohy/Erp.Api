@@ -1,3 +1,4 @@
+
 namespace ErpDashboard.Api.Extensions;
 
 public static class DependencyInjection
@@ -178,6 +179,8 @@ public static class DependencyInjection
                 "Company:TimeZone is not a known time zone id.")
             .ValidateOnStart();
         
+        builder.Services.AddPaymentProvider(builder.Configuration);
+
         builder.Services.AddScoped<IAuthService, AuthService>();
         builder.Services.AddScoped<ITokenService, TokenService>();
         builder.Services.AddScoped<IUserService, UserService>();
@@ -205,7 +208,6 @@ public static class DependencyInjection
         builder.Services.AddScoped<ILowStockService, LowStockService>();
         builder.Services.AddScoped<IDocumentNumberGenerator, DocumentNumberGenerator>();
         builder.Services.AddScoped<IOnlinePaymentService, OnlinePaymentService>();
-        builder.Services.AddSingleton<IPaymentGateway, NotConfiguredPaymentGateway>();
         return builder;
     }
 
