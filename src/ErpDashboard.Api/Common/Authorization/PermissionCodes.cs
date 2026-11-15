@@ -64,6 +64,7 @@ public static class PermissionCodes
         public const string Read  = "invoices.read";
         public const string Write = "invoices.write";
         public const string Pay   = "invoices.pay";
+        public const string PayOnline = "invoices.pay-online";
     }
 
     public static class Employees

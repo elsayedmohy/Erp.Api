@@ -56,4 +56,9 @@ public sealed class InvoicesController(IInvoiceService invoiceService) : Control
         await invoiceService.DeleteAsync(id, ct);
         return NoContent();
     }
+    
+    [HttpPost("{id:guid}/online-payments"), HasPermission(PermissionCodes.Invoices.PayOnline)]
+    public async Task<ActionResult<StartOnlinePaymentResponse>> StartOnlinePayment(
+        Guid id, [FromServices] IOnlinePaymentService payments, CancellationToken ct)
+        => StatusCode(StatusCodes.Status201Created, await payments.StartAsync(id, User.GetUserId(), ct));
 }

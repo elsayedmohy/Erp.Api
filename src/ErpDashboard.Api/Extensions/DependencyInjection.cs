@@ -1,5 +1,3 @@
-
-
 namespace ErpDashboard.Api.Extensions;
 
 public static class DependencyInjection
@@ -206,7 +204,8 @@ public static class DependencyInjection
         builder.Services.AddScoped<IStockTransferService, StockTransferService>();
         builder.Services.AddScoped<ILowStockService, LowStockService>();
         builder.Services.AddScoped<IDocumentNumberGenerator, DocumentNumberGenerator>();
-
+        builder.Services.AddScoped<IOnlinePaymentService, OnlinePaymentService>();
+        builder.Services.AddSingleton<IPaymentGateway, NotConfiguredPaymentGateway>();
         return builder;
     }
 

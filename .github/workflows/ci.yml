@@ -47,6 +47,12 @@ jobs:
             echo "::error::Use IBusinessClock for business dates"
             exit 1
           fi
+      - name: Keep the payment provider in one place
+        run: |
+          if git grep -niI 'paymob' -- src ':!src/ErpDashboard.Api/Infrastructure/Payments/Paymob/*' ':!src/**/appsettings*.json'; then
+            echo "::error::Payment provider names belong in Infrastructure/Payments/<Provider> only"
+            exit 1
+          fi
       - run: dotnet restore --locked-mode
       - run: dotnet build --no-restore -c Release
       - run: dotnet test --no-build -c Release --logger trx --results-directory TestResults
