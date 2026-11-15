@@ -15,6 +15,9 @@ public class PaymentWebhookEvent
     public bool? Success { get; set; }
     public long? AmountMinor { get; set; }
 
+    public bool? Pending { get; set; }
+    public bool? IsRefundOrVoid { get; set; }
+    public string? Currency { get; set; }
     public WebhookEventStatus Status { get; set; }
     public int ProcessingAttempts { get; set; }
     public DateTime? NextAttemptAt { get; set; }

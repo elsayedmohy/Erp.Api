@@ -304,6 +304,9 @@ namespace ErpDashboard.Api.Migrations
                     b.Property<int>("Method")
                         .HasColumnType("integer");
 
+                    b.Property<Guid?>("PaymentAttemptId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateOnly>("PaymentDate")
                         .HasColumnType("date");
 
@@ -320,6 +323,10 @@ namespace ErpDashboard.Api.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("InvoiceId");
+
+                    b.HasIndex("PaymentAttemptId")
+                        .IsUnique()
+                        .HasFilter("\"PaymentAttemptId\" IS NOT NULL");
 
                     b.ToTable("InvoicePayments", t =>
                         {
@@ -519,6 +526,10 @@ namespace ErpDashboard.Api.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
+                    b.Property<string>("ProviderTransactionId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -549,12 +560,22 @@ namespace ErpDashboard.Api.Migrations
                     b.Property<Guid?>("AttemptId")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("Currency")
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)");
+
+                    b.Property<bool?>("IsRefundOrVoid")
+                        .HasColumnType("boolean");
+
                     b.Property<DateTime?>("NextAttemptAt")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Payload")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<bool?>("Pending")
+                        .HasColumnType("boolean");
 
                     b.Property<DateTime?>("ProcessedAt")
                         .HasColumnType("timestamp with time zone");
@@ -1313,6 +1334,11 @@ namespace ErpDashboard.Api.Migrations
                         .HasForeignKey("InvoiceId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.HasOne("ErpDashboard.Api.Data.Entities.PaymentAttempt", null)
+                        .WithMany()
+                        .HasForeignKey("PaymentAttemptId")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("ErpDashboard.Api.Data.Entities.Order", b =>
