@@ -15,7 +15,7 @@ namespace ErpDashboard.Api.IntegrationTests;
 public class OnlinePaymentTests(ApiFactory factory) : IDisposable
 {
     private readonly HttpClient _client = factory.CreateClient();
-
+    private PaymentTestKit Kit => new(factory, _client);
     public void Dispose() => factory.Payments.Reset();
 
     [Fact]
@@ -23,13 +23,13 @@ public class OnlinePaymentTests(ApiFactory factory) : IDisposable
     {
         var accountant = await TokenAsync(RoleIds.Accountant);
         var (showroomId, invoiceId) = await IssuedInvoiceAsync(accountant, unitPrice: 1000m); // total 1140
-        await PayAsync(accountant, invoiceId, 113.99m);                                        // balance 1026.01
+        await Kit.PayAsync(accountant, invoiceId, 113.99m);                                        // balance 1026.01
         var showroomUser = await TokenAsync(RoleIds.ShowroomUser, showroomId);
 
-        var response = await StartAsync(showroomUser, invoiceId);
+        var response = await Kit.StartAsync(showroomUser, invoiceId);
 
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
-        var body = await ReadJsonAsync(response);
+        var body = await Kit.ReadJsonAsync(response);
         Assert.Equal(1026.01m, body.GetProperty("amount").GetDecimal());
         Assert.StartsWith("https://pay.example.test/", body.GetProperty("checkoutUrl").GetString());
 
@@ -47,7 +47,7 @@ public class OnlinePaymentTests(ApiFactory factory) : IDisposable
         var (otherShowroom, _) = await IssuedInvoiceAsync(accountant, 100m);
         var outsider = await TokenAsync(RoleIds.ShowroomUser, otherShowroom);
 
-        var response = await StartAsync(outsider, invoiceId);
+        var response = await Kit.StartAsync(outsider, invoiceId);
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
         Assert.Empty(factory.Payments.Requests);
@@ -60,8 +60,8 @@ public class OnlinePaymentTests(ApiFactory factory) : IDisposable
         var (showroomId, invoiceId) = await IssuedInvoiceAsync(accountant, 100m);
         var user = await TokenAsync(RoleIds.ShowroomUser, showroomId);
 
-        var first = await ReadJsonAsync(await StartAsync(user, invoiceId));
-        var second = await ReadJsonAsync(await StartAsync(user, invoiceId));
+        var first = await Kit.ReadJsonAsync(await Kit.StartAsync(user, invoiceId));
+        var second = await Kit.ReadJsonAsync(await Kit.StartAsync(user, invoiceId));
 
         Assert.Equal(first.GetProperty("attemptId").GetGuid(), second.GetProperty("attemptId").GetGuid());
         Assert.Single(factory.Payments.Requests);
@@ -75,10 +75,10 @@ public class OnlinePaymentTests(ApiFactory factory) : IDisposable
         var user = await TokenAsync(RoleIds.ShowroomUser, showroomId);
         factory.Payments.Unavailable = true;
 
-        var response = await StartAsync(user, invoiceId);
+        var response = await Kit.StartAsync(user, invoiceId);
 
         Assert.Equal(HttpStatusCode.GatewayTimeout, response.StatusCode);
-        Assert.Contains("try again", (await ReadJsonAsync(response)).GetProperty("detail").GetString());
+        Assert.Contains("try again", (await Kit.ReadJsonAsync(response)).GetProperty("detail").GetString());
         Assert.Equal(PaymentAttemptStatus.Failed, await LastAttemptStatusAsync(invoiceId));
     }
 
@@ -87,10 +87,10 @@ public class OnlinePaymentTests(ApiFactory factory) : IDisposable
     {
         var accountant = await TokenAsync(RoleIds.Accountant);
         var (showroomId, invoiceId) = await IssuedInvoiceAsync(accountant, 100m);
-        await PayAsync(accountant, invoiceId, 114m);
+        await Kit.PayAsync(accountant, invoiceId, 114m);
         var user = await TokenAsync(RoleIds.ShowroomUser, showroomId);
 
-        var response = await StartAsync(user, invoiceId);
+        var response = await Kit.StartAsync(user, invoiceId);
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
         Assert.Empty(factory.Payments.Requests);
@@ -102,22 +102,13 @@ public class OnlinePaymentTests(ApiFactory factory) : IDisposable
         var accountant = await TokenAsync(RoleIds.Accountant);
         var (_, invoiceId) = await IssuedInvoiceAsync(accountant, 100m);
 
-        var response = await StartAsync(accountant, invoiceId);
+        var response = await Kit.StartAsync(accountant, invoiceId);
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 
     // ---------- helpers ----------
 
-    private Task<HttpResponseMessage> StartAsync(string token, Guid invoiceId) =>
-        SendAsync(HttpMethod.Post, $"/api/invoices/{invoiceId}/online-payments", token);
-
-    private async Task PayAsync(string token, Guid invoiceId, decimal amount)
-    {
-        var response = await SendAsync(HttpMethod.Post, $"/api/invoices/{invoiceId}/payments", token,
-            new { amount, method = Enum.GetValues<PaymentMethod>()[0].ToString() });
-        Assert.True(response.StatusCode == HttpStatusCode.Created, await response.Content.ReadAsStringAsync());
-    }
 
     private async Task<PaymentAttemptStatus> LastAttemptStatusAsync(Guid invoiceId)
     {
@@ -144,15 +135,15 @@ public class OnlinePaymentTests(ApiFactory factory) : IDisposable
             await db.SaveChangesAsync();
         }
 
-        var created = await SendAsync(HttpMethod.Post, "/api/invoices", accountant, new
+        var created = await Kit.SendAsync(HttpMethod.Post, "/api/invoices", accountant, new
         {
             showroomId = showroom.Id,
             lines = new[] { new { description = "Sofa", quantity = 1, unitPrice } }
         });
         Assert.True(created.StatusCode == HttpStatusCode.Created, await created.Content.ReadAsStringAsync());
-        var id = (await ReadJsonAsync(created)).GetProperty("id").GetGuid();
+        var id = (await Kit.ReadJsonAsync(created)).GetProperty("id").GetGuid();
 
-        var issued = await SendAsync(HttpMethod.Patch, $"/api/invoices/{id}/issue", accountant);
+        var issued = await Kit.SendAsync(HttpMethod.Patch, $"/api/invoices/{id}/issue", accountant);
         Assert.True(issued.IsSuccessStatusCode, await issued.Content.ReadAsStringAsync());
         return (showroom.Id, id);
     }
@@ -171,21 +162,8 @@ public class OnlinePaymentTests(ApiFactory factory) : IDisposable
 
         var response = await _client.PostAsJsonAsync("/api/auth/login", new { email = user.Email, password = user.Password });
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        return (await ReadJsonAsync(response)).GetProperty("token").GetString()!;
+        return (await Kit.ReadJsonAsync(response)).GetProperty("token").GetString()!;
     }
 
-    private static async Task<JsonElement> ReadJsonAsync(HttpResponseMessage response)
-    {
-        using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-        return json.RootElement.Clone();
-    }
 
-    private Task<HttpResponseMessage> SendAsync(HttpMethod method, string url, string token, object? body = null)
-    {
-        var request = new HttpRequestMessage(method, url);
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-        if (body is not null)
-            request.Content = JsonContent.Create(body);
-        return _client.SendAsync(request);
-    }
 }

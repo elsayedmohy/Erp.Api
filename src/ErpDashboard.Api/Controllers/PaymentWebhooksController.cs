@@ -36,6 +36,9 @@ public class PaymentWebhooksController(
             AttemptId = n?.AttemptId,
             Success = n?.Success,
             AmountMinor = n?.AmountMinor,
+            Pending = n?.Pending,
+            IsRefundOrVoid = n?.IsRefundOrVoid,
+            Currency = n?.Currency,
             Status = verification.IsValid ? WebhookEventStatus.Received : WebhookEventStatus.Rejected,
             NextAttemptAt = verification.IsValid ? DateTime.UtcNow : null
         });

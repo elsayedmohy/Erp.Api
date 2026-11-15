@@ -11,7 +11,8 @@ public class PaymentAttemptConfiguration : IEntityTypeConfiguration<PaymentAttem
         b.Property(a => a.ProviderReference).HasMaxLength(100);
         b.Property(a => a.CheckoutUrl).HasMaxLength(2000);
         b.Property(a => a.FailureReason).HasMaxLength(500);
-
+        b.Property(a => a.ProviderTransactionId).HasMaxLength(100);
+        
         b.HasIndex(a => new { a.InvoiceId, a.Status });
         b.HasIndex(a => new { a.Provider, a.ProviderReference }).IsUnique()
             .HasFilter("\"ProviderReference\" IS NOT NULL");

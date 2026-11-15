@@ -216,6 +216,9 @@ public sealed class InvoiceService(
     {
         if (request.Amount != Math.Round(request.Amount, 2))
             throw new RequestValidationException("amount", "Amount cannot have more than 2 decimal places.");
+        
+        if (request.Method == PaymentMethod.Online)
+            throw new RequestValidationException("method", "Online payments are recorded automatically.");
 
         await using var transaction = await dbContext.Database.BeginTransactionAsync(ct);
 
@@ -238,9 +241,7 @@ public sealed class InvoiceService(
         if (paymentDate > clock.Today)
             throw new RequestValidationException("paymentDate", "Payment date cannot be in the future.");
 
-        var balance = invoice.TotalAmount
-                      - invoice.Payments.Sum(p => p.Amount)
-                      - invoice.CreditNotes.Sum(c => c.TotalAmount);
+        var balance = InvoiceBalance.Remaining(invoice);
         if (request.Amount > balance)
             throw new ConflictException(
                 $"Payment of {request.Amount:0.00} exceeds the remaining balance of {balance:0.00}.");

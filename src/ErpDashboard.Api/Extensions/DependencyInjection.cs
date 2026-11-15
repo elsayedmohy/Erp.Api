@@ -1,4 +1,6 @@
 
+using ErpDashboard.Api.Features.Payments.Webhooks;
+
 namespace ErpDashboard.Api.Extensions;
 
 public static class DependencyInjection
@@ -180,6 +182,13 @@ public static class DependencyInjection
             .ValidateOnStart();
         
         builder.Services.AddPaymentProvider(builder.Configuration);
+        builder.Services.AddScoped<IPaymentNotificationHandler, PaymentNotificationHandler>();
+        builder.Services.AddScoped<PaymentWebhookProcessor>();
+        builder.Services.AddOptions<PaymentWebhookWorkerOptions>()
+            .Bind(builder.Configuration.GetSection(PaymentWebhookWorkerOptions.Section))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+        builder.Services.AddHostedService<PaymentWebhookWorker>();
 
         builder.Services.AddScoped<IAuthService, AuthService>();
         builder.Services.AddScoped<ITokenService, TokenService>();

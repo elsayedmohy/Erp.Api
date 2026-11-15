@@ -23,9 +23,7 @@ public sealed class OnlinePaymentService(AppDbContext dbContext, IPaymentGateway
         if (invoice.Status != InvoiceStatus.Issued)
             throw new ConflictException("Only issued invoices can be paid online.");
 
-        var balance = invoice.TotalAmount
-                      - invoice.Payments.Sum(p => p.Amount)
-                      - invoice.CreditNotes.Sum(c => c.TotalAmount);
+        var balance = InvoiceBalance.Remaining(invoice);
         if (balance <= 0)
             throw new ConflictException("This invoice has nothing left to pay.");
 

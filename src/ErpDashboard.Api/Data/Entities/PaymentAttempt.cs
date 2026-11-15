@@ -8,6 +8,7 @@ public class PaymentAttempt
     public string Currency { get; set; } = "";
     public PaymentAttemptStatus Status { get; set; }
     public string Provider { get; set; } = "";
+    public string? ProviderTransactionId { get; set; }
     public string? ProviderReference { get; set; }
     public string? CheckoutUrl { get; set; }
     public string? FailureReason { get; set; }
