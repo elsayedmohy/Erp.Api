@@ -5,6 +5,7 @@ using System.Text.Json;
 using ErpDashboard.Api.Common.Authorization;
 using ErpDashboard.Api.Data;
 using ErpDashboard.Api.Data.Seed;
+using ErpDashboard.Api.Features.Payments;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
@@ -23,6 +24,39 @@ public class EndpointPermissionTests(ApiFactory factory)
     };
 
     private readonly HttpClient _client = factory.CreateClient();
+    
+    private static readonly HashSet<string> AnonymousAllowed = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "api/payments/webhook",
+        "api/auth/login",
+        "api/auth/refresh"
+    };
+
+    [Fact]
+    public void AnonymousEndpoints_AreOnlyTheKnownOnes()
+    {
+        var anonymous = factory.Services.GetRequiredService<EndpointDataSource>().Endpoints
+            .OfType<RouteEndpoint>()
+            .Where(e => e.RoutePattern.RawText?.TrimStart('/').StartsWith("api/", StringComparison.OrdinalIgnoreCase) == true)
+            .Where(e => e.Metadata.GetMetadata<IAllowAnonymous>() is not null)
+            .Select(e => e.RoutePattern.RawText!.TrimStart('/'))
+            .Where(r => !AnonymousAllowed.Contains(r))
+            .ToList();
+
+        Assert.Empty(anonymous);
+    }
+
+    [Fact]
+    public void PublicWebhooks_AreAnonymous_AndNothingElseUsesTheMarker()
+    {
+        var webhooks = factory.Services.GetRequiredService<EndpointDataSource>().Endpoints
+            .OfType<RouteEndpoint>()
+            .Where(e => e.Metadata.GetMetadata<PublicWebhookAttribute>() is not null)
+            .Select(e => e.RoutePattern.RawText!.TrimStart('/'))
+            .ToList();
+
+        Assert.Equal(["api/payments/webhook"], webhooks);
+    }
 
     [Fact]
     public void EveryApiEndpoint_RequiresPermission_OrIsExplicitlyExempt()

@@ -4,11 +4,14 @@ using ErpDashboard.Api.Data.Seed;
 using ErpDashboard.Api.Features.Finance.Invoices.DocumentNumber;
 using ErpDashboard.Api.Features.Inventory.Stock;
 using ErpDashboard.Api.Features.Payments;
+using ErpDashboard.Api.Infrastructure.Payments.PaymentWebhooks;
+using ErpDashboard.Api.Infrastructure.Payments.Paymob;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using Serilog.Core;
 using Testcontainers.PostgreSql;
 
@@ -47,6 +50,9 @@ public class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
             services.AddScoped<DocumentNumberGenerator>();
             services.AddScoped<IDocumentNumberGenerator>(sp =>
                 new FaultInjectingNumberGenerator(sp.GetRequiredService<DocumentNumberGenerator>(), NumberFaults)); 
+            
+            services.AddSingleton<IPaymentWebhookVerifier>(
+                new PaymobWebhookVerifier(Options.Create(new PaymobOptions { HmacSecret = WebhookSigning.Secret })));
         });
 
         builder.UseEnvironment("Testing");

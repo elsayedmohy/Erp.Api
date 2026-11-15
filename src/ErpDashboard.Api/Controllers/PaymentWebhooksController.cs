@@ -14,8 +14,12 @@ public class PaymentWebhooksController(
     [HttpPost("webhook"), AllowAnonymous, PublicWebhook, RequestSizeLimit(MaxBodyBytes)]
     public async Task<IActionResult> Receive(CancellationToken ct)
     {
-        using var reader = new StreamReader(Request.Body);
-        var body = await reader.ReadToEndAsync(ct);
+        if (Request.ContentLength > MaxBodyBytes)
+            return StatusCode(StatusCodes.Status413PayloadTooLarge);
+        
+        var body = await ReadLimitedAsync(Request.Body, MaxBodyBytes, ct);
+        if (body is null)
+            return StatusCode(StatusCodes.Status413PayloadTooLarge);
 
         var verification = verifier.Verify(body, Request.Query, Request.Headers);
         var n = verification.Notification;
@@ -44,5 +48,19 @@ public class PaymentWebhooksController(
         }
 
         return Ok();
+    }
+    
+    private static async Task<string?> ReadLimitedAsync(Stream stream, int limit, CancellationToken ct)
+    {
+        using var buffer = new MemoryStream();
+        var chunk = new byte[8192];
+        int read;
+        while ((read = await stream.ReadAsync(chunk, ct)) > 0)
+        {
+            if (buffer.Length + read > limit)
+                return null;
+            buffer.Write(chunk, 0, read);
+        }
+        return Encoding.UTF8.GetString(buffer.GetBuffer(), 0, (int)buffer.Length);
     }
 }
