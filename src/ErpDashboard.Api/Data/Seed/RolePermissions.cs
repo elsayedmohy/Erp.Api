@@ -56,8 +56,7 @@ public static class RolePermissions
         Orders.Read,
         Orders.Create);
 
-    public static List<string> ShowroomUser => Sorted(Orders.Read, Invoices.Read);
-
+    public static List<string> ShowroomUser => Sorted(Orders.Read, Invoices.Read, Invoices.PayOnline);
     public static List<string> User => Sorted(
         Showrooms.Read, Products.Read,
         Categories.Read, Orders.Read,

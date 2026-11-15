@@ -33,6 +33,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentShowro
     public DbSet<DocumentNumberCounter> DocumentNumberCounters => Set<DocumentNumberCounter>();
     public DbSet<CreditNote> CreditNotes => Set<CreditNote>();
     public DbSet<OrderStatusChange> OrderStatusChanges => Set<OrderStatusChange>();
+    
+    public DbSet<PaymentAttempt> PaymentAttempts => Set<PaymentAttempt>();
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);

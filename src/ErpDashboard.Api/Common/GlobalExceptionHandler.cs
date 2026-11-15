@@ -8,6 +8,23 @@ public class GlobalExceptionHandler(
 {
     public async ValueTask<bool> TryHandleAsync(HttpContext ctx, Exception ex, CancellationToken ct)
     {
+        if (ex is PaymentProviderUnavailableException)
+        {
+            logger.LogWarning(ex, "Payment provider unavailable");
+            ctx.Response.StatusCode = StatusCodes.Status504GatewayTimeout;
+            return await problemDetailsService.TryWriteAsync(new ProblemDetailsContext
+            {
+                HttpContext = ctx,
+                Exception = ex,
+                ProblemDetails = new ProblemDetails
+                {
+                    Status = StatusCodes.Status504GatewayTimeout,
+                    Title = "Payment provider unavailable",
+                    Detail = "The payment service is not responding right now. No money was taken. Please try again in a few minutes."
+                }
+            });
+        }
+        
         if (ex is OperationCanceledException && ctx.RequestAborted.IsCancellationRequested)
         {
             logger.LogInformation("Request was cancelled by the client");
@@ -175,3 +192,5 @@ public sealed class InsufficientStockException(Guid warehouseId, IReadOnlyList<S
     public IReadOnlyList<StockShortage> Lines { get; } = lines;
 }
 public sealed class PreconditionRequiredException(string message) : Exception(message);
+public sealed class PaymentProviderUnavailableException(string message, Exception? inner = null)
+    : Exception(message, inner);

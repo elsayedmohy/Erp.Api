@@ -54,6 +54,7 @@ global using ErpDashboard.Api.Features.Inventory.Warehouses;
 global using ErpDashboard.Api.Features.Inventory.Materials;
 global using ErpDashboard.Api.Features.Finance.Invoices.DocumentNumber;
 global using ErpDashboard.Api.Features.Finance.Invoices.CreditNotes;
+global using ErpDashboard.Api.Features.Payments;
 global using ErpDashboard.Api.Common.Authorization;
 global using ErpDashboard.Api.Middlewares;
 
