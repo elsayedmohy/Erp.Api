@@ -35,6 +35,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentShowro
     public DbSet<OrderStatusChange> OrderStatusChanges => Set<OrderStatusChange>();
     
     public DbSet<PaymentAttempt> PaymentAttempts => Set<PaymentAttempt>();
+    
+    public DbSet<PaymentWebhookEvent> PaymentWebhookEvents => Set<PaymentWebhookEvent>();
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
