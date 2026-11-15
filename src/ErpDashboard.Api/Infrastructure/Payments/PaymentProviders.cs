@@ -1,3 +1,4 @@
+using ErpDashboard.Api.Infrastructure.Payments.PaymentWebhooks;
 using ErpDashboard.Api.Infrastructure.Payments.Paymob;
 
 namespace ErpDashboard.Api.Infrastructure.Payments;
@@ -11,6 +12,7 @@ public static class PaymentProviders
 
         if (string.Equals(provider, "paymob", StringComparison.OrdinalIgnoreCase))
         {
+            services.AddSingleton<IPaymentWebhookVerifier, PaymobWebhookVerifier>();
             services.AddOptions<PaymobOptions>()
                 .Bind(config.GetSection(PaymobOptions.Section))
                 .ValidateDataAnnotations()
@@ -23,6 +25,7 @@ public static class PaymentProviders
         }
 
         services.AddSingleton<IPaymentGateway, NotConfiguredPaymentGateway>();
+        services.AddSingleton<IPaymentWebhookVerifier, NotConfiguredWebhookVerifier>();
         return services;
     }
 }
