@@ -3,6 +3,7 @@ using ErpDashboard.Api.Data.Entities;
 using ErpDashboard.Api.Data.Seed;
 using ErpDashboard.Api.Features.Finance.Invoices.DocumentNumber;
 using ErpDashboard.Api.Features.Inventory.Stock;
+using ErpDashboard.Api.Features.Payments;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -16,6 +17,7 @@ namespace ErpDashboard.Api.IntegrationTests;
 public class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
     public StockFaults StockFaults { get; } = new();
+    public FakePaymentGateway Payments { get; } = new();
     public NumberFaults NumberFaults { get; } = new();
     public const string AdminEmail = "admin@tests.local";
     public const string AdminPassword = "Test-only-Passw0rd!";
@@ -38,7 +40,7 @@ public class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
             services.AddControllers()
                 .AddApplicationPart(typeof(TestErrorsController).Assembly);
             services.AddSingleton<ILogEventSink>(Logs);
-
+            services.AddSingleton<IPaymentGateway>(Payments);
             services.AddScoped<StockService>();
             services.AddScoped<IStockService>(sp =>
                 new FaultInjectingStockService(sp.GetRequiredService<StockService>(), StockFaults));
