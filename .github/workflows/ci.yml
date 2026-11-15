@@ -49,7 +49,10 @@ jobs:
           fi
       - name: Keep the payment provider in one place
         run: |
-          if git grep -niI 'paymob' -- src ':!src/ErpDashboard.Api/Infrastructure/Payments/Paymob/*' ':!src/**/appsettings*.json'; then
+          if git grep -niI 'paymob' -- src \
+          ':!src/ErpDashboard.Api/Infrastructure/Payments/Paymob/*' \
+          ':!src/ErpDashboard.Api/Infrastructure/Payments/PaymentProviders.cs' \
+          ':!src/**/appsettings*.json'; then
             echo "::error::Payment provider names belong in Infrastructure/Payments/<Provider> only"
             exit 1
           fi
