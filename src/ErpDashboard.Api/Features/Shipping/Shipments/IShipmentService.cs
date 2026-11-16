@@ -1,4 +1,4 @@
-namespace ErpDashboard.Api.Features.Shipping;
+namespace ErpDashboard.Api.Features.Shipping.Shipments;
 
 public interface IShipmentService
 {

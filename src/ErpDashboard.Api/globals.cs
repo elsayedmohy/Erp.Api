@@ -57,6 +57,7 @@ global using ErpDashboard.Api.Features.Finance.Invoices.CreditNotes;
 global using ErpDashboard.Api.Features.Payments;
 global using ErpDashboard.Api.Features.Payments.Webhooks;
 global using ErpDashboard.Api.Features.Shipping;
+global using ErpDashboard.Api.Features.Shipping.Shipments;
 global using ErpDashboard.Api.Infrastructure.Payments;
 global using ErpDashboard.Api.Common.Authorization;
 global using ErpDashboard.Api.Middlewares;

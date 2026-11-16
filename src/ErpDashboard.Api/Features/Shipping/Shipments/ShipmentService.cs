@@ -1,6 +1,6 @@
 using ErpDashboard.Api.Features.Finance.Invoices.DocumentNumber;
 
-namespace ErpDashboard.Api.Features.Shipping;
+namespace ErpDashboard.Api.Features.Shipping.Shipments;
 
 public sealed class ShipmentService(
     AppDbContext dbContext, IDocumentNumberGenerator numbers, IBusinessClock clock) : IShipmentService
@@ -12,12 +12,14 @@ public sealed class ShipmentService(
     {
         await using var transaction = await dbContext.Database.BeginTransactionAsync(ct);
 
-        // Serialises with cancel and with Shipped, which both update this row.
-        var order = (await dbContext.Orders
-                .FromSql($"""SELECT * FROM "Orders" WHERE "Id" = {orderId} FOR UPDATE""")
-                .AsNoTracking()
-                .ToListAsync(ct)).SingleOrDefault()
-            ?? throw new NotFoundException(nameof(Order), orderId);
+        await dbContext.Database.ExecuteSqlInterpolatedAsync(
+            $"""SELECT 1 FROM "Orders" WHERE "Id" = {orderId} FOR UPDATE""", ct);
+
+        var order = await dbContext.Orders.AsNoTracking()
+                        .Where(o => o.Id == orderId)
+                        .Select(o => new { o.Status, o.ShippingGovernorate })
+                        .SingleOrDefaultAsync(ct)
+                    ?? throw new NotFoundException(nameof(Order), orderId);
 
         if (!BookableStatuses.Contains(order.Status))
             throw new ConflictException(
@@ -88,7 +90,6 @@ public sealed class ShipmentService(
 
     public async Task<ShipmentResponse> GetForOrderAsync(Guid orderId, CancellationToken ct)
     {
-        // The showroom filter on Orders decides whether the caller may see this order at all.
         if (!await dbContext.Orders.AnyAsync(o => o.Id == orderId, ct))
             throw new NotFoundException(nameof(Order), orderId);
 

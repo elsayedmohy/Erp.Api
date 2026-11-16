@@ -27,7 +27,9 @@ public static class RolePermissions
         Employees.Read,
         Showrooms.AccessAll,
         Carriers.Read,
-        Carriers.Write
+        Carriers.Write,
+        Shipments.Read,
+        Shipments.Book
         );
 
     public static List<string> InventoryManager => Sorted(
@@ -44,7 +46,10 @@ public static class RolePermissions
         PurchaseOrders.Read,
         PurchaseOrders.Write,
         PurchaseOrders.UpdateStatus,
-        Carriers.Read);
+        Carriers.Read,
+        Shipments.Read,
+        Shipments.Book,
+        Showrooms.AccessAll);
 
     public static List<string> Accountant => Sorted(
         Showrooms.Read,
@@ -53,7 +58,8 @@ public static class RolePermissions
         Departments.Read,
         Employees.Read,
         Employees.ViewSalary,
-        Showrooms.AccessAll);
+        Showrooms.AccessAll,
+        Shipments.Read);
 
     public static List<string> Sales => Sorted(
         Showrooms.Read,
@@ -62,7 +68,8 @@ public static class RolePermissions
         Categories.Read,
         Warehouses.Read,
         Orders.Read,
-        Orders.Create);
+        Orders.Create,
+        Shipments.Read);
 
     public static List<string> ShowroomUser => Sorted(Orders.Read, Invoices.Read, Invoices.PayOnline);
     public static List<string> User => Sorted(

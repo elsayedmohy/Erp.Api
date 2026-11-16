@@ -1,6 +1,3 @@
 namespace ErpDashboard.Api.Data.Enums;
 
-public class ShipmentStatus
-{
-    
-}
+public enum ShipmentStatus { Booked, Cancelled }
