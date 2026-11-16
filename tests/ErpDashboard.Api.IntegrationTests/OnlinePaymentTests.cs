@@ -12,10 +12,18 @@ using Microsoft.Extensions.DependencyInjection;
 namespace ErpDashboard.Api.IntegrationTests;
 
 [Collection(ApiCollection.Name)]
-public class OnlinePaymentTests(ApiFactory factory) : IDisposable
+public class OnlinePaymentTests : IDisposable
 {
-    private readonly HttpClient _client = factory.CreateClient();
+    private readonly ApiFactory factory;
+    private readonly HttpClient _client;
     private PaymentTestKit Kit => new(factory, _client);
+    public OnlinePaymentTests(ApiFactory factory)
+    {
+        this.factory = factory;
+        factory.Payments.Reset();
+        _client = factory.CreateClient();
+    }
+
     public void Dispose() => factory.Payments.Reset();
 
     [Fact]

@@ -80,6 +80,7 @@ public class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         builder.UseSetting("ApiSettings:BaseUrl", "http://localhost");
         builder.UseSetting("Payments:Webhooks:Enabled", "false");
         builder.UseSetting("Checkout:Expiry:Enabled", "false");
+        builder.UseSetting("Payments:Refunds:Enabled", "false");
     }
 
     public async Task<TestUser> CreateUserAsync(Guid? roleId = null, IEnumerable<Guid>? warehouseIds = null)
