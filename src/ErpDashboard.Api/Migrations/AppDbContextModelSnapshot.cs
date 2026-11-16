@@ -510,6 +510,9 @@ namespace ErpDashboard.Api.Migrations
                     b.Property<DateTime>("ExpiresAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<DateTime?>("ExpiryRetryAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<decimal>("GoodsAmount")
                         .HasPrecision(18, 2)
                         .HasColumnType("numeric(18,2)");
@@ -546,7 +549,7 @@ namespace ErpDashboard.Api.Migrations
 
                     b.HasIndex("PaymentAttemptId");
 
-                    b.HasIndex("Status", "ExpiresAt");
+                    b.HasIndex("Status", "ExpiresAt", "ExpiryRetryAt");
 
                     b.ToTable("OrderCheckouts");
                 });

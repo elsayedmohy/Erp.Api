@@ -13,7 +13,7 @@ public class OrderCheckoutConfiguration : IEntityTypeConfiguration<OrderCheckout
         b.Property(c => c.CustomerMessage).HasMaxLength(500);
         
         b.HasIndex(c => c.OrderId).IsUnique().HasFilter("\"Status\" = 'AwaitingPayment'");
-        b.HasIndex(c => new { c.Status, c.ExpiresAt });
+        b.HasIndex(c => new { c.Status, c.ExpiresAt, c.ExpiryRetryAt });
 
         b.HasOne<Order>().WithMany().HasForeignKey(c => c.OrderId).OnDelete(DeleteBehavior.Restrict);
         b.HasOne<PaymentAttempt>().WithMany().HasForeignKey(c => c.PaymentAttemptId).OnDelete(DeleteBehavior.Restrict);

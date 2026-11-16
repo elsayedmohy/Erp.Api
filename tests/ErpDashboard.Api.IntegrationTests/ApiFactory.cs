@@ -5,6 +5,7 @@ using ErpDashboard.Api.Features.Finance.Invoices.DocumentNumber;
 using ErpDashboard.Api.Features.Inventory.Stock;
 using ErpDashboard.Api.Features.Payments;
 using ErpDashboard.Api.Features.Payments.Webhooks;
+using ErpDashboard.Api.Features.Sales.Orders;
 using ErpDashboard.Api.Infrastructure.Payments.PaymentWebhooks;
 using ErpDashboard.Api.Infrastructure.Payments.Paymob;
 using Microsoft.AspNetCore.Hosting;
@@ -24,6 +25,7 @@ public class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
     public FakePaymentGateway Payments { get; } = new();
     public NumberFaults NumberFaults { get; } = new();
     public WebhookFaults WebhookFaults { get; } = new();
+    public OrderCancellationFaults CancellationFaults { get; } = new();
     public const string AdminEmail = "admin@tests.local";
     public const string AdminPassword = "Test-only-Passw0rd!";
     public const string JwtKey = "test-only-key-with-at-least-32-characters";
@@ -58,6 +60,9 @@ public class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
             services.AddScoped<PaymentNotificationHandler>();
             services.AddScoped<IPaymentNotificationHandler>(sp =>
                 new FaultInjectingNotificationHandler(sp.GetRequiredService<PaymentNotificationHandler>(), WebhookFaults));
+            services.AddScoped<IOrderCancellation>(sp =>
+                new FaultInjectingOrderCancellation(sp.GetRequiredService<OrderService>(), CancellationFaults));
+            
         });
 
         builder.UseEnvironment("Testing");
@@ -71,6 +76,7 @@ public class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         builder.UseSetting("Cors:AllowedOrigins:0", "http://localhost:4200");
         builder.UseSetting("ApiSettings:BaseUrl", "http://localhost");
         builder.UseSetting("Payments:Webhooks:Enabled", "false");
+        builder.UseSetting("Checkout:Expiry:Enabled", "false");
     }
 
     public async Task<TestUser> CreateUserAsync(Guid? roleId = null, IEnumerable<Guid>? warehouseIds = null)

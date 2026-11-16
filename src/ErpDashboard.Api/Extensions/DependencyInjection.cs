@@ -1,3 +1,5 @@
+using ErpDashboard.Api.Common.Workers;
+
 namespace ErpDashboard.Api.Extensions;
 
 public static class DependencyInjection
@@ -180,19 +182,16 @@ public static class DependencyInjection
         
         builder.Services.AddPaymentProvider(builder.Configuration);
         builder.Services.AddScoped<IPaymentNotificationHandler, PaymentNotificationHandler>();
-        builder.Services.AddScoped<PaymentWebhookProcessor>();
-        builder.Services.AddOptions<PaymentWebhookWorkerOptions>()
-            .Bind(builder.Configuration.GetSection(PaymentWebhookWorkerOptions.Section))
-            .ValidateDataAnnotations()
-            .ValidateOnStart();
-        builder.Services.AddHostedService<PaymentWebhookWorker>();
-
+        builder.Services.AddQueueWorker<PaymentWebhookProcessor>(builder.Configuration, "Payments:Webhooks");
+        builder.Services.AddQueueWorker<CheckoutExpiryProcessor>(builder.Configuration, "Checkout:Expiry");
         builder.Services.AddScoped<IAuthService, AuthService>();
         builder.Services.AddScoped<ITokenService, TokenService>();
         builder.Services.AddScoped<IUserService, UserService>();
         builder.Services.AddScoped<IRoleService, RoleService>();
         builder.Services.AddScoped<IShowroomService, ShowroomService>();
-        builder.Services.AddScoped<IOrderService, OrderService>();
+        builder.Services.AddScoped<OrderService>();
+        builder.Services.AddScoped<IOrderService>(sp => sp.GetRequiredService<OrderService>());
+        builder.Services.AddScoped<IOrderCancellation>(sp => sp.GetRequiredService<OrderService>());
         builder.Services.AddScoped<ICategoryService, CategoryService>();
         builder.Services.AddScoped<IMaterialService, MaterialService>();
         builder.Services.AddScoped<IProductService, ProductService>();

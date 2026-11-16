@@ -14,6 +14,7 @@ public class OrderCheckout
     public Guid CreatedById { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime ExpiresAt { get; set; }
+    public DateTime? ExpiryRetryAt { get; set; }
     public DateTime? CompletedAt { get; set; }
     public ICollection<OrderCheckoutVehicle> Vehicles { get; set; } = new List<OrderCheckoutVehicle>();
 }
