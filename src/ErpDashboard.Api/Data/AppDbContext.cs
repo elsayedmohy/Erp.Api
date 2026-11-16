@@ -40,6 +40,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentShowro
     
     public DbSet<Carrier> Carriers => Set<Carrier>();
     public DbSet<CarrierRate> CarrierRates => Set<CarrierRate>();
+    
+    public DbSet<Shipment> Shipments => Set<Shipment>();
+    public DbSet<ShipmentVehicle> ShipmentVehicles => Set<ShipmentVehicle>();
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);

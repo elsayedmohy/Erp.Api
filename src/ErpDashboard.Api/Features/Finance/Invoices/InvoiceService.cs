@@ -175,9 +175,17 @@ public sealed class InvoiceService(
         var showroomName = await GetActiveShowroomNameAsync(order.ShowroomId, ct);
         var today = clock.Today;
 
+        var shipment = await dbContext.Shipments.AsNoTracking()
+            .Include(s => s.Vehicles)
+            .SingleOrDefaultAsync(s => s.OrderId == orderId && s.Status == ShipmentStatus.Booked, ct);
+
+        var lines = OrderInvoiceBuilder.Lines(order.OrderLines, _finance.DefaultTaxRate)
+            .Concat(OrderInvoiceBuilder.ShippingLines(shipment))
+            .ToList();
+        
         var invoice = InvoiceFactory.CreateDraft(
             order.ShowroomId, today, today.AddDays(_finance.DefaultDueDays),
-            OrderInvoiceBuilder.Lines(order.OrderLines, _finance.DefaultTaxRate));
+            lines);
         invoice.OrderId = orderId;
 
         await using var transaction = await dbContext.Database.BeginTransactionAsync(ct);

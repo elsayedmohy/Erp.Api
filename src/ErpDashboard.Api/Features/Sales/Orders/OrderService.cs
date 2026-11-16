@@ -241,6 +241,11 @@ public class OrderService(
         await using var transaction = await dbContext.Database.BeginTransactionAsync(ct);
         await ClaimAsync(id, expectedVersion,current, request.Status, ct);
 
+        if (request.Status == OrderStatus.Shipped
+            && !await dbContext.Shipments.AnyAsync(s => s.OrderId == id && s.Status == ShipmentStatus.Booked, ct))
+            throw new ConflictException("Book a shipment before marking the order as shipped.",
+                code: "shipment_required");
+        
         if (request.Status == OrderStatus.Shipped)
             foreach (var line in order.OrderLines.OrderBy(l => l.ProductId))
                 await stock.IssueReservedAsync(new StockChange(
@@ -341,7 +346,13 @@ public class OrderService(
         await using var transaction = await dbContext.Database.BeginTransactionAsync(ct);
 
         await ClaimAsync(id, expectedVersion,order.Status, OrderStatus.Cancelled, ct);
-
+        
+        await dbContext.Shipments
+            .Where(s => s.OrderId == id && s.Status == ShipmentStatus.Booked)
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(x => x.Status, ShipmentStatus.Cancelled)
+                .SetProperty(x => x.CancelledAt, DateTime.UtcNow), ct);
+        
         foreach (var line in order.OrderLines.OrderBy(l => l.ProductId))
             await stock.ReleaseAsync(order.WarehouseId, line.ProductId, line.Quantity, ct);
 

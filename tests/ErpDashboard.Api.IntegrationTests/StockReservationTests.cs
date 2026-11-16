@@ -113,6 +113,7 @@ public class StockReservationTests(ApiFactory factory)
         var orderId = await CreateOrderAsync(manager, s, quantity: 3);
 
         await OrderFlow.AdvanceAsync(_client, manager, orderId, "Preparing");
+        await OrderFlow.BookFleetAsync(_client, manager, orderId);
         var ship = await SetStatusAsync(manager, orderId, "Shipped");
 
         Assert.Equal(HttpStatusCode.OK, ship.StatusCode);
@@ -133,6 +134,7 @@ public class StockReservationTests(ApiFactory factory)
         await OrderFlow.AdvanceAsync(_client, manager, orderId, "Preparing");
 
         var version = await OrderFlow.VersionAsync(_client, manager, orderId);
+        await OrderFlow.BookFleetAsync(_client, manager, orderId);
         var responses = await Task.WhenAll(
             OrderFlow.SendAsync(_client, HttpMethod.Patch, $"/api/orders/{orderId}/status", manager, version, new { status = "Shipped" }),
             OrderFlow.SendAsync(_client, HttpMethod.Patch, $"/api/orders/{orderId}/status", manager, version, new { status = "Shipped" }));

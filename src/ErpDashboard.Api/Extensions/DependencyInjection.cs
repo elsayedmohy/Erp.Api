@@ -1,5 +1,3 @@
-
-
 namespace ErpDashboard.Api.Extensions;
 
 public static class DependencyInjection
@@ -218,6 +216,7 @@ public static class DependencyInjection
         builder.Services.AddScoped<IOnlinePaymentService, OnlinePaymentService>();
         builder.Services.AddScoped<IWebhookEventService, WebhookEventService>();
         builder.Services.AddScoped<ICarrierService, CarrierService>();
+        builder.Services.AddScoped<IShipmentService, ShipmentService>();
         return builder;
     }
 

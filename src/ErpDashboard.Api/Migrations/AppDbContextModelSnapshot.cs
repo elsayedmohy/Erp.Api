@@ -923,6 +923,93 @@ namespace ErpDashboard.Api.Migrations
                     b.ToTable("Roles");
                 });
 
+            modelBuilder.Entity("ErpDashboard.Api.Data.Entities.Shipment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("BookedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("BookedById")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("CancelledAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Governorate")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<Guid>("OrderId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<decimal>("TotalCost")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<string>("TrackingNumber")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OrderId")
+                        .IsUnique();
+
+                    b.HasIndex("TrackingNumber")
+                        .IsUnique();
+
+                    b.ToTable("Shipments");
+                });
+
+            modelBuilder.Entity("ErpDashboard.Api.Data.Entities.ShipmentVehicle", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CarrierId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("CarrierName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("DriverPhone")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("PlateNumber")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<decimal>("Price")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<Guid>("ShipmentId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CarrierId");
+
+                    b.HasIndex("ShipmentId");
+
+                    b.ToTable("ShipmentVehicles", t =>
+                        {
+                            t.HasCheckConstraint("CK_ShipmentVehicles_Price_Positive", "\"Price\" > 0");
+                        });
+                });
+
             modelBuilder.Entity("ErpDashboard.Api.Data.Entities.Showroom", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1543,6 +1630,30 @@ namespace ErpDashboard.Api.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("ErpDashboard.Api.Data.Entities.Shipment", b =>
+                {
+                    b.HasOne("ErpDashboard.Api.Data.Entities.Order", null)
+                        .WithMany()
+                        .HasForeignKey("OrderId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ErpDashboard.Api.Data.Entities.ShipmentVehicle", b =>
+                {
+                    b.HasOne("ErpDashboard.Api.Data.Entities.Carrier", null)
+                        .WithMany()
+                        .HasForeignKey("CarrierId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ErpDashboard.Api.Data.Entities.Shipment", null)
+                        .WithMany("Vehicles")
+                        .HasForeignKey("ShipmentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("ErpDashboard.Api.Data.Entities.StockMovement", b =>
                 {
                     b.HasOne("ErpDashboard.Api.Data.Entities.Product", null)
@@ -1709,6 +1820,11 @@ namespace ErpDashboard.Api.Migrations
             modelBuilder.Entity("ErpDashboard.Api.Data.Entities.Role", b =>
                 {
                     b.Navigation("Users");
+                });
+
+            modelBuilder.Entity("ErpDashboard.Api.Data.Entities.Shipment", b =>
+                {
+                    b.Navigation("Vehicles");
                 });
 
             modelBuilder.Entity("ErpDashboard.Api.Data.Entities.Showroom", b =>
