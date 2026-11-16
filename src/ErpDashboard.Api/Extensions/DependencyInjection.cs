@@ -199,7 +199,9 @@ public static class DependencyInjection
         builder.Services.AddScoped<IDepartmentService, DepartmentService>();
         builder.Services.AddScoped<ISupplierService, SupplierService>();
         builder.Services.AddScoped<IPurchaseOrderService, PurchaseOrderService>();
-        builder.Services.AddScoped<IInvoiceService, InvoiceService>();
+        builder.Services.AddScoped<InvoiceService>();
+        builder.Services.AddScoped<IInvoiceService>(sp => sp.GetRequiredService<InvoiceService>());
+        builder.Services.AddScoped<IInvoiceIssuing>(sp => sp.GetRequiredService<InvoiceService>());
         builder.Services.AddScoped<IProfileService, ProfileService>();
         builder.Services.AddScoped<IAuthorizationHandler, PermissionHandler>();
         builder.Services.AddHttpContextAccessor();
@@ -215,10 +217,13 @@ public static class DependencyInjection
         builder.Services.AddScoped<IOnlinePaymentService, OnlinePaymentService>();
         builder.Services.AddScoped<IWebhookEventService, WebhookEventService>();
         builder.Services.AddScoped<ICarrierService, CarrierService>();
-        builder.Services.AddScoped<IShipmentService, ShipmentService>();
+        builder.Services.AddScoped<ShipmentService>();
+        builder.Services.AddScoped<IShipmentService>(sp => sp.GetRequiredService<ShipmentService>());
+        builder.Services.AddScoped<IShipmentBooking>(sp => sp.GetRequiredService<ShipmentService>());
         builder.Services.AddScoped<IPaymentAttemptStarter, PaymentAttemptStarter>();
         builder.Services.AddScoped<IVehiclePricer, VehiclePricer>();
         builder.Services.AddScoped<ICheckoutService, CheckoutService>();
+        builder.Services.AddScoped<ICheckoutCompletion, CheckoutCompletion>();
         return builder;
     }
 
