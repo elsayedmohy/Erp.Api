@@ -96,6 +96,13 @@ public static class PermissionCodes
     {
         public const string WebhooksRead = "payments.webhooks.read";
     }
+    
+    public static class Carriers
+    {
+        public const string Read  = "carriers.read";
+        public const string Write = "carriers.write";
+    }
+    
     public static readonly IReadOnlyList<string> All = typeof(PermissionCodes)
         .GetNestedTypes(BindingFlags.Public)
         .SelectMany(t => t.GetFields(BindingFlags.Public | BindingFlags.Static))
