@@ -217,6 +217,7 @@ public static class DependencyInjection
         builder.Services.AddScoped<ILowStockService, LowStockService>();
         builder.Services.AddScoped<IDocumentNumberGenerator, DocumentNumberGenerator>();
         builder.Services.AddScoped<IOnlinePaymentService, OnlinePaymentService>();
+        builder.Services.AddScoped<IWebhookEventService, WebhookEventService>();
         return builder;
     }
 
