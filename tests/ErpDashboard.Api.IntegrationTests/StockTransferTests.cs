@@ -47,6 +47,7 @@ public class StockTransferLifecycleTests(ApiFactory factory)
             warehouseId = cairo,
             paymentMethod = Enum.GetValues<PaymentMethod>()[0].ToString(),
             shippingAddress = "Cairo showroom",
+            shippingGovernorate = "Cairo",
             lines = new[] { new { productId, quantity = 1, discount = 0m } }
         });
 

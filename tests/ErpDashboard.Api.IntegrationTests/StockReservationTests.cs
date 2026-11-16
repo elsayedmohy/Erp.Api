@@ -190,6 +190,7 @@ public class StockReservationTests(ApiFactory factory)
             warehouseId = WarehouseIds.Main,
             paymentMethod = Enum.GetValues<PaymentMethod>()[0].ToString(),
             shippingAddress = "Showroom address",
+            shippingGovernorate = "Cairo",
             lines = new[] { new { productId = s.ProductId, quantity, discount } }
         });
 

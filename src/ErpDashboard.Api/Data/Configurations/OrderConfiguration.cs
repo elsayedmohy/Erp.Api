@@ -19,5 +19,6 @@ public class OrderConfiguration : IEntityTypeConfiguration<Order>
         b.Property(o => o.Notes).HasMaxLength(1000);
         
         b.Property(o => o.Version).IsRowVersion();
+        b.Property(o => o.ShippingGovernorate).HasConversion<string>().HasMaxLength(30);
     }
 }

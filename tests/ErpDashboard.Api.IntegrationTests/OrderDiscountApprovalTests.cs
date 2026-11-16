@@ -261,6 +261,7 @@ public class OrderDiscountApprovalTests(ApiFactory factory)
             warehouseId = WarehouseIds.Main,
             paymentMethod = Enum.GetValues<PaymentMethod>()[0].ToString(),
             shippingAddress = "Test address",
+            shippingGovernorate = "Cairo",
             lines = new[] { new { productId, quantity = 1, discount } }
         });
         Assert.True(response.IsSuccessStatusCode, await response.Content.ReadAsStringAsync());

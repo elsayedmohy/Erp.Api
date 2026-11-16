@@ -88,6 +88,7 @@ public class OrderService(
                 o.Status,
                 o.PaymentMethod,
                 o.ShippingAddress,
+                o.ShippingGovernorate,
                 o.TotalAmount
             ))
             .ToPagedResultAsync(query, ct);
@@ -194,6 +195,7 @@ public class OrderService(
             CreatedById = createdById,
             PaymentMethod = request.PaymentMethod,
             ShippingAddress = request.ShippingAddress.Trim(),
+            ShippingGovernorate = request.ShippingGovernorate,
             TotalAmount = total,
             OrderLines = orderLines
         };
@@ -216,6 +218,7 @@ public class OrderService(
         dbContext.Entry(order).Property(o => o.Version).OriginalValue = expectedVersion;
 
         order.ShippingAddress = request.ShippingAddress.Trim();
+        order.ShippingGovernorate = request.ShippingGovernorate;
         order.PaymentMethod = request.PaymentMethod;
         order.Notes = string.IsNullOrWhiteSpace(request.Notes) ? null : request.Notes.Trim();
         await dbContext.SaveChangesAsync(ct);
@@ -435,6 +438,7 @@ public class OrderService(
             o.Status,
             o.PaymentMethod,
             o.ShippingAddress,
+            o.ShippingGovernorate,
             o.Notes,
             o.TotalAmount,
             o.OrderLines.Select(l => new OrderLineResponse(
@@ -457,6 +461,7 @@ public class OrderService(
             o.Status,
             o.PaymentMethod,
             o.ShippingAddress,
+            o.ShippingGovernorate,
             o.TotalAmount);
     
     private Task<uint> CurrentVersionAsync(Guid id, CancellationToken ct) =>
