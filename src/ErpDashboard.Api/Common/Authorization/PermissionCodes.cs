@@ -57,6 +57,7 @@ public static class PermissionCodes
         public const string Create = "orders.create";
         public const string UpdateStatus = "orders.update-status";
         public const string ApproveDiscount = "orders.approve-discount";
+        public const string Checkout = "orders.checkout";
     }
 
     public static class Invoices
@@ -65,6 +66,11 @@ public static class PermissionCodes
         public const string Write = "invoices.write";
         public const string Pay   = "invoices.pay";
         public const string PayOnline = "invoices.pay-online";
+    }
+    
+    public static class ShippingQuotes
+    {
+        public const string Read = "shipping-quotes.read";
     }
 
     public static class Employees

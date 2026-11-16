@@ -69,9 +69,16 @@ public static class RolePermissions
         Warehouses.Read,
         Orders.Read,
         Orders.Create,
-        Shipments.Read);
+        Orders.Checkout,
+        Shipments.Read,
+        ShippingQuotes.Read);
 
-    public static List<string> ShowroomUser => Sorted(Orders.Read, Invoices.Read, Invoices.PayOnline);
+    public static List<string> ShowroomUser => Sorted(
+        Orders.Read,
+        Orders.Checkout,
+        Invoices.Read,
+        Invoices.PayOnline,
+        ShippingQuotes.Read);
     public static List<string> User => Sorted(
         Showrooms.Read, Products.Read,
         Categories.Read, Orders.Read,

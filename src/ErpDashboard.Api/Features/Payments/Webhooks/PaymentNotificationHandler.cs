@@ -28,17 +28,22 @@ public sealed class PaymentNotificationHandler(AppDbContext dbContext, IBusiness
         if (e.IsRefundOrVoid.Value)
             return WebhookOutcome.Ignored("Refund and void callbacks are handled manually.");
 
-        var invoiceId = e.AttemptId is { } id
+        var target = e.AttemptId is { } id
             ? await dbContext.PaymentAttempts
                 .Where(a => a.Id == id && a.Provider == e.Provider)
-                .Select(a => (Guid?)a.InvoiceId)
+                .Select(a => new { a.InvoiceId, a.OrderId })
                 .SingleOrDefaultAsync(ct)
             : null;
 
-        if (invoiceId is null)
+        if (target is null)
             return e.Success.Value
                 ? WebhookOutcome.NeedsReview("Money was taken for an unknown payment attempt.")
                 : WebhookOutcome.Ignored("Unknown payment attempt.");
+
+        if (target.OrderId is not null)
+            return WebhookOutcome.NeedsReview("Order checkout payment: completion is not implemented yet (ERP-18 PR 3).");
+
+        var invoiceId = target.InvoiceId!.Value;
 
         await dbContext.Database.ExecuteSqlInterpolatedAsync(
             $"""SELECT 1 FROM "Invoices" WHERE "Id" = {invoiceId} FOR UPDATE""", ct);

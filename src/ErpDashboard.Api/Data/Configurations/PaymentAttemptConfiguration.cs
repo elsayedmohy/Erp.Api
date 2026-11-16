@@ -17,9 +17,16 @@ public class PaymentAttemptConfiguration : IEntityTypeConfiguration<PaymentAttem
         b.HasIndex(a => new { a.Provider, a.ProviderReference }).IsUnique()
             .HasFilter("\"ProviderReference\" IS NOT NULL");
 
-        b.ToTable(t => t.HasCheckConstraint("CK_PaymentAttempts_Amount", "\"AmountMinor\" > 0"));
+        b.ToTable(t =>
+        {
+            t.HasCheckConstraint("CK_PaymentAttempts_Amount", "\"AmountMinor\" > 0");
+            t.HasCheckConstraint("CK_PaymentAttempts_PaysOneThing", "(\"InvoiceId\" IS NULL) <> (\"OrderId\" IS NULL)");
+        });
 
         b.HasOne<Invoice>().WithMany()
             .HasForeignKey(a => a.InvoiceId).OnDelete(DeleteBehavior.Restrict);
+        
+        b.HasIndex(a => new { a.OrderId, a.Status });
+        b.HasOne<Order>().WithMany().HasForeignKey(a => a.OrderId).OnDelete(DeleteBehavior.Restrict);
     }
 }

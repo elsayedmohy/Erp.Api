@@ -6,7 +6,7 @@ public interface IOnlinePaymentService
     Task<StartOnlinePaymentResponse> StartAsync(Guid invoiceId, Guid userId, CancellationToken ct);
 }
 
-public sealed class OnlinePaymentService(AppDbContext dbContext, IPaymentGateway gateway)
+public sealed class OnlinePaymentService(AppDbContext dbContext, IPaymentAttemptStarter starter)
     : IOnlinePaymentService
 {
     private const string Currency = "EGP";
@@ -53,31 +53,11 @@ public sealed class OnlinePaymentService(AppDbContext dbContext, IPaymentGateway
             AmountMinor = amountMinor,
             Currency = Currency,
             Status = PaymentAttemptStatus.Pending,
-            Provider = gateway.Name,
             CreatedById = userId,
             CreatedAt = DateTime.UtcNow
         };
-        dbContext.PaymentAttempts.Add(attempt);
-        await dbContext.SaveChangesAsync(ct);
 
-        try
-        {
-            var session = await gateway.CreateCheckoutAsync(new CheckoutRequest(
-                attempt.Id, amountMinor, Currency, $"Invoice {invoice.Number}", showroom), ct);
-
-            attempt.ProviderReference = session.ProviderReference;
-            attempt.CheckoutUrl = session.CheckoutUrl.ToString();
-            await dbContext.SaveChangesAsync(ct);
-
-            return new StartOnlinePaymentResponse(attempt.Id, session.CheckoutUrl, balance, Currency);
-        }
-        catch (PaymentProviderUnavailableException ex)
-        {
-            attempt.Status = PaymentAttemptStatus.Failed;
-            attempt.FailureReason = ex.Message;
-            attempt.CompletedAt = DateTime.UtcNow;
-            await dbContext.SaveChangesAsync(CancellationToken.None);
-            throw;
-        }
+        var session = await starter.StartAsync(attempt, $"Invoice {invoice.Number}", showroom, ct);
+        return new StartOnlinePaymentResponse(attempt.Id, session.CheckoutUrl, balance, Currency);
     }
 }

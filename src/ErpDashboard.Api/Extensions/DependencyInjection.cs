@@ -217,6 +217,9 @@ public static class DependencyInjection
         builder.Services.AddScoped<IWebhookEventService, WebhookEventService>();
         builder.Services.AddScoped<ICarrierService, CarrierService>();
         builder.Services.AddScoped<IShipmentService, ShipmentService>();
+        builder.Services.AddScoped<IPaymentAttemptStarter, PaymentAttemptStarter>();
+        builder.Services.AddScoped<IVehiclePricer, VehiclePricer>();
+        builder.Services.AddScoped<ICheckoutService, CheckoutService>();
         return builder;
     }
 
