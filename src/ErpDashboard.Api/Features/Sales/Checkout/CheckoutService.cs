@@ -41,6 +41,7 @@ public sealed class CheckoutService(
         {
             var submitted = await orders.SubmitAsync(orderId, expectedVersion, userId, ct);
             version = submitted.Version;
+            dbContext.ChangeTracker.Clear();
             if (submitted.Status == OrderStatus.PendingApproval)
                 return new StartCheckoutResponse(StartCheckoutOutcome.AwaitingApproval, version, null);
         }
