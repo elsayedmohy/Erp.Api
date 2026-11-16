@@ -29,7 +29,8 @@ public static class RolePermissions
         Carriers.Read,
         Carriers.Write,
         Shipments.Read,
-        Shipments.Book
+        Shipments.Book,
+        ShippingQuotes.Read
         );
 
     public static List<string> InventoryManager => Sorted(
@@ -49,7 +50,8 @@ public static class RolePermissions
         Carriers.Read,
         Shipments.Read,
         Shipments.Book,
-        Showrooms.AccessAll);
+        Showrooms.AccessAll,
+        ShippingQuotes.Read);
 
     public static List<string> Accountant => Sorted(
         Showrooms.Read,
