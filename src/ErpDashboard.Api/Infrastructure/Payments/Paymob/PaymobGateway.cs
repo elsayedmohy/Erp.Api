@@ -25,14 +25,59 @@ public sealed class PaymobGateway(HttpClient http, IOptions<PaymobOptions> optio
             NotificationUrl: _options.NotificationUrl,
             RedirectionUrl: _options.RedirectionUrl);
 
+        using var response = await SendAsync("/v1/intention/", body, ct);
+        if (!response.IsSuccessStatusCode)
+        {
+            await LogRejectionAsync("checkout", response);
+            throw new InvalidOperationException(
+                $"The payment provider rejected the request ({(int)response.StatusCode}).");
+        }
+
+        var intention = await response.Content.ReadFromJsonAsync<IntentionResponse>(Json, ct)
+                        ?? throw new InvalidOperationException("The payment provider returned an empty response.");
+
+        var url = $"{_options.CheckoutBaseUrl.TrimEnd('/')}/?publicKey={Uri.EscapeDataString(_options.PublicKey)}" +
+                  $"&clientSecret={Uri.EscapeDataString(intention.ClientSecret)}";
+        return new CheckoutSession(intention.Id, new Uri(url));
+    }
+
+    public Task<ReversalResult> VoidAsync(string providerTransactionId, CancellationToken ct) =>
+        ReverseAsync("/api/acceptance/void_refund/void",
+            new VoidRequest(providerTransactionId), "void", ct);
+
+    public Task<ReversalResult> RefundAsync(string providerTransactionId, long amountMinor, CancellationToken ct) =>
+        ReverseAsync("/api/acceptance/void_refund/refund",
+            new RefundRequest(providerTransactionId, amountMinor), "refund", ct);
+
+    private async Task<ReversalResult> ReverseAsync(string path, object body, string kind, CancellationToken ct)
+    {
+        using var response = await SendAsync(path, body, ct);
+        if (!response.IsSuccessStatusCode)
+        {
+            await LogRejectionAsync(kind, response);
+            return ReversalResult.Rejected($"The provider rejected the {kind} ({(int)response.StatusCode}).");
+        }
+
+        // Paymob answers with the new transaction; "success" says whether the bank accepted it.
+        using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct));
+        var root = doc.RootElement;
+        var success = root.TryGetProperty("success", out var s) && s.ValueKind == JsonValueKind.True;
+        var reference = root.TryGetProperty("id", out var id) ? id.ToString() : null;
+        return success
+            ? ReversalResult.Ok(reference)
+            : ReversalResult.Rejected($"The provider did not accept the {kind}.");
+    }
+
+    /// Timeouts and 5xx become PaymentProviderUnavailableException; everything else is returned to the caller.
+    private async Task<HttpResponseMessage> SendAsync(string path, object body, CancellationToken ct)
+    {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
         timeout.CancelAfter(TimeSpan.FromSeconds(_options.TimeoutSeconds));
 
-        using var message =
-            new HttpRequestMessage(HttpMethod.Post, new Uri(new Uri(_options.ApiBaseUrl), "/v1/intention/"))
-            {
-                Content = JsonContent.Create(body, options: Json)
-            };
+        using var message = new HttpRequestMessage(HttpMethod.Post, new Uri(new Uri(_options.ApiBaseUrl), path))
+        {
+            Content = JsonContent.Create(body, options: Json)
+        };
         message.Headers.TryAddWithoutValidation("Authorization", $"Token {_options.SecretKey}");
 
         HttpResponseMessage response;
@@ -50,31 +95,25 @@ public sealed class PaymobGateway(HttpClient http, IOptions<PaymobOptions> optio
             throw new PaymentProviderUnavailableException("The payment provider could not be reached.", ex);
         }
 
-        using (response)
+        if ((int)response.StatusCode >= 500)
         {
-            if ((int)response.StatusCode >= 500)
-                throw new PaymentProviderUnavailableException(
-                    $"The payment provider returned {(int)response.StatusCode}.");
-
-            if (!response.IsSuccessStatusCode)
-            {
-
-                var error = await response.Content.ReadAsStringAsync(CancellationToken.None);
-                logger.LogError("Payment provider rejected the checkout request with {Status}: {Body}",
-                    (int)response.StatusCode, error.Length > 500 ? error[..500] : error);
-                throw new InvalidOperationException(
-                    $"The payment provider rejected the request ({(int)response.StatusCode}).");
-            }
-
-            var intention = await response.Content.ReadFromJsonAsync<IntentionResponse>(Json, timeout.Token)
-                            ?? throw new InvalidOperationException("The payment provider returned an empty response.");
-
-            var url = $"{_options.CheckoutBaseUrl.TrimEnd('/')}/?publicKey={Uri.EscapeDataString(_options.PublicKey)}" +
-                      $"&clientSecret={Uri.EscapeDataString(intention.ClientSecret)}";
-
-            return new CheckoutSession(intention.Id, new Uri(url));
+            response.Dispose();
+            throw new PaymentProviderUnavailableException($"The payment provider returned {(int)response.StatusCode}.");
         }
+
+        return response;
     }
+
+    private async Task LogRejectionAsync(string kind, HttpResponseMessage response)
+    {
+        var error = await response.Content.ReadAsStringAsync(CancellationToken.None);
+        logger.LogError("Payment provider rejected the {Kind} request with {Status}: {Body}",
+            kind, (int)response.StatusCode, error.Length > 500 ? error[..500] : error);
+    }
+
+    internal sealed record VoidRequest(string TransactionId);
+
+    internal sealed record RefundRequest(string TransactionId, long AmountCents);
 
 
     internal sealed record IntentionRequest(

@@ -1,4 +1,5 @@
 using ErpDashboard.Api.Common.Workers;
+using ErpDashboard.Api.Features.Payments.Refunds;
 
 namespace ErpDashboard.Api.Extensions;
 
@@ -184,6 +185,8 @@ public static class DependencyInjection
         builder.Services.AddScoped<IPaymentNotificationHandler, PaymentNotificationHandler>();
         builder.Services.AddQueueWorker<PaymentWebhookProcessor>(builder.Configuration, "Payments:Webhooks");
         builder.Services.AddQueueWorker<CheckoutExpiryProcessor>(builder.Configuration, "Checkout:Expiry");
+        builder.Services.AddQueueWorker<RefundProcessor>(builder.Configuration, "Payments:Refunds");
+        
         builder.Services.AddScoped<IAuthService, AuthService>();
         builder.Services.AddScoped<ITokenService, TokenService>();
         builder.Services.AddScoped<IUserService, UserService>();

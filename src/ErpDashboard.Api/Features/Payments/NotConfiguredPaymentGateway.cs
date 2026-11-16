@@ -6,4 +6,10 @@ public sealed class NotConfiguredPaymentGateway : IPaymentGateway
 
     public Task<CheckoutSession> CreateCheckoutAsync(CheckoutRequest request, CancellationToken ct) =>
         throw new PaymentProviderUnavailableException("Online payments are not configured.");
+    
+    public Task<ReversalResult> VoidAsync(string providerTransactionId, CancellationToken ct) =>
+        throw new PaymentProviderUnavailableException("Online payments are not configured.");
+
+    public Task<ReversalResult> RefundAsync(string providerTransactionId, long amountMinor, CancellationToken ct) =>
+        throw new PaymentProviderUnavailableException("Online payments are not configured.");
 }

@@ -688,6 +688,9 @@ namespace ErpDashboard.Api.Migrations
                     b.Property<Guid?>("InvoiceId")
                         .HasColumnType("uuid");
 
+                    b.Property<DateTime?>("NextRefundAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<Guid?>("OrderId")
                         .HasColumnType("uuid");
 
@@ -704,6 +707,20 @@ namespace ErpDashboard.Api.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
+                    b.Property<int>("RefundAttempts")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("RefundError")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("RefundReference")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime?>("RefundedAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -718,6 +735,8 @@ namespace ErpDashboard.Api.Migrations
                     b.HasIndex("Provider", "ProviderReference")
                         .IsUnique()
                         .HasFilter("\"ProviderReference\" IS NOT NULL");
+
+                    b.HasIndex("Status", "NextRefundAt");
 
                     b.ToTable("PaymentAttempts", t =>
                         {

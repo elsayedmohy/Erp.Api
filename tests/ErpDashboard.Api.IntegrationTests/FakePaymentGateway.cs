@@ -26,6 +26,34 @@ public sealed class FakePaymentGateway : IPaymentGateway
     public void Reset()
     {
         Unavailable = false;
+        VoidBehavior = ReversalBehavior.Accept;
+        RefundBehavior = ReversalBehavior.Accept;
         lock (_requests) _requests.Clear();
+        lock (_reversals) _reversals.Clear();
+    }
+    
+    public enum ReversalBehavior { Accept, Reject, Unavailable }
+
+    public ReversalBehavior VoidBehavior { get; set; } = ReversalBehavior.Accept;
+    public ReversalBehavior RefundBehavior { get; set; } = ReversalBehavior.Accept;
+    private readonly List<(string Kind, string TransactionId, long? Amount)> _reversals = [];
+    public IReadOnlyList<(string Kind, string TransactionId, long? Amount)> Reversals
+    { get { lock (_reversals) return [.. _reversals]; } }
+
+    public Task<ReversalResult> VoidAsync(string transactionId, CancellationToken ct) =>
+        Reverse("void", transactionId, null, VoidBehavior);
+
+    public Task<ReversalResult> RefundAsync(string transactionId, long amountMinor, CancellationToken ct) =>
+        Reverse("refund", transactionId, amountMinor, RefundBehavior);
+
+    private Task<ReversalResult> Reverse(string kind, string id, long? amount, ReversalBehavior behavior)
+    {
+        lock (_reversals) _reversals.Add((kind, id, amount));
+        return behavior switch
+        {
+            ReversalBehavior.Accept => Task.FromResult(ReversalResult.Ok($"{kind}-{id}")),
+            ReversalBehavior.Reject => Task.FromResult(ReversalResult.Rejected($"Fake {kind} rejected.")),
+            _ => throw new PaymentProviderUnavailableException($"Fake {kind} unavailable.")
+        };
     }
 }
