@@ -1,5 +1,3 @@
-
-
 namespace ErpDashboard.Api.Features.Sales.Orders;
 
 public class OrderService(
@@ -7,7 +5,7 @@ public class OrderService(
     IBusinessClock clock,
     IStockService stock,
     IOptions<SalesSettings> salesOptions,
-    IWarehouseScope scope) : IOrderService
+    IWarehouseScope scope) : IOrderService, IOrderCancellation
 {
     private static readonly SortMap<Order> Sorts = new SortMap<Order>()
         .Add("orderDate", o => o.OrderDate)
@@ -18,15 +16,15 @@ public class OrderService(
 
     private static readonly Dictionary<OrderStatus, OrderStatus[]> Transitions = new()
     {
-        [OrderStatus.Draft]           = [OrderStatus.PendingApproval, OrderStatus.Confirmed, OrderStatus.Cancelled],
+        [OrderStatus.Draft] = [OrderStatus.PendingApproval, OrderStatus.Confirmed, OrderStatus.Cancelled],
         [OrderStatus.PendingApproval] = [OrderStatus.Confirmed, OrderStatus.Cancelled],
-        [OrderStatus.Confirmed]       = [OrderStatus.Preparing, OrderStatus.Cancelled],
-        [OrderStatus.Preparing]       = [OrderStatus.Shipped, OrderStatus.Cancelled],
-        [OrderStatus.Shipped]         = [OrderStatus.Delivered],
-        [OrderStatus.Delivered]       = [],
-        [OrderStatus.Cancelled]       = []
+        [OrderStatus.Confirmed] = [OrderStatus.Preparing, OrderStatus.Cancelled],
+        [OrderStatus.Preparing] = [OrderStatus.Shipped, OrderStatus.Cancelled],
+        [OrderStatus.Shipped] = [OrderStatus.Delivered],
+        [OrderStatus.Delivered] = [],
+        [OrderStatus.Cancelled] = []
     };
-    
+
     private static readonly OrderStatus[] OperationalTargets =
         [OrderStatus.Preparing, OrderStatus.Shipped, OrderStatus.Delivered];
 
@@ -46,7 +44,7 @@ public class OrderService(
                 ["allowedTransitions"] = allowed.Select(s => s.ToString()).ToArray()
             });
     }
-    
+
     private async Task ClaimAsync(Guid id, uint expectedVersion, OrderStatus from, OrderStatus to, CancellationToken ct)
     {
         var claimed = await dbContext.Orders
@@ -58,7 +56,7 @@ public class OrderService(
                 "The order was changed by someone else. Refresh and try again.",
                 code: "order_changed");
     }
-    
+
 
     public Task<PagedResult<OrderResponse>> ListAsync(OrderQuery query, CancellationToken ct)
     {
@@ -177,7 +175,6 @@ public class OrderService(
                 UnitPrice = product.UnitPrice,
                 Discount = line.Discount
             });
-
         }
 
         if (insufficient.Count > 0)
@@ -199,22 +196,23 @@ public class OrderService(
             TotalAmount = total,
             OrderLines = orderLines
         };
-        
+
         RecordStatusChange(orderId, null, order.Status, createdById);
         dbContext.Orders.Add(order);
         await dbContext.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
-        
+
         return ToDetailedResponse(order);
     }
 
-    public async Task<OrderResponse> UpdateAsync(Guid id, UpdateOrderRequest request,uint  expectedVersion,CancellationToken ct)
+    public async Task<OrderResponse> UpdateAsync(Guid id, UpdateOrderRequest request, uint expectedVersion,
+        CancellationToken ct)
     {
         var order = await LoadAsync(id, ct);
         EnsureVersion(order, expectedVersion);
         if (order.Status != OrderStatus.Draft)
             throw new ConflictException("Only draft orders can be updated.");
-        
+
         dbContext.Entry(order).Property(o => o.Version).OriginalValue = expectedVersion;
 
         order.ShippingAddress = request.ShippingAddress.Trim();
@@ -227,7 +225,7 @@ public class OrderService(
     }
 
     public async Task<OrderResponse> UpdateStatusAsync(
-        Guid id, UpdateOrderStatusRequest request,uint expectedVersion, Guid userId, CancellationToken ct)
+        Guid id, UpdateOrderStatusRequest request, uint expectedVersion, Guid userId, CancellationToken ct)
     {
         var order = await LoadAsync(id, ct);
         EnsureVersion(order, expectedVersion);
@@ -239,13 +237,13 @@ public class OrderService(
         EnsureTransition(current, request.Status);
 
         await using var transaction = await dbContext.Database.BeginTransactionAsync(ct);
-        await ClaimAsync(id, expectedVersion,current, request.Status, ct);
+        await ClaimAsync(id, expectedVersion, current, request.Status, ct);
 
         if (request.Status == OrderStatus.Shipped
             && !await dbContext.Shipments.AnyAsync(s => s.OrderId == id && s.Status == ShipmentStatus.Booked, ct))
             throw new ConflictException("Book a shipment before marking the order as shipped.",
                 code: "shipment_required");
-        
+
         if (request.Status == OrderStatus.Shipped)
             foreach (var line in order.OrderLines.OrderBy(l => l.ProductId))
                 await stock.IssueReservedAsync(new StockChange(
@@ -259,8 +257,8 @@ public class OrderService(
         order.Status = request.Status;
         return ToResponse(order);
     }
-    
-    public async Task<OrderResponse> SubmitAsync(Guid id,uint  expectedVersion, Guid userId, CancellationToken ct)
+
+    public async Task<OrderResponse> SubmitAsync(Guid id, uint expectedVersion, Guid userId, CancellationToken ct)
     {
         var order = await LoadAsync(id, ct);
         EnsureVersion(order, expectedVersion);
@@ -268,7 +266,7 @@ public class OrderService(
         EnsureTransition(order.Status, target);
 
         await using var transaction = await dbContext.Database.BeginTransactionAsync(ct);
-        await ClaimAsync(id, expectedVersion,order.Status, target, ct);
+        await ClaimAsync(id, expectedVersion, order.Status, target, ct);
         RecordStatusChange(id, order.Status, target, userId);
         await dbContext.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
@@ -277,13 +275,13 @@ public class OrderService(
         return ToResponse(order);
     }
 
-    public async Task<OrderResponse> ApproveAsync(Guid id,uint  expectedVersion, Guid reviewerId, CancellationToken ct)
+    public async Task<OrderResponse> ApproveAsync(Guid id, uint expectedVersion, Guid reviewerId, CancellationToken ct)
     {
         var order = await GetForReviewAsync(id, reviewerId, ct);
         EnsureVersion(order, expectedVersion);
         await using var transaction = await dbContext.Database.BeginTransactionAsync(ct);
 
-        await ClaimReviewAsync(id, expectedVersion,OrderStatus.Confirmed, reviewerId, null, ct);
+        await ClaimReviewAsync(id, expectedVersion, OrderStatus.Confirmed, reviewerId, null, ct);
         RecordStatusChange(id, OrderStatus.PendingApproval, OrderStatus.Confirmed, reviewerId, "Discount approved");
 
         await dbContext.SaveChangesAsync(ct);
@@ -295,15 +293,16 @@ public class OrderService(
 
     public async Task<OrderResponse> RejectAsync(
         Guid id, RejectOrderRequest request,
-        uint  expectedVersion,
+        uint expectedVersion,
         Guid reviewerId, CancellationToken ct)
     {
         var order = await GetForReviewAsync(id, reviewerId, ct);
         EnsureVersion(order, expectedVersion);
         await using var transaction = await dbContext.Database.BeginTransactionAsync(ct);
 
-        await ClaimReviewAsync(id, expectedVersion,OrderStatus.Cancelled, reviewerId, request.Reason.Trim(), ct);
-        RecordStatusChange(id, OrderStatus.PendingApproval, OrderStatus.Cancelled, reviewerId, $"Rejected: {request.Reason.Trim()}");
+        await ClaimReviewAsync(id, expectedVersion, OrderStatus.Cancelled, reviewerId, request.Reason.Trim(), ct);
+        RecordStatusChange(id, OrderStatus.PendingApproval, OrderStatus.Cancelled, reviewerId,
+            $"Rejected: {request.Reason.Trim()}");
         foreach (var line in order.OrderLines)
             await stock.ReleaseAsync(order.WarehouseId, line.ProductId, line.Quantity, ct);
 
@@ -337,31 +336,58 @@ public class OrderService(
     }
 
 
-    public async Task<OrderResponse> CancelAsync(Guid id, CancelOrderRequest request,uint  expectedVersion, Guid userId, CancellationToken ct)
+    public async Task<OrderResponse> CancelAsync(Guid id, CancelOrderRequest request, uint expectedVersion, Guid userId,
+        CancellationToken ct)
     {
         var order = await LoadAsync(id, ct);
         EnsureVersion(order, expectedVersion);
         EnsureTransition(order.Status, OrderStatus.Cancelled);
 
         await using var transaction = await dbContext.Database.BeginTransactionAsync(ct);
-
-        await ClaimAsync(id, expectedVersion,order.Status, OrderStatus.Cancelled, ct);
-        
-        await dbContext.Shipments
-            .Where(s => s.OrderId == id && s.Status == ShipmentStatus.Booked)
-            .ExecuteUpdateAsync(s => s
-                .SetProperty(x => x.Status, ShipmentStatus.Cancelled)
-                .SetProperty(x => x.CancelledAt, DateTime.UtcNow), ct);
-        
-        foreach (var line in order.OrderLines.OrderBy(l => l.ProductId))
-            await stock.ReleaseAsync(order.WarehouseId, line.ProductId, line.Quantity, ct);
-
-        RecordStatusChange(id, order.Status, OrderStatus.Cancelled, userId, request.Reason.Trim());
+        await ClaimAsync(id, expectedVersion, order.Status, OrderStatus.Cancelled, ct);
+        await ApplyCancellationAsync(order, userId, request.Reason.Trim(), ct);
         await dbContext.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
+
         order.Version = await CurrentVersionAsync(id, ct);
         order.Status = OrderStatus.Cancelled;
         return ToResponse(order);
+    }
+
+    public async Task<bool> CancelBySystemAsync(Guid orderId, string reason, CancellationToken ct)
+    {
+        // Background work has no user, so the showroom filter would hide every order.
+        var order = await dbContext.Orders.IgnoreQueryFilters([QueryFilters.Showroom])
+            .AsNoTracking()
+            .Include(o => o.OrderLines)
+            .SingleOrDefaultAsync(o => o.Id == orderId, ct);
+        if (order is null || !Transitions[order.Status].Contains(OrderStatus.Cancelled))
+            return false;
+
+        // Same claim as a user cancel, minus the version: only wins if the status is still what we read.
+        var claimed = await dbContext.Orders.IgnoreQueryFilters([QueryFilters.Showroom])
+            .Where(o => o.Id == orderId && o.Status == order.Status)
+            .ExecuteUpdateAsync(s => s.SetProperty(o => o.Status, OrderStatus.Cancelled), ct);
+        if (claimed == 0)
+            return false;
+
+        await ApplyCancellationAsync(order, null, reason, ct);
+        await dbContext.SaveChangesAsync(ct);
+        return true;
+    }
+
+    private async Task ApplyCancellationAsync(Order order, Guid? userId, string reason, CancellationToken ct)
+    {
+        await dbContext.Shipments
+            .Where(s => s.OrderId == order.Id && s.Status == ShipmentStatus.Booked)
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(x => x.Status, ShipmentStatus.Cancelled)
+                .SetProperty(x => x.CancelledAt, DateTime.UtcNow), ct);
+
+        foreach (var line in order.OrderLines.OrderBy(l => l.ProductId))
+            await stock.ReleaseAsync(order.WarehouseId, line.ProductId, line.Quantity, ct);
+
+        RecordStatusChange(order.Id, order.Status, OrderStatus.Cancelled, userId, reason);
     }
 
     private async Task<Order> LoadAsync(Guid id, CancellationToken ct) =>
@@ -371,7 +397,7 @@ public class OrderService(
             .Include(o => o.OrderLines)
             .FirstOrDefaultAsync(o => o.Id == id, ct)
         ?? throw new NotFoundException("Order", id);
-    
+
     private static void EnsureVersion(Order order, uint expected)
     {
         if (order.Version != expected)
@@ -380,7 +406,7 @@ public class OrderService(
                 code: "order_changed",
                 extensions: new Dictionary<string, object?> { ["currentVersion"] = order.Version });
     }
-    
+
     private async Task<Order> GetForReviewAsync(Guid id, Guid reviewerId, CancellationToken ct)
     {
         var order = await dbContext.Orders
@@ -398,7 +424,7 @@ public class OrderService(
 
         return order;
     }
-    
+
     private bool RequiresApproval(IEnumerable<OrderLine> lines)
     {
         var threshold = salesOptions.Value.DiscountApprovalThresholdPercent;
@@ -406,7 +432,7 @@ public class OrderService(
     }
 
     private async Task ClaimReviewAsync(
-        Guid id,uint expectedVersion, OrderStatus next, Guid reviewerId, string? reason, CancellationToken ct)
+        Guid id, uint expectedVersion, OrderStatus next, Guid reviewerId, string? reason, CancellationToken ct)
     {
         Guid? reviewer = reviewerId;
         DateTime? reviewedAt = DateTime.UtcNow;
@@ -424,8 +450,9 @@ public class OrderService(
                 "The order was changed by someone else. Refresh and try again.",
                 code: "order_changed");
     }
-    
-    private void RecordStatusChange(Guid orderId, OrderStatus? from, OrderStatus to, Guid userId, string? reason = null) =>
+
+    private void RecordStatusChange(Guid orderId, OrderStatus? from, OrderStatus to,
+        Guid? userId, string? reason = null) =>
         dbContext.OrderStatusChanges.Add(new OrderStatusChange
         {
             Id = Guid.NewGuid(),
@@ -474,7 +501,7 @@ public class OrderService(
             o.ShippingAddress,
             o.ShippingGovernorate,
             o.TotalAmount);
-    
+
     private Task<uint> CurrentVersionAsync(Guid id, CancellationToken ct) =>
         dbContext.Orders.Where(o => o.Id == id).Select(o => o.Version).SingleAsync(ct);
 }

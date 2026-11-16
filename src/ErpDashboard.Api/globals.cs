@@ -29,6 +29,7 @@ global using QuestPDF.Helpers;
 global using QuestPDF.Infrastructure;
 global using System.ComponentModel.DataAnnotations;
 global using ErpDashboard.Api.Common;
+global using ErpDashboard.Api.Common.Workers;
 global using ErpDashboard.Api.Data;
 global using ErpDashboard.Api.Data.Entities;
 global using ErpDashboard.Api.Data.Enums;

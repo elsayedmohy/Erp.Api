@@ -1,9 +1,11 @@
+using ErpDashboard.Api.Common.Workers;
+
 namespace ErpDashboard.Api.Features.Payments.Webhooks;
 
 public sealed class PaymentWebhookProcessor(
     AppDbContext dbContext,
     IPaymentNotificationHandler handler,
-    ILogger<PaymentWebhookProcessor> logger)
+    ILogger<PaymentWebhookProcessor> logger): IQueueProcessor
 {
     private const string Savepoint = "handle_event";
     
