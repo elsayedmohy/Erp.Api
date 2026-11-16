@@ -16,4 +16,10 @@ public class PaymentAttempt
     public Guid CreatedById { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime? CompletedAt { get; set; }
+    
+    public int RefundAttempts { get; set; }
+    public DateTime? NextRefundAt { get; set; }
+    public DateTime? RefundedAt { get; set; }
+    public string? RefundReference { get; set; }
+    public string? RefundError { get; set; }
 }
