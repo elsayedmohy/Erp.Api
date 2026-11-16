@@ -215,6 +215,7 @@ public partial class InvoiceNumberingTests(ApiFactory factory)
             warehouseId = WarehouseIds.Main,
             paymentMethod = Enum.GetValues<PaymentMethod>()[0].ToString(),
             shippingAddress = "Showroom address",
+            shippingGovernorate = "Cairo",
             lines = new[] { new { productId = product.Id, quantity = 2, discount = 0m } }
         });
         Assert.True(response.StatusCode == HttpStatusCode.Created, await response.Content.ReadAsStringAsync());

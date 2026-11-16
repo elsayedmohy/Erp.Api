@@ -30,6 +30,7 @@ public class InsufficientStockResponseTests(ApiFactory factory)
             warehouseId = WarehouseIds.Main,
             paymentMethod = Enum.GetValues<PaymentMethod>()[0].ToString(),
             shippingAddress = "Showroom address",
+            shippingGovernorate = "Cairo",
             lines = new[]
             {
                 new { productId = enough, quantity = 5, discount = 0m },

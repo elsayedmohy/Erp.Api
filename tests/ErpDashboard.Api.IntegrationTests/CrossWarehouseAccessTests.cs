@@ -89,6 +89,7 @@ public class CrossWarehouseAccessTests(ApiFactory factory)
             warehouseId = other.WarehouseId,
             paymentMethod = Enum.GetValues<PaymentMethod>()[0].ToString(),
             shippingAddress = "Test address",
+            shippingGovernorate = "Cairo",
             lines = new[] { new { productId = other.ProductId, quantity = 1, discount = 0 } }
         });
 

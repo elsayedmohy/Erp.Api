@@ -47,7 +47,8 @@ public class OrderVersionTests(ApiFactory factory)
         Assert.Equal(HttpStatusCode.OK, (await OrderFlow.UpdateAsync(_client, token, orderId, new
         {
             paymentMethod = Enum.GetValues<PaymentMethod>()[0].ToString(),
-            shippingAddress = "New address"
+            shippingAddress = "New address",
+            shippingGovernorate = "Cairo"
         })).StatusCode);
 
         var response = await OrderFlow.SendAsync(_client, HttpMethod.Post, $"/api/orders/{orderId}/submit", token, before);
@@ -65,13 +66,15 @@ public class OrderVersionTests(ApiFactory factory)
         await OrderFlow.UpdateAsync(_client, token, orderId, new
         {
             paymentMethod = Enum.GetValues<PaymentMethod>()[0].ToString(),
-            shippingAddress = "First edit"
+            shippingAddress = "First edit",
+            shippingGovernorate = "Damietta"
         });
 
         var response = await OrderFlow.SendAsync(_client, HttpMethod.Put, $"/api/orders/{orderId}", token, stale, new
         {
             paymentMethod = Enum.GetValues<PaymentMethod>()[0].ToString(),
-            shippingAddress = "Second edit"
+            shippingAddress = "Second edit",
+            shippingGovernorate = "Cairo"
         });
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
@@ -183,6 +186,7 @@ public class OrderVersionTests(ApiFactory factory)
             warehouseId = WarehouseIds.Main,
             paymentMethod = Enum.GetValues<PaymentMethod>()[0].ToString(),
             shippingAddress = "Showroom address",
+            shippingGovernorate = "Cairo",
             lines = new[] { new { productId = product.Id, quantity = 2, discount = 0m } }
         });
         Assert.True(response.StatusCode == HttpStatusCode.Created, await response.Content.ReadAsStringAsync());

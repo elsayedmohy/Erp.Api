@@ -48,6 +48,7 @@ public class StockLedgerTests(ApiFactory factory)
             warehouseId = WarehouseIds.Main,
             paymentMethod = Enum.GetValues<PaymentMethod>()[0].ToString(),
             shippingAddress = "Test address",
+            shippingGovernorate = "Cairo",
             lines = new[]
             {
                 new { productId = enough.ProductId, quantity = 3, discount = 0m },
@@ -155,6 +156,7 @@ public class StockLedgerTests(ApiFactory factory)
         warehouseId = WarehouseIds.Main,
         paymentMethod = Enum.GetValues<PaymentMethod>()[0].ToString(),
         shippingAddress = "Test address",
+        shippingGovernorate = "Cairo",
         lines = new[] { new { productId = s.ProductId, quantity, discount } }
     };
 

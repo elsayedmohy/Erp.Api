@@ -218,6 +218,7 @@ public class OrderService(
         dbContext.Entry(order).Property(o => o.Version).OriginalValue = expectedVersion;
 
         order.ShippingAddress = request.ShippingAddress.Trim();
+        order.ShippingGovernorate = request.ShippingGovernorate;
         order.PaymentMethod = request.PaymentMethod;
         order.Notes = string.IsNullOrWhiteSpace(request.Notes) ? null : request.Notes.Trim();
         await dbContext.SaveChangesAsync(ct);

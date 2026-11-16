@@ -25,7 +25,10 @@ public class OrderCreateValidationTests(ApiFactory factory)
         { "missing address", """{"shippingAddress":null}""" },
         { "blank address", """{"shippingAddress":"   "}""" },
         { "missing showroom", """{"showroomId":null}""" },
-        { "long notes", $$"""{"notes":"{{new string('x', 1001)}}"}""" }
+        { "long notes", $$"""{"notes":"{{new string('x', 1001)}}"}""" },
+        { "missing governorate", """{"shippingGovernorate":null}""" },
+        { "unknown governorate", """{"shippingGovernorate":"Atlantis"}""" },
+        { "governorate out of range", """{"shippingGovernorate":99}""" }
     };
 
     [Theory]
@@ -99,6 +102,7 @@ public class OrderCreateValidationTests(ApiFactory factory)
             ["warehouseId"] = WarehouseIds.Main,
             ["paymentMethod"] = Enum.GetValues<PaymentMethod>()[0].ToString(),
             ["shippingAddress"] = "Showroom address",
+            ["shippingGovernorate"] = "Cairo",
             ["lines"] = new[] { line }
         };
 

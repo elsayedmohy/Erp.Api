@@ -96,6 +96,7 @@ public class SalesRoleTests(ApiFactory factory)
         warehouseId = WarehouseIds.Main,
         paymentMethod = Enum.GetValues<PaymentMethod>()[0].ToString(),
         shippingAddress = "Showroom address",
+        shippingGovernorate = "Cairo",
         lines = new[] { new { productId = s.ProductId, quantity = 1, discount = 0m } }
     };
 
