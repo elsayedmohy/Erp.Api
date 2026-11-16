@@ -385,6 +385,10 @@ namespace ErpDashboard.Api.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<string>("ShippingGovernorate")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
                     b.Property<Guid>("ShowroomId")
                         .HasColumnType("uuid");
 

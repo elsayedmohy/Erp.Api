@@ -18,6 +18,7 @@ public sealed record OrderResponse(
     OrderStatus Status,
     PaymentMethod PaymentMethod,
     string ShippingAddress,
+    Governorate? ShippingGovernorate,
     decimal TotalAmount
 );
 
@@ -32,6 +33,7 @@ public sealed record OrderDetailsResponse(
     OrderStatus Status,
     PaymentMethod PaymentMethod,
     string ShippingAddress,
+    Governorate? ShippingGovernorate,
     string? Notes,
     decimal TotalAmount,
     List<OrderLineResponse> Lines
@@ -42,15 +44,15 @@ public sealed record CreateOrderRequest(
     [Required] Guid? WarehouseId,
     [EnumDataType(typeof(PaymentMethod))] PaymentMethod PaymentMethod,
     [Required, MaxLength(500)] string ShippingAddress,
+    [Required, EnumDataType(typeof(Governorate))] Governorate? ShippingGovernorate,
     [Required, MinLength(1), MaxLength(100)] List<OrderLineRequest> Lines,
     [MaxLength(1000)] string? Notes = null);
 
 public sealed record UpdateOrderRequest(
-    [EnumDataType(typeof(PaymentMethod))]
-    PaymentMethod PaymentMethod,
-    string ShippingAddress,
-    [MaxLength(1000)] string? Notes = null
-);
+    [EnumDataType(typeof(PaymentMethod))] PaymentMethod PaymentMethod,
+    [Required, MaxLength(500)] string ShippingAddress,
+    [Required, EnumDataType(typeof(Governorate))] Governorate? ShippingGovernorate,
+    [MaxLength(1000)] string? Notes = null);
 
 public sealed record UpdateOrderStatusRequest(
     [EnumDataType(typeof(OrderStatus))]

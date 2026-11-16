@@ -10,6 +10,7 @@ public class Order
     public OrderStatus Status { get; set; }
     public PaymentMethod PaymentMethod { get; set; }
     public string ShippingAddress { get; set; }
+    public Governorate? ShippingGovernorate { get; set; }
     public decimal TotalAmount { get; set; }
     public Invoice? Invoice { get; set; }
     public Showroom? Showroom { get; set; }
