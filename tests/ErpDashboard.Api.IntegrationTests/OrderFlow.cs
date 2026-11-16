@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using ErpDashboard.Api.Data.Seed;
 
 namespace ErpDashboard.Api.IntegrationTests;
 
@@ -45,6 +46,7 @@ public static class OrderFlow
         foreach (var step in new[] { "Preparing", "Shipped", "Delivered" })
         {
             if (target == "Confirmed") return;
+            if (step == "Shipped") await BookFleetAsync(client, token, orderId);
             await ExpectOkAsync(SetStatusAsync(client, token, orderId, step));
             if (step == target) return;
         }
@@ -66,5 +68,19 @@ public static class OrderFlow
     {
         var response = await call;
         Assert.True(response.StatusCode == HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
+    }
+    
+    public static async Task BookFleetAsync(HttpClient client, string token, Guid orderId)
+    {
+        var details = await SendAsync(client, HttpMethod.Get, $"/api/orders/{orderId}", token, version: null);
+        using var json = JsonDocument.Parse(await details.Content.ReadAsStringAsync());
+        var governorate = json.RootElement.GetProperty("shippingGovernorate").GetString();
+
+        await ExpectOkAsync(SendAsync(client, HttpMethod.Put,
+            $"/api/carriers/{CarrierIds.CompanyFleet}/rates/{governorate}", token, version: null, new { vehiclePrice = 500m }));
+
+        var booked = await SendAsync(client, HttpMethod.Post, $"/api/orders/{orderId}/shipment", token, version: null,
+            new { vehicles = new[] { new { carrierId = CarrierIds.CompanyFleet } } });
+        Assert.True(booked.StatusCode == HttpStatusCode.Created, await booked.Content.ReadAsStringAsync());
     }
 }

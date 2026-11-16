@@ -78,6 +78,7 @@ public class OrderStatusHistoryTests(ApiFactory factory)
 
         factory.StockFaults.FailAfterChange(1);
         HttpResponseMessage response;
+        await OrderFlow.BookFleetAsync(_client, manager, orderId);
         try { response = await SetStatusAsync(manager, orderId, "Shipped"); }
         finally { factory.StockFaults.Reset(); }
 
@@ -93,7 +94,7 @@ public class OrderStatusHistoryTests(ApiFactory factory)
         var (manager, _) = await LoginAsync(RoleIds.Manager);
         var orderId = await CreateOrderAsync(manager, discount: 0m);
         await OrderFlow.AdvanceAsync(_client, manager, orderId, "Preparing");
-
+        await OrderFlow.BookFleetAsync(_client, manager, orderId);
         await Task.WhenAll(SetStatusAsync(manager, orderId, "Shipped"), SetStatusAsync(manager, orderId, "Shipped"));
 
         var history = await HistoryAsync(manager, orderId);
