@@ -1,6 +1,7 @@
 using ErpDashboard.Api.Data;
 using ErpDashboard.Api.Data.Entities;
 using ErpDashboard.Api.Data.Seed;
+using ErpDashboard.Api.Features.Finance.Invoices;
 using ErpDashboard.Api.Features.Finance.Invoices.DocumentNumber;
 using ErpDashboard.Api.Features.Inventory.Stock;
 using ErpDashboard.Api.Features.Payments;
@@ -25,6 +26,7 @@ public class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
     public FakePaymentGateway Payments { get; } = new();
     public NumberFaults NumberFaults { get; } = new();
     public WebhookFaults WebhookFaults { get; } = new();
+    public InvoiceIssuingFaults InvoiceFaults { get; } = new();
     public OrderCancellationFaults CancellationFaults { get; } = new();
     public const string AdminEmail = "admin@tests.local";
     public const string AdminPassword = "Test-only-Passw0rd!";
@@ -62,7 +64,8 @@ public class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
                 new FaultInjectingNotificationHandler(sp.GetRequiredService<PaymentNotificationHandler>(), WebhookFaults));
             services.AddScoped<IOrderCancellation>(sp =>
                 new FaultInjectingOrderCancellation(sp.GetRequiredService<OrderService>(), CancellationFaults));
-            
+            services.AddScoped<IInvoiceIssuing>(sp =>
+                new FaultInjectingInvoiceIssuing(sp.GetRequiredService<InvoiceService>(), InvoiceFaults));
         });
 
         builder.UseEnvironment("Testing");

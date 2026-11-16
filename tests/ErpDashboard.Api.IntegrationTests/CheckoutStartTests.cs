@@ -177,23 +177,6 @@ public class CheckoutStartTests(ApiFactory factory) : IDisposable
         Assert.Single(body.GetProperty("vehicles").EnumerateArray());
     }
 
-    [Fact]
-    public async Task WebhookForOrderAttempt_IsParkedForReview_UntilCompletionExists()
-    {
-        var s = await Kit.ScenarioAsync();
-        var carrier = await Kit.CarrierWithRateAsync(s.Manager, "Cairo", 500m);
-        await Kit.CheckoutAsync(s.Sales, s.OrderId, carrier);
-        var request = Assert.Single(factory.Payments.Requests);
-        var payload = WebhookSigning.For(request.AttemptId, request.AmountMinor);
 
-        await _client.PostAsync($"/api/payments/webhook?hmac={WebhookSigning.Sign(payload)}",
-            new StringContent(payload.ToJsonString(), System.Text.Encoding.UTF8, "application/json"));
-        await Kit.DrainAsync();
-
-        var transactionId = payload["obj"]!["id"]!.ToString();
-        var e = await Kit.Db(db => db.PaymentWebhookEvents.SingleAsync(x => x.ProviderEventId == transactionId));
-        Assert.Equal(WebhookEventStatus.NeedsReview, e.Status);
-        Assert.False(await Kit.Db(db => db.InvoicePayments.AnyAsync(p => p.PaymentAttemptId == request.AttemptId)));
-    }
     
 }

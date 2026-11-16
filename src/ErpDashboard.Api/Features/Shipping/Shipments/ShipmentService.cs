@@ -6,19 +6,44 @@ public sealed class ShipmentService(
     AppDbContext dbContext,
     IDocumentNumberGenerator numbers,
     IBusinessClock clock,
-    IVehiclePricer pricer) : IShipmentService
+    IVehiclePricer pricer) : IShipmentService, IShipmentBooking
 {
     private static readonly OrderStatus[] BookableStatuses = [OrderStatus.Confirmed, OrderStatus.Preparing];
 
     public async Task<ShipmentResponse> BookAsync(
         Guid orderId, BookShipmentRequest request, Guid userId, CancellationToken ct)
     {
-        await using var transaction = await dbContext.Database.BeginTransactionAsync(ct);
 
+        var order = await dbContext.Orders.AsNoTracking()
+                        .Where(o => o.Id == orderId)
+                        .Select(o => new { o.ShippingGovernorate })
+                        .SingleOrDefaultAsync(ct)
+                    ?? throw new NotFoundException(nameof(Order), orderId);
+        if (order.ShippingGovernorate is not { } governorate)
+            throw new ConflictException("Set the order's shipping governorate before booking.",
+                code: "governorate_missing");
+
+        var priced = await pricer.PriceAsync(
+            governorate, request.Vehicles.Select(v => v.CarrierId!.Value).ToList(), ct);
+        var vehicles = request.Vehicles.Select((v, i) => new VehicleToBook(
+            priced[i].CarrierId, priced[i].CarrierName, priced[i].Price,
+            Clean(v.PlateNumber), Clean(v.DriverPhone))).ToList();
+
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(ct);
+        var shipment = await BookInTransactionAsync(orderId, vehicles, userId, ct);
+        await transaction.CommitAsync(ct);
+        return ToResponse(shipment);
+    }
+
+    public async Task<Shipment> BookInTransactionAsync(
+        Guid orderId, IReadOnlyList<VehicleToBook> vehicles, Guid? bookedById, CancellationToken ct)
+    {
+        // Serialises with cancel and with Shipped, which both update this row.
         await dbContext.Database.ExecuteSqlInterpolatedAsync(
             $"""SELECT 1 FROM "Orders" WHERE "Id" = {orderId} FOR UPDATE""", ct);
 
-        var order = await dbContext.Orders.AsNoTracking()
+        // Callers already decided visibility; background callers have no user.
+        var order = await dbContext.Orders.IgnoreQueryFilters([QueryFilters.Showroom]).AsNoTracking()
                         .Where(o => o.Id == orderId)
                         .Select(o => new { o.Status, o.ShippingGovernorate })
                         .SingleOrDefaultAsync(ct)
@@ -34,10 +59,6 @@ public sealed class ShipmentService(
         if (await dbContext.Shipments.AnyAsync(s => s.OrderId == orderId, ct))
             throw new ConflictException("This order already has a shipment.", code: "already_booked");
 
-        var priced = await pricer.PriceAsync(
-            governorate, request.Vehicles.Select(v => v.CarrierId!.Value).ToList(), ct);
-
-        var now = DateTime.UtcNow;
         var shipment = new Shipment
         {
             Id = Guid.NewGuid(),
@@ -45,24 +66,23 @@ public sealed class ShipmentService(
             TrackingNumber = await numbers.NextAsync("SHP", clock.Today.Year, ct),
             Status = ShipmentStatus.Booked,
             Governorate = governorate,
-            BookedAt = now,
-            BookedById = userId,
-            Vehicles = request.Vehicles.Select((v, i) => new ShipmentVehicle
+            BookedAt = DateTime.UtcNow,
+            BookedById = bookedById,
+            Vehicles = vehicles.Select(v => new ShipmentVehicle
             {
                 Id = Guid.NewGuid(),
-                CarrierId = priced[i].CarrierId,
-                CarrierName = priced[i].CarrierName,
-                Price = priced[i].Price,
-                PlateNumber = Clean(v.PlateNumber),
-                DriverPhone = Clean(v.DriverPhone)
+                CarrierId = v.CarrierId,
+                CarrierName = v.CarrierName,
+                Price = v.Price,
+                PlateNumber = v.PlateNumber,
+                DriverPhone = v.DriverPhone
             }).ToList()
         };
         shipment.TotalCost = shipment.Vehicles.Sum(v => v.Price);
 
         dbContext.Shipments.Add(shipment);
         await dbContext.SaveChangesAsync(ct);
-        await transaction.CommitAsync(ct);
-        return ToResponse(shipment);
+        return shipment;
     }
 
     public async Task<ShipmentResponse> GetForOrderAsync(Guid orderId, CancellationToken ct)

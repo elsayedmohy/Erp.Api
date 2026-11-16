@@ -14,7 +14,9 @@ public interface IPaymentNotificationHandler
     Task<WebhookOutcome> HandleAsync(PaymentWebhookEvent e, CancellationToken ct);
 }
 
-public sealed class PaymentNotificationHandler(AppDbContext dbContext, IBusinessClock clock)
+public sealed class PaymentNotificationHandler(AppDbContext dbContext,
+    IBusinessClock clock,
+    ICheckoutCompletion checkouts)
     : IPaymentNotificationHandler
 {
     public async Task<WebhookOutcome> HandleAsync(PaymentWebhookEvent e, CancellationToken ct)
@@ -41,7 +43,7 @@ public sealed class PaymentNotificationHandler(AppDbContext dbContext, IBusiness
                 : WebhookOutcome.Ignored("Unknown payment attempt.");
 
         if (target.OrderId is not null)
-            return WebhookOutcome.NeedsReview("Order checkout payment: completion is not implemented yet (ERP-18 PR 3).");
+            return await checkouts.HandleAsync(e, e.AttemptId!.Value, ct);
 
         var invoiceId = target.InvoiceId!.Value;
 
