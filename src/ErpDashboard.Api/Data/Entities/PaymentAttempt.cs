@@ -3,7 +3,8 @@ namespace ErpDashboard.Api.Data.Entities;
 public class PaymentAttempt
 {
     public Guid Id { get; set; }
-    public Guid InvoiceId { get; set; }
+    public Guid? InvoiceId { get; set; }
+    public Guid? OrderId { get; set; }  
     public long AmountMinor { get; set; }
     public string Currency { get; set; } = "";
     public PaymentAttemptStatus Status { get; set; }

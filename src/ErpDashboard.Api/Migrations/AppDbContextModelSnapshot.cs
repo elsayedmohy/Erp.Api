@@ -489,6 +489,97 @@ namespace ErpDashboard.Api.Migrations
                     b.ToTable("Orders");
                 });
 
+            modelBuilder.Entity("ErpDashboard.Api.Data.Entities.OrderCheckout", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CreatedById")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("CustomerMessage")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<decimal>("GoodsAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<string>("Governorate")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<Guid>("OrderId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("PaymentAttemptId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("ShippingAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<decimal>("TotalAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OrderId")
+                        .IsUnique()
+                        .HasFilter("\"Status\" = 'AwaitingPayment'");
+
+                    b.HasIndex("PaymentAttemptId");
+
+                    b.HasIndex("Status", "ExpiresAt");
+
+                    b.ToTable("OrderCheckouts");
+                });
+
+            modelBuilder.Entity("ErpDashboard.Api.Data.Entities.OrderCheckoutVehicle", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CarrierId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("CarrierName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<Guid>("CheckoutId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("Price")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CarrierId");
+
+                    b.HasIndex("CheckoutId");
+
+                    b.ToTable("OrderCheckoutVehicles");
+                });
+
             modelBuilder.Entity("ErpDashboard.Api.Data.Entities.OrderLine", b =>
                 {
                     b.Property<Guid>("Id")
@@ -591,7 +682,10 @@ namespace ErpDashboard.Api.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
 
-                    b.Property<Guid>("InvoiceId")
+                    b.Property<Guid?>("InvoiceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("OrderId")
                         .HasColumnType("uuid");
 
                     b.Property<string>("Provider")
@@ -616,6 +710,8 @@ namespace ErpDashboard.Api.Migrations
 
                     b.HasIndex("InvoiceId", "Status");
 
+                    b.HasIndex("OrderId", "Status");
+
                     b.HasIndex("Provider", "ProviderReference")
                         .IsUnique()
                         .HasFilter("\"ProviderReference\" IS NOT NULL");
@@ -623,6 +719,8 @@ namespace ErpDashboard.Api.Migrations
                     b.ToTable("PaymentAttempts", t =>
                         {
                             t.HasCheckConstraint("CK_PaymentAttempts_Amount", "\"AmountMinor\" > 0");
+
+                            t.HasCheckConstraint("CK_PaymentAttempts_PaysOneThing", "(\"InvoiceId\" IS NULL) <> (\"OrderId\" IS NULL)");
                         });
                 });
 
@@ -1531,6 +1629,35 @@ namespace ErpDashboard.Api.Migrations
                     b.Navigation("Showroom");
                 });
 
+            modelBuilder.Entity("ErpDashboard.Api.Data.Entities.OrderCheckout", b =>
+                {
+                    b.HasOne("ErpDashboard.Api.Data.Entities.Order", null)
+                        .WithMany()
+                        .HasForeignKey("OrderId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ErpDashboard.Api.Data.Entities.PaymentAttempt", null)
+                        .WithMany()
+                        .HasForeignKey("PaymentAttemptId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("ErpDashboard.Api.Data.Entities.OrderCheckoutVehicle", b =>
+                {
+                    b.HasOne("ErpDashboard.Api.Data.Entities.Carrier", null)
+                        .WithMany()
+                        .HasForeignKey("CarrierId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ErpDashboard.Api.Data.Entities.OrderCheckout", null)
+                        .WithMany("Vehicles")
+                        .HasForeignKey("CheckoutId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("ErpDashboard.Api.Data.Entities.OrderLine", b =>
                 {
                     b.HasOne("ErpDashboard.Api.Data.Entities.Order", null)
@@ -1562,8 +1689,12 @@ namespace ErpDashboard.Api.Migrations
                     b.HasOne("ErpDashboard.Api.Data.Entities.Invoice", null)
                         .WithMany()
                         .HasForeignKey("InvoiceId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ErpDashboard.Api.Data.Entities.Order", null)
+                        .WithMany()
+                        .HasForeignKey("OrderId")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("ErpDashboard.Api.Data.Entities.Product", b =>
@@ -1810,6 +1941,11 @@ namespace ErpDashboard.Api.Migrations
                     b.Navigation("Invoice");
 
                     b.Navigation("OrderLines");
+                });
+
+            modelBuilder.Entity("ErpDashboard.Api.Data.Entities.OrderCheckout", b =>
+                {
+                    b.Navigation("Vehicles");
                 });
 
             modelBuilder.Entity("ErpDashboard.Api.Data.Entities.PurchaseOrder", b =>

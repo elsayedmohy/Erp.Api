@@ -3,7 +3,10 @@ using ErpDashboard.Api.Features.Finance.Invoices.DocumentNumber;
 namespace ErpDashboard.Api.Features.Shipping.Shipments;
 
 public sealed class ShipmentService(
-    AppDbContext dbContext, IDocumentNumberGenerator numbers, IBusinessClock clock) : IShipmentService
+    AppDbContext dbContext,
+    IDocumentNumberGenerator numbers,
+    IBusinessClock clock,
+    IVehiclePricer pricer) : IShipmentService
 {
     private static readonly OrderStatus[] BookableStatuses = [OrderStatus.Confirmed, OrderStatus.Preparing];
 
@@ -31,30 +34,8 @@ public sealed class ShipmentService(
         if (await dbContext.Shipments.AnyAsync(s => s.OrderId == orderId, ct))
             throw new ConflictException("This order already has a shipment.", code: "already_booked");
 
-        var carrierIds = request.Vehicles.Select(v => v.CarrierId!.Value).Distinct().ToList();
-        var carriers = await dbContext.Carriers.AsNoTracking()
-            .Where(c => carrierIds.Contains(c.Id))
-            .Select(c => new
-            {
-                c.Id, c.Name, c.IsActive,
-                Price = c.Rates.Where(r => r.Governorate == governorate)
-                               .Select(r => (decimal?)r.VehiclePrice).FirstOrDefault()
-            })
-            .ToDictionaryAsync(c => c.Id, ct);
-
-        var errors = new Dictionary<string, string[]>();
-        for (var i = 0; i < request.Vehicles.Count; i++)
-        {
-            var id = request.Vehicles[i].CarrierId!.Value;
-            if (!carriers.TryGetValue(id, out var c))
-                errors[$"vehicles[{i}].carrierId"] = ["Carrier not found."];
-            else if (!c.IsActive)
-                errors[$"vehicles[{i}].carrierId"] = [$"{c.Name} is not active."];
-            else if (c.Price is null)
-                errors[$"vehicles[{i}].carrierId"] = [$"{c.Name} has no price for {governorate}."];
-        }
-        if (errors.Count > 0)
-            throw new RequestValidationException(errors);
+        var priced = await pricer.PriceAsync(
+            governorate, request.Vehicles.Select(v => v.CarrierId!.Value).ToList(), ct);
 
         var now = DateTime.UtcNow;
         var shipment = new Shipment
@@ -66,18 +47,14 @@ public sealed class ShipmentService(
             Governorate = governorate,
             BookedAt = now,
             BookedById = userId,
-            Vehicles = request.Vehicles.Select(v =>
+            Vehicles = request.Vehicles.Select((v, i) => new ShipmentVehicle
             {
-                var c = carriers[v.CarrierId!.Value];
-                return new ShipmentVehicle
-                {
-                    Id = Guid.NewGuid(),
-                    CarrierId = c.Id,
-                    CarrierName = c.Name,
-                    Price = c.Price!.Value,
-                    PlateNumber = Clean(v.PlateNumber),
-                    DriverPhone = Clean(v.DriverPhone)
-                };
+                Id = Guid.NewGuid(),
+                CarrierId = priced[i].CarrierId,
+                CarrierName = priced[i].CarrierName,
+                Price = priced[i].Price,
+                PlateNumber = Clean(v.PlateNumber),
+                DriverPhone = Clean(v.DriverPhone)
             }).ToList()
         };
         shipment.TotalCost = shipment.Vehicles.Sum(v => v.Price);

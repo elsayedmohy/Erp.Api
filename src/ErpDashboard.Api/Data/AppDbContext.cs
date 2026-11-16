@@ -43,6 +43,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentShowro
     
     public DbSet<Shipment> Shipments => Set<Shipment>();
     public DbSet<ShipmentVehicle> ShipmentVehicles => Set<ShipmentVehicle>();
+    
+    public DbSet<OrderCheckout> OrderCheckouts => Set<OrderCheckout>();
+    public DbSet<OrderCheckoutVehicle> OrderCheckoutVehicles => Set<OrderCheckoutVehicle>();
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
