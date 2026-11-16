@@ -1,5 +1,4 @@
 
-using ErpDashboard.Api.Features.Payments.Webhooks;
 
 namespace ErpDashboard.Api.Extensions;
 
@@ -218,6 +217,7 @@ public static class DependencyInjection
         builder.Services.AddScoped<IDocumentNumberGenerator, DocumentNumberGenerator>();
         builder.Services.AddScoped<IOnlinePaymentService, OnlinePaymentService>();
         builder.Services.AddScoped<IWebhookEventService, WebhookEventService>();
+        builder.Services.AddScoped<ICarrierService, CarrierService>();
         return builder;
     }
 

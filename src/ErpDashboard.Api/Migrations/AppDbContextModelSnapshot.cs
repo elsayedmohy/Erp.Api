@@ -23,6 +23,79 @@ namespace ErpDashboard.Api.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("ErpDashboard.Api.Data.Entities.Carrier", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsCompanyFleet")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("Phone")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IsCompanyFleet")
+                        .IsUnique()
+                        .HasFilter("\"IsCompanyFleet\"");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("Carriers");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("00000000-0000-0000-0000-0000000000c1"),
+                            IsActive = true,
+                            IsCompanyFleet = true,
+                            Name = "Company trucks"
+                        });
+                });
+
+            modelBuilder.Entity("ErpDashboard.Api.Data.Entities.CarrierRate", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CarrierId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Governorate")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<decimal>("VehiclePrice")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CarrierId", "Governorate")
+                        .IsUnique();
+
+                    b.ToTable("CarrierRates", t =>
+                        {
+                            t.HasCheckConstraint("CK_CarrierRates_VehiclePrice_Positive", "\"VehiclePrice\" > 0");
+                        });
+                });
+
             modelBuilder.Entity("ErpDashboard.Api.Data.Entities.Category", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1275,6 +1348,15 @@ namespace ErpDashboard.Api.Migrations
                     b.ToTable("AspNetUserTokens", (string)null);
                 });
 
+            modelBuilder.Entity("ErpDashboard.Api.Data.Entities.CarrierRate", b =>
+                {
+                    b.HasOne("ErpDashboard.Api.Data.Entities.Carrier", null)
+                        .WithMany("Rates")
+                        .HasForeignKey("CarrierId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("ErpDashboard.Api.Data.Entities.CreditNote", b =>
                 {
                     b.HasOne("ErpDashboard.Api.Data.Entities.Invoice", null)
@@ -1581,6 +1663,11 @@ namespace ErpDashboard.Api.Migrations
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("ErpDashboard.Api.Data.Entities.Carrier", b =>
+                {
+                    b.Navigation("Rates");
                 });
 
             modelBuilder.Entity("ErpDashboard.Api.Data.Entities.Category", b =>
