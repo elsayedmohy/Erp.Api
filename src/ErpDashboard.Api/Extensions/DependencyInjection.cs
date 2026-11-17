@@ -1,4 +1,5 @@
 using ErpDashboard.Api.Infrastructure.Messaging;
+using Microsoft.AspNetCore.Mvc.Formatters;
 
 namespace ErpDashboard.Api.Extensions;
 
@@ -9,7 +10,7 @@ public static class DependencyInjection
         builder.Services.AddControllers(options =>
             {
                 options.ReturnHttpNotAcceptable = true;
-                options.Filters.Add(new ProducesAttribute("application/json"));
+                options.OutputFormatters.RemoveType<StringOutputFormatter>();
 
             })
             .AddJsonOptions(options =>
