@@ -4,6 +4,7 @@ using ErpDashboard.Api.Data.Seed;
 using ErpDashboard.Api.Features.Finance.Invoices;
 using ErpDashboard.Api.Features.Finance.Invoices.DocumentNumber;
 using ErpDashboard.Api.Features.Inventory.Stock;
+using ErpDashboard.Api.Features.Notifications;
 using ErpDashboard.Api.Features.Payments;
 using ErpDashboard.Api.Features.Payments.Webhooks;
 using ErpDashboard.Api.Features.Sales.Orders;
@@ -28,6 +29,8 @@ public class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
     public WebhookFaults WebhookFaults { get; } = new();
     public InvoiceIssuingFaults InvoiceFaults { get; } = new();
     public OrderCancellationFaults CancellationFaults { get; } = new();
+    
+    public FakeWhatsAppSender WhatsApp { get; } = new();
     public const string AdminEmail = "admin@tests.local";
     public const string AdminPassword = "Test-only-Passw0rd!";
     public const string JwtKey = "test-only-key-with-at-least-32-characters";
@@ -66,6 +69,7 @@ public class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
                 new FaultInjectingOrderCancellation(sp.GetRequiredService<OrderService>(), CancellationFaults));
             services.AddScoped<IInvoiceIssuing>(sp =>
                 new FaultInjectingInvoiceIssuing(sp.GetRequiredService<InvoiceService>(), InvoiceFaults));
+            services.AddSingleton<IWhatsAppSender>(WhatsApp);
         });
 
         builder.UseEnvironment("Testing");
@@ -81,6 +85,7 @@ public class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         builder.UseSetting("Payments:Webhooks:Enabled", "false");
         builder.UseSetting("Checkout:Expiry:Enabled", "false");
         builder.UseSetting("Payments:Refunds:Enabled", "false");
+        builder.UseSetting("Messaging:Worker:Enabled", "false");
     }
 
     public async Task<TestUser> CreateUserAsync(Guid? roleId = null, IEnumerable<Guid>? warehouseIds = null)
