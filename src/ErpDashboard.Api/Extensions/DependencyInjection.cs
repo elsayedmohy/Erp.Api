@@ -1,4 +1,5 @@
 using ErpDashboard.Api.Infrastructure.Messaging;
+using Microsoft.AspNetCore.Mvc.Formatters;
 
 namespace ErpDashboard.Api.Extensions;
 
@@ -6,7 +7,12 @@ public static class DependencyInjection
 {
     public static WebApplicationBuilder AddPersistence(this WebApplicationBuilder builder)
     {
-        builder.Services.AddControllers(options => { options.ReturnHttpNotAcceptable = true; })
+        builder.Services.AddControllers(options =>
+            {
+                options.ReturnHttpNotAcceptable = true;
+                options.OutputFormatters.RemoveType<StringOutputFormatter>();
+
+            })
             .AddJsonOptions(options =>
             {
                 options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
