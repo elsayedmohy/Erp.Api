@@ -56,6 +56,15 @@ jobs:
             echo "::error::Payment provider names belong in Infrastructure/Payments/<Provider> only"
             exit 1
           fi
+      - name: Keep the WhatsApp provider in one place
+        run: |
+          if git grep -niI 'openwa' -- src \
+          ':!src/ErpDashboard.Api/Infrastructure/Messaging/OpenWa/*' \
+          ':!src/ErpDashboard.Api/Infrastructure/Messaging/MessagingProviders.cs' \
+          ':!src/**/appsettings*.json'; then
+            echo "::error::WhatsApp provider names belong in Infrastructure/Messaging/<Provider> only"
+            exit 1
+          fi
       - run: dotnet restore --locked-mode
       - run: dotnet build --no-restore -c Release
       - run: dotnet test --no-build -c Release --logger trx --results-directory TestResults

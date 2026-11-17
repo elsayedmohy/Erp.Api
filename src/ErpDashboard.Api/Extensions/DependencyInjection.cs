@@ -1,5 +1,4 @@
-using ErpDashboard.Api.Common.Workers;
-using ErpDashboard.Api.Features.Payments.Refunds;
+using ErpDashboard.Api.Infrastructure.Messaging;
 
 namespace ErpDashboard.Api.Extensions;
 
@@ -70,7 +69,7 @@ public static class DependencyInjection
                         var user = await db.Users
                             .AsNoTracking()
                             .Where(u => u.Id == userId)
-                            .Select(u => new { u.SecurityStamp,u.ShowroomId , u.Role.Permissions })
+                            .Select(u => new { u.SecurityStamp, u.ShowroomId, u.Role.Permissions })
                             .SingleOrDefaultAsync(context.HttpContext.RequestAborted);
 
                         if (user is null || !string.Equals(tokenStamp, user.SecurityStamp, StringComparison.Ordinal))
@@ -81,7 +80,7 @@ public static class DependencyInjection
 
                         context.HttpContext.Items[PermissionHandler.ItemsKey] =
                             new HashSet<string>(user.Permissions, StringComparer.Ordinal);
-                        
+
                         if (user.ShowroomId is { } showroomId)
                             context.HttpContext.Items[CurrentShowroom.ItemsKey] = showroomId;
                     }
@@ -166,7 +165,6 @@ public static class DependencyInjection
 
     public static WebApplicationBuilder AddFeatureServices(this WebApplicationBuilder builder)
     {
-        
         builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("Jwt"));
         builder.Services.Configure<FinanceSettings>(builder.Configuration.GetSection(FinanceSettings.SectionName));
         builder.Services.Configure<CompanySettings>(builder.Configuration.GetSection(CompanySettings.SectionName));
@@ -175,18 +173,23 @@ public static class DependencyInjection
         builder.Services.AddSingleton<IInvoicePdfGenerator, InvoicePdfGenerator>();
         builder.Services.AddSingleton(TimeProvider.System);
         builder.Services.AddSingleton<IBusinessClock, BusinessClock>();
-        
+
         builder.Services.AddOptions<CompanySettings>()
             .Validate(s => TimeZoneInfo.TryFindSystemTimeZoneById(s.TimeZone, out _),
                 "Company:TimeZone is not a known time zone id.")
             .ValidateOnStart();
-        
+
         builder.Services.AddPaymentProvider(builder.Configuration);
+        builder.Services.AddWhatsAppProvider(builder.Configuration);
+
+
         builder.Services.AddScoped<IPaymentNotificationHandler, PaymentNotificationHandler>();
         builder.Services.AddQueueWorker<PaymentWebhookProcessor>(builder.Configuration, "Payments:Webhooks");
         builder.Services.AddQueueWorker<CheckoutExpiryProcessor>(builder.Configuration, "Checkout:Expiry");
         builder.Services.AddQueueWorker<RefundProcessor>(builder.Configuration, "Payments:Refunds");
-        
+        builder.Services.AddQueueWorker<NotificationProcessor>(builder.Configuration, "Messaging:Worker");
+
+
         builder.Services.AddScoped<IAuthService, AuthService>();
         builder.Services.AddScoped<ITokenService, TokenService>();
         builder.Services.AddScoped<IUserService, UserService>();
@@ -227,6 +230,7 @@ public static class DependencyInjection
         builder.Services.AddScoped<IVehiclePricer, VehiclePricer>();
         builder.Services.AddScoped<ICheckoutService, CheckoutService>();
         builder.Services.AddScoped<ICheckoutCompletion, CheckoutCompletion>();
+        builder.Services.AddScoped<ICheckoutNotifier, CheckoutNotifier>();
         return builder;
     }
 

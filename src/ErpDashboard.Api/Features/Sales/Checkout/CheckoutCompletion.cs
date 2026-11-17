@@ -12,6 +12,7 @@ public sealed class CheckoutCompletion(
     IInvoiceIssuing invoices,
     IOrderCancellation orders,
     IBusinessClock clock,
+    ICheckoutNotifier notifier,
     ILogger<CheckoutCompletion> logger) : ICheckoutCompletion
 {
     private const string FulfilSavepoint = "checkout_fulfil";
@@ -114,9 +115,9 @@ public sealed class CheckoutCompletion(
         await dbContext.OrderCheckouts.Where(c => c.Id == checkout.Id)
             .ExecuteUpdateAsync(s => s
                 .SetProperty(c => c.Status, CheckoutStatus.Completed)
-                .SetProperty(c => c.CustomerMessage, message)
                 .SetProperty(c => c.CompletedAt, now), ct);
 
+        await notifier.SetMessageAsync(checkout.Id, message, sendWhatsApp: true, ct);
         return shipment.TrackingNumber;
     }
 
@@ -130,8 +131,9 @@ public sealed class CheckoutCompletion(
             .ExecuteUpdateAsync(s => s
                 .SetProperty(c => c.Status,
                     c => c.Status == CheckoutStatus.AwaitingPayment ? CheckoutStatus.Failed : c.Status)
-                .SetProperty(c => c.CustomerMessage, RefundPendingMessage)
                 .SetProperty(c => c.CompletedAt, DateTime.UtcNow), ct);
+        
+        await notifier.SetMessageAsync(checkout.Id, RefundPendingMessage, sendWhatsApp: false, ct);
         return WebhookOutcome.Processed($"Needs refund: {reason}");
     }
 

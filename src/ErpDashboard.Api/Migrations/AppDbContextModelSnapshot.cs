@@ -426,6 +426,62 @@ namespace ErpDashboard.Api.Migrations
                     b.ToTable("Materials");
                 });
 
+            modelBuilder.Entity("ErpDashboard.Api.Data.Entities.Notification", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Attempts")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Body")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("Channel")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<Guid?>("CheckoutId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Error")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime?>("NextAttemptAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ProviderMessageId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Recipient")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTime?>("SentAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CheckoutId");
+
+                    b.HasIndex("Status", "NextAttemptAt");
+
+                    b.ToTable("Notifications");
+                });
+
             modelBuilder.Entity("ErpDashboard.Api.Data.Entities.Order", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1631,6 +1687,14 @@ namespace ErpDashboard.Api.Migrations
                     b.HasOne("ErpDashboard.Api.Data.Entities.PaymentAttempt", null)
                         .WithMany()
                         .HasForeignKey("PaymentAttemptId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("ErpDashboard.Api.Data.Entities.Notification", b =>
+                {
+                    b.HasOne("ErpDashboard.Api.Data.Entities.OrderCheckout", null)
+                        .WithMany()
+                        .HasForeignKey("CheckoutId")
                         .OnDelete(DeleteBehavior.Restrict);
                 });
 

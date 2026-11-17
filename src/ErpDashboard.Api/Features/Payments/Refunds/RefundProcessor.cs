@@ -4,6 +4,7 @@ public sealed class RefundProcessor(
     AppDbContext dbContext,
     IPaymentGateway gateway,
     IBusinessClock clock,
+    ICheckoutNotifier  notifier,
     ILogger<RefundProcessor> logger) : IQueueProcessor
 {
     public const int MaxAttempts = 8;
@@ -105,8 +106,11 @@ public sealed class RefundProcessor(
             PaymentAttemptStatus.Refunded => RefundedMessage(attempt.AmountMinor / 100m),
             _ => ManualMessage
         };
-        await dbContext.OrderCheckouts.Where(c => c.PaymentAttemptId == attempt.Id)
-            .ExecuteUpdateAsync(s => s.SetProperty(c => c.CustomerMessage, message), CancellationToken.None);
+        
+        var checkoutId = await dbContext.OrderCheckouts.Where(c => c.PaymentAttemptId == attempt.Id)
+            .Select(c => (Guid?)c.Id).SingleOrDefaultAsync(CancellationToken.None);
+        if (checkoutId is { } id)
+            await notifier.SetMessageAsync(id, message, sendWhatsApp: true, CancellationToken.None);
 
         await transaction.CommitAsync(CancellationToken.None);
 

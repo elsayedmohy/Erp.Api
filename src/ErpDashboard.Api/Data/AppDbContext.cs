@@ -46,6 +46,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentShowro
     
     public DbSet<OrderCheckout> OrderCheckouts => Set<OrderCheckout>();
     public DbSet<OrderCheckoutVehicle> OrderCheckoutVehicles => Set<OrderCheckoutVehicle>();
+    
+    public DbSet<Notification> Notifications => Set<Notification>();
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
