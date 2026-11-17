@@ -1,10 +1,8 @@
 # Erp.Api — Damietta Woodworks ERP
 
-Backend for **Damietta Woodworks**, a furniture factory in Damietta that sells wholesale to showrooms (المعارض) across Egypt. It covers the catalog, warehouses and stock, purchasing, sales orders with discount approval, shipping with company and outside trucks, invoicing with credit notes, online card payments through Paymob, and a small HR module.
+Backend for **Damietta Woodworks**, a furniture factory in Damietta that sells wholesale to showrooms (المعارض) across Egypt. It covers the catalog, warehouses and stock, purchasing, sales orders with discount approval, shipping with company and outside trucks, invoicing with credit notes, online card payments through Paymob with automatic refunds, a one-click "confirm and pay" checkout, WhatsApp notifications, and a small HR module.
 
 The frontend is a separate Angular app (`erp.app`).
-
-> State of `main` at commit `95e5179` (ERP-07 → ERP-17). ERP-11 is deferred, ERP-18 is in design.
 
 ---
 
@@ -23,8 +21,10 @@ The frontend is a separate Angular app (`erp.app`).
    - [Shipping](#65-shipping)
    - [Invoicing](#66-invoicing)
    - [Online payments](#67-online-payments)
-   - [HR](#68-hr)
-   - [Identity](#69-identity)
+   - [Checkout: confirm and pay](#68-checkout-confirm-and-pay)
+   - [Notifications](#69-notifications)
+   - [HR](#610-hr)
+   - [Identity](#611-identity)
 7. [API reference](#7-api-reference)
 8. [Errors](#8-errors)
 9. [Configuration](#9-configuration)
@@ -43,7 +43,9 @@ The frontend is a separate Angular app (`erp.app`).
 | Auth | ASP.NET Identity users, JWT access tokens, rotating refresh tokens |
 | Logging | Serilog, request logging, correlation id per request |
 | PDF | QuestPDF (Community license) |
-| Payments | Paymob Intention API + HMAC-signed webhooks |
+| Payments | Paymob Intention API + HMAC-signed webhooks, void/refund API |
+| WhatsApp | OpenWA (self-hosted gateway), behind a provider-neutral interface |
+| Background work | One generic `QueueWorker<T>` per queue, `FOR UPDATE SKIP LOCKED` |
 | Tests | xUnit, Testcontainers (real PostgreSQL), one shared `ApiFactory` |
 | Packaging | Docker, `compose.yaml` (API + Postgres) |
 
@@ -85,7 +87,22 @@ dotnet user-secrets set "Jwt:Key" "..." --project src/ErpDashboard.Api
 dotnet run --project src/ErpDashboard.Api
 ```
 
-Payment keys also live in user-secrets locally and in environment variables in production. They never go in `appsettings*.json` or in a commit. See [Configuration](#9-configuration).
+Payment keys and the WhatsApp gateway key also live in user-secrets locally and in environment variables in production. They never go in `appsettings*.json` or in a commit. See [Configuration](#9-configuration).
+
+### WhatsApp locally (optional)
+
+Without it, notifications are stored as `Skipped` and the portal still shows every message.
+
+1. Run OpenWA from its own repository (see its README) and read its API key from the container.
+2. Open its dashboard, create a session named `erp`, and scan the QR code **with a number used only by this system**.
+3. Point the API at it:
+
+```bash
+dotnet user-secrets set "Messaging:WhatsApp:Provider" "openwa" --project src/ErpDashboard.Api
+dotnet user-secrets set "Messaging:WhatsApp:OpenWa:BaseUrl" "http://localhost:2785" --project src/ErpDashboard.Api
+dotnet user-secrets set "Messaging:WhatsApp:OpenWa:SessionId" "erp" --project src/ErpDashboard.Api
+dotnet user-secrets set "Messaging:WhatsApp:OpenWa:ApiKey" "..." --project src/ErpDashboard.Api
+```
 
 ### Migrations and tests
 
@@ -103,7 +120,7 @@ dotnet test ErpDashboard.slnx          # needs Docker for Testcontainers
 ```
 src/ErpDashboard.Api
 ├── Auth/                      login, refresh, logout, JWT
-├── Common/                    errors, paging, sorting, Money, BusinessClock, permissions
+├── Common/                    errors, paging, sorting, Money, BusinessClock, permissions, QueueWorker
 ├── Controllers/               thin HTTP layer, one per resource
 ├── Data/
 │   ├── Entities/ Enums/ Configurations/
@@ -114,11 +131,14 @@ src/ErpDashboard.Api
 │   ├── Hr/                    departments, employees
 │   ├── Identity/              users, roles
 │   ├── Inventory/             products, categories, materials, warehouses, stock
-│   ├── Payments/              online payments, webhook processing (provider-neutral)
+│   ├── Notifications/         WhatsApp outbox, checkout messages (provider-neutral)
+│   ├── Payments/              online payments, webhook processing, refunds (provider-neutral)
 │   ├── Purchasing/            suppliers, purchase orders
-│   ├── Sales/                 showrooms, orders
+│   ├── Sales/                 showrooms, orders, checkout
 │   └── Shipping/              carriers, rates, quotes, shipments
-├── Infrastructure/Payments/   Paymob client + webhook verifier (only place that names the provider)
+├── Infrastructure/
+│   ├── Payments/Paymob        Paymob client + webhook verifier (only place that names the provider)
+│   └── Messaging/OpenWa       WhatsApp sender (only place that names the gateway)
 ├── Middlewares/               correlation id
 ├── Migrations/
 └── Settings/                  typed options
@@ -142,8 +162,29 @@ flowchart LR
     SVC -. HTTP .-> PM[Paymob]
     WH[Paymob webhook] --> INTAKE[Webhook intake<br/>anonymous + HMAC]
     INTAKE --> DB
-    WORKER[PaymentWebhookWorker<br/>BackgroundService] --> DB
+    subgraph Workers[QueueWorker&lt;T&gt; background services]
+      W1[PaymentWebhookProcessor]
+      W2[CheckoutExpiryProcessor]
+      W3[RefundProcessor]
+      W4[NotificationProcessor]
+    end
+    Workers --> DB
+    W3 -. HTTP .-> PM
+    W4 -. HTTP .-> WA[OpenWA]
 ```
+
+### Background work
+
+Every queue is a processor with one method, `ProcessNextAsync`, run by the same generic `QueueWorker<T>` (idle wait, error isolation, `Enabled` / `PollSeconds` per queue). Adding a queue is one line: `AddQueueWorker<TProcessor>(configuration, "<section>")`.
+
+| Queue | Claims | Pattern |
+|---|---|---|
+| Payment webhooks | `Received` events that are due | Row lock + savepoint; failure → backoff, `Failed` after 8 |
+| Checkout expiry | `AwaitingPayment` checkouts past 30 minutes | Row lock + savepoint; failure → retry in 1 minute without blocking others |
+| Refunds | `NeedsRefund` attempts that are due | **Lease**: short committed claim, HTTP outside any transaction |
+| Notifications | `Pending` WhatsApp messages that are due | **Lease**, same as refunds |
+
+All claims use `FOR UPDATE SKIP LOCKED`, so several API instances can run the same worker safely.
 
 ### Cross-cutting rules
 
@@ -153,7 +194,9 @@ flowchart LR
 | **Money has at most 2 decimals** | Validated on every money input. `Money.ToMinorUnits` throws on more. Rounding is `AwayFromZero`, per line. |
 | **Stock changes go through one service** | `IStockService` is the only writer of `WarehouseStocks` and `StockMovements`. Enforced by a CI guard. |
 | **Errors are ProblemDetails** | `GlobalExceptionHandler` maps exceptions to 400/404/409/428/499/504 and adds a `code` where the client must branch. See [Errors](#8-errors). |
-| **No transaction open during HTTP calls** | Payment attempts are saved before the Paymob call and updated after it. |
+| **No transaction open during HTTP calls** | Payment attempts are saved before the Paymob call and updated after it. Refunds and WhatsApp sends take a short lease first, then call out with no transaction open. |
+| **Messages are written with the change they describe** | A WhatsApp notification is inserted in the same transaction as the business change (outbox), so a rolled-back change never sends a message. |
+| **Responses are JSON** | The string output formatter is removed, so Swagger and clients default to `application/json`; validation errors stay `application/problem+json`. |
 | **Every request has a correlation id** | Returned in `X-Correlation-ID` and in every error body. |
 | **Sensitive data is never logged** | No JWTs, passwords, payment keys, checkout URLs or webhook bodies in logs. CI blocks `EnableSensitiveDataLogging`, HTTP logging and `{@…}` destructuring. |
 
@@ -190,6 +233,7 @@ Two tests keep this honest:
 | showrooms.read | ✓ | ✓ | | ✓ | ✓ | | ✓ |
 | showrooms.write | ✓ | ✓ | | | | | |
 | showrooms.access-all | ✓ | ✓ | ✓ | ✓ | ✓ | | ✓ |
+| orders.checkout | ✓ | | | | ✓ | ✓ | |
 | products.read | ✓ | ✓ | ✓ | | ✓ | | ✓ |
 | products.write / adjust-stock | ✓ | | ✓ | | | | |
 | products.view-cost | ✓ | ✓ | ✓ | | | | |
@@ -211,6 +255,7 @@ Two tests keep this honest:
 | invoices.pay-online | ✓ | | | | | ✓ | |
 | carriers.read | ✓ | ✓ | ✓ | | | | |
 | carriers.write | ✓ | ✓ | | | | | |
+| shipping-quotes.read | ✓ | ✓ | ✓ | | ✓ | ✓ | |
 | shipments.read | ✓ | ✓ | ✓ | ✓ | ✓ | | |
 | shipments.book | ✓ | ✓ | ✓ | | | | |
 | payments.webhooks.read | ✓ | | | | | | |
@@ -227,7 +272,11 @@ On top of permissions, EF Core **named query filters** limit which rows a user c
 | `QueryFilters.Showroom` | Orders, Invoices, Showrooms | Users with `showrooms.access-all` see everything. A showroom user sees only rows of **their own showroom**. Anyone else (and background workers, which have no user) sees nothing. |
 | `QueryFilters.SoftDelete` | Products, Showrooms, Employees | Deleted rows are hidden. `SaveChanges` turns a delete into `IsDeleted = true`. |
 
-Background code that must see every row opts out explicitly, for example `IgnoreQueryFilters([QueryFilters.Showroom])` in the payment webhook handler.
+Background code that must see every row opts out explicitly, for example `IgnoreQueryFilters([QueryFilters.Showroom])` in the payment webhook handler, the checkout completion and `CancelBySystemAsync`.
+
+> **Tests too.** A test that reads `Invoices` or `Orders` from a fresh scope has no user, so the filter hides everything and `Any()` is always false. Assertions on those tables must use `IgnoreQueryFilters([QueryFilters.Showroom])`, or "nothing was created" checks pass for the wrong reason.
+
+`shipping-quotes.read` is separate from `carriers.read` on purpose: showrooms and Sales see carrier names and prices, never the truck owners' phone numbers.
 
 Warehouse access is per user (`UserWarehouses`). `warehouses.access-all` bypasses it.
 
@@ -268,7 +317,13 @@ erDiagram
     INVOICE ||--o{ CREDIT_NOTE : credited
     CREDIT_NOTE ||--|{ CREDIT_NOTE_LINE : contains
     INVOICE ||--o{ PAYMENT_ATTEMPT : "online tries"
+    ORDER ||--o{ PAYMENT_ATTEMPT : "checkout tries"
     PAYMENT_ATTEMPT ||--o| INVOICE_PAYMENT : "records at most one"
+
+    ORDER ||--o{ ORDER_CHECKOUT : "confirm and pay"
+    ORDER_CHECKOUT ||--|{ ORDER_CHECKOUT_VEHICLE : "chosen vehicles"
+    ORDER_CHECKOUT ||--o| PAYMENT_ATTEMPT : "paid by"
+    ORDER_CHECKOUT ||--o{ NOTIFICATION : "WhatsApp outbox"
 
     SUPPLIER ||--o{ PURCHASE_ORDER : supplies
     PURCHASE_ORDER ||--|{ PURCHASE_LINE : contains
@@ -284,12 +339,14 @@ erDiagram
 
 | Convention | Where | Why |
 |---|---|---|
-| **Snapshots** | `OrderLine.ProductName/Sku/UnitPrice`, `ShipmentVehicle.CarrierName/Price`, `Shipment.Governorate` | A later rename or price change must not rewrite history or a printed invoice. |
+| **Snapshots** | `OrderLine.ProductName/Sku/UnitPrice`, `ShipmentVehicle.CarrierName/Price`, `Shipment.Governorate`, `OrderCheckoutVehicle.CarrierName/Price` | A later rename or price change must not rewrite history, a printed invoice, or what a customer already paid for. |
+| **A payment attempt pays exactly one thing** | `PaymentAttempt.InvoiceId` xor `OrderId` (check constraint) | Invoice payments (ERP-16) and order checkouts (ERP-18) share the same gateway code and webhook pipeline. |
 | **Optimistic concurrency with `xmin`** | `Order.Version` | The client sends it in `If-Match`. A missing header is 428, a stale one is 409 `order_changed`. |
 | **Gapless document numbers** | Invoices `INV-yyyy-000001`, credit notes `CN-…`, shipments `SHP-…` | One counter row per series and year, incremented with `INSERT … ON CONFLICT … RETURNING` **inside** the business transaction. A rollback gives the number back. |
 | **Enums stored as text** | Statuses, governorates | Safe to reorder. Exception: `PaymentMethod` is stored as an int, so new values go at the end only. |
 | **Soft delete** | Products, Showrooms, Employees | Referenced by history. A CI guard blocks `ExecuteDelete` on them. |
 | **Guid keys set in code** | Most entities (`ValueGeneratedNever`) | Add such entities through their `DbSet`, not through a navigation, or EF may treat them as modified rows. |
+| **No `SELECT *` into `Order`** | Raw SQL on `Orders` | `Order.Version` is the `xmin` system column, which `SELECT *` does not return. Lock with `SELECT 1 … FOR UPDATE`, then read with LINQ. |
 
 ---
 
@@ -370,6 +427,8 @@ stateDiagram-v2
 | **Invalid moves** | 409 `invalid_transition` with `currentStatus` and `allowedTransitions`. |
 | **History** | Every change is stored in `OrderStatusChanges`, with who, when and a reason. |
 | **Who can see** | Showroom users see only their showroom's orders (query filter). |
+| **Checkout entry** | `POST /orders/{id}/checkout` submits a Draft through the same `SubmitAsync`. If a discount needs approval the order stops at PendingApproval and checkout returns `AwaitingApproval`; it is started again after approval. See 6.8. |
+| **System cancel** | `CancelBySystemAsync` cancels without a user (checkout expiry, failed completion). Same rules as a manual cancel: releases stock, cancels the shipment, writes history with a system reason. |
 
 ### 6.5 Shipping
 
@@ -429,7 +488,7 @@ flowchart LR
 
 ### 6.7 Online payments
 
-A showroom user pays an issued invoice by card on Paymob's hosted page. **Money is recorded only from a signed webhook, never from the redirect back to the site**, because anyone can open a URL.
+A `PaymentAttempt` pays **one thing**: an issued invoice (this section) or an order checkout (6.8). A check constraint enforces exactly one of the two. **Money is recorded only from a signed webhook, never from the redirect back to the site**, because anyone can open a URL.
 
 ```mermaid
 sequenceDiagram
@@ -461,6 +520,7 @@ sequenceDiagram
 | What happened | Attempt | Invoice | Event |
 |---|---|---|---|
 | Paid, amount fits the balance | Succeeded | + `Online` payment | Processed |
+| Paid for a checkout | Succeeded, or NeedsRefund if completion fails for a business reason | see 6.8 | Processed |
 | Card declined | Failed | – | Processed |
 | Paid more than due, invoice cancelled, or wrong amount/currency | NeedsRefund | – | Processed |
 | Same callback again | no change | – | Ignored (duplicate) |
@@ -478,11 +538,117 @@ sequenceDiagram
 
 Verified end to end in the Paymob sandbox: success, decline, and a cash payment made while the customer was on the checkout page.
 
-### 6.8 HR
+**Automatic void or refund**
+
+Every `NeedsRefund` attempt is returned to the customer by `RefundProcessor`, with no human step.
+
+```mermaid
+flowchart LR
+    NR[NeedsRefund] --> L[lease 2 min<br/>short committed claim]
+    L --> S{paid today<br/>Cairo time?}
+    S -->|yes| V[void]
+    V -->|ok| VD[Voided]
+    V -->|rejected| R[refund]
+    S -->|no| R
+    R -->|ok| RF[Refunded]
+    R -->|declined| RFF[RefundFailed]
+    L -->|provider down| RT[retry with backoff]
+    RT -->|8 tries| RFF
+    VD --> M[queue WhatsApp message]
+    RF --> M
+    RFF --> M
+```
+
+| Rule | Detail |
+|---|---|
+| **No HTTP inside a transaction** | The attempt is leased in a short transaction; the Paymob call runs outside it; the result is written in a second short transaction. |
+| **Void first** | Same Cairo day → `void_refund/void` (no fee, nothing shows on the card). Otherwise, or if void is rejected → `void_refund/refund`. Both use `Authorization: Token {SecretKey}`. |
+| **No transaction id** | Goes straight to RefundFailed: nothing can be reversed automatically. |
+| **Outcome message** | Voided: "nothing was charged". Refunded: refund on its way. RefundFailed: "our team will contact you" and the attempt stays visible for a human. |
+| **Refund/void callbacks** | Paymob also sends webhooks for these. They are stored and ignored; the processor trusts the API response. |
+
+### 6.8 Checkout: confirm and pay
+
+The customer (portal) or Sales confirms an order, chooses the trucks, and pays the **order** online. The invoice is issued only after the money arrives.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor C as Portal user / Sales
+    participant API
+    participant PM as Paymob
+    participant W as Webhook worker
+    participant X as Expiry worker
+    participant DB
+
+    C->>API: GET /shipping-quotes?governorate=…
+    C->>API: POST /orders/{id}/checkout {vehicles} + If-Match
+    API->>DB: Draft? submit (may stop at AwaitingApproval)
+    API->>DB: snapshot vehicle prices, exact invoice math<br/>OrderCheckout AwaitingPayment, expires in 30 min
+    API->>PM: intention for the order attempt
+    API-->>C: checkoutUrl
+    C->>PM: pays
+    PM->>API: signed webhook
+    W->>DB: lock checkout row
+    alt still AwaitingPayment
+        W->>DB: one transaction: book shipment, issue invoice,<br/>record Online payment, checkout Completed
+    else business failure
+        W->>DB: cancel order (system), attempt NeedsRefund, checkout Failed
+    end
+    X->>DB: lock same checkout row after 30 min unpaid
+    X->>DB: cancel order, release stock, checkout Expired
+```
+
+| Decision | Choice |
+|---|---|
+| **What is paid** | The order, not an invoice. The amount is computed with the invoice code itself (`InvoiceFactory.BuildLines` / `CalculateTotal`), so the invoice issued later matches to the piaster. |
+| **Who starts it** | Portal user for their showroom, or Sales (who gets a link to send). Permission `orders.checkout`. |
+| **Drafts** | Submitted through the normal submit. A discount above the threshold returns `AwaitingApproval` and no payment link. |
+| **Vehicles** | The user chooses carriers and vehicles from the quote; prices are snapshotted in `OrderCheckoutVehicles`. |
+| **Allowed orders** | Draft or Confirmed (else 409 `not_checkoutable`), with a governorate (else `governorate_missing`). |
+| **One open checkout** | A second start while one is AwaitingPayment → 409 `checkout_in_progress`. |
+| **Payment window** | 30 minutes. Unpaid → order cancelled by the system, stock released, checkout Expired. |
+| **Race** | Payment and expiry lock the same checkout row. Whoever comes second sees the final status. Money that arrives after expiry → NeedsRefund. |
+
+**When completion fails**
+
+| Failure | What happens |
+|---|---|
+| **Business** (stock gone, order no longer valid, booking refused) | Compensate: `CancelBySystemAsync`, attempt NeedsRefund (refund runs automatically), checkout Failed with a `CustomerMessage` for the portal. |
+| **Technical** (database error, timeout) | Rolled back in a savepoint, webhook retried with backoff like any other event. |
+| **Expiry worker error** | Retried after 1 minute; the checkout stays AwaitingPayment until it succeeds. |
+
+`GET /orders/{id}/checkout` returns the latest checkout: status, goods, shipping and total amounts, vehicles, payment URL while open, expiry, and `CustomerMessage`.
+
+### 6.9 Notifications (WhatsApp)
+
+Showrooms may not have email, but they all have WhatsApp. Messages go through an **outbox**.
+
+```mermaid
+flowchart LR
+    CN[ICheckoutNotifier<br/>only writer of CustomerMessage] -->|same transaction| N[(Notifications<br/>Pending)]
+    N --> P[NotificationProcessor<br/>lease 2 min]
+    P --> S[IWhatsAppSender]
+    S --> O[OpenWA]
+    P -->|ok| Sent
+    P -->|landline / no number| Skipped
+    P -->|8 tries| Failed
+```
+
+| Rule | Detail |
+|---|---|
+| **Outbox** | The message row is written in the same transaction as the business change, so a rollback never sends a message and a commit never loses one. |
+| **Single writer** | `ICheckoutNotifier` sets `CustomerMessage` and queues the WhatsApp message together, so portal and phone say the same thing. |
+| **What goes to WhatsApp** | Checkout completed (shipment + invoice numbers), checkout expired, refund outcome (Voided / Refunded / RefundFailed). The compensation message ("order cancelled, refund on its way") is portal-only; the refund outcome follows on WhatsApp. |
+| **Recipient** | The order's showroom phone. Egyptian mobiles normalized to `201xxxxxxxxx`. Landlines and invalid numbers → Skipped at queue time, never sent. |
+| **Provider-neutral** | `IWhatsAppSender` in `Features/Notifications`; OpenWA only in `Infrastructure/Messaging/OpenWa` (CI enforces). Empty `Messaging:WhatsApp:Provider` → messages Skipped. |
+| **Risk** | OpenWA drives WhatsApp Web, which is unofficial. Use a dedicated number; it can be banned. Swapping to the official Cloud API means one new `IWhatsAppSender`. |
+
+### 6.10 HR
 
 Departments and employees, soft-deleted. Salary is returned only with `employees.view-salary`.
 
-### 6.9 Identity
+### 6.11 Identity
 
 - Users have one role, an optional showroom (for showroom users) and a list of warehouses they may use.
 - Roles are editable sets of permission codes. System roles cannot be deleted or renamed, and Admin's permissions cannot be edited.
@@ -559,6 +725,8 @@ All routes are under `/api`. Every non-anonymous route needs `Authorization: Bea
 | POST | `/orders/{id}/approve`, `/orders/{id}/reject` | orders.approve-discount | ✓ |
 | PATCH | `/orders/{id}/status` | orders.update-status | ✓ |
 | POST | `/orders/{id}/cancel` | orders.write | ✓ |
+| POST | `/orders/{id}/checkout` | orders.checkout | ✓ |
+| GET | `/orders/{id}/checkout` | orders.read | |
 
 ### Shipping
 
@@ -567,7 +735,7 @@ All routes are under `/api`. Every non-anonymous route needs `Authorization: Bea
 | GET | `/carriers`, `/carriers/{id}` | carriers.read |
 | POST / PUT | `/carriers`, `/carriers/{id}` | carriers.write |
 | PUT / DELETE | `/carriers/{id}/rates/{governorate}` | carriers.write |
-| GET | `/shipping-quotes?governorate=` | carriers.read |
+| GET | `/shipping-quotes?governorate=` | shipping-quotes.read |
 | POST | `/orders/{id}/shipment` | shipments.book |
 | GET | `/orders/{id}/shipment` | shipments.read |
 | GET | `/shipments/awaiting` | shipments.book |
@@ -615,8 +783,10 @@ Every error is RFC 9110 ProblemDetails with `correlationId`. Some carry a `code`
 | 409 | `invalid_transition` | Order status move not allowed. Includes `currentStatus` and `allowedTransitions`. |
 | 409 | `shipment_required` | Marking an order Shipped without a booked shipment |
 | 409 | `not_bookable` | Booking a shipment for an order that is not Confirmed/Preparing |
-| 409 | `governorate_missing` | Booking for an order with no governorate |
+| 409 | `governorate_missing` | Booking or checkout for an order with no governorate |
 | 409 | `already_booked` | The order already has a shipment |
+| 409 | `not_checkoutable` | Checkout on an order that is not Draft or Confirmed |
+| 409 | `checkout_in_progress` | The order already has a checkout awaiting payment |
 | 409 | – | Unique violation (duplicate SKU, carrier name, …), stock shortage (structured body), concurrent update |
 | 413 | – | Webhook body over 64 KB |
 | 428 | – | `If-Match` missing on an order change |
@@ -648,6 +818,16 @@ Every error is RFC 9110 ProblemDetails with `correlationId`. Some carry a `code`
 | `Payments:Paymob:TimeoutSeconds` | 10 | |
 | `Payments:Webhooks:Enabled` | true | Background worker on/off (off in tests) |
 | `Payments:Webhooks:PollSeconds` | 5 | Idle wait between polls |
+| `Payments:Refunds:Enabled` / `PollSeconds` | true / 30 | Automatic void/refund worker |
+| `Checkout:Expiry:Enabled` / `PollSeconds` | true / 5 | Expiry worker (not in appsettings; code defaults) |
+| `Messaging:WhatsApp:Provider` | "" | `openwa` or empty (messages Skipped) |
+| `Messaging:WhatsApp:OpenWa:BaseUrl` | – | e.g. `http://localhost:2785` |
+| `Messaging:WhatsApp:OpenWa:SessionId` | – | e.g. `erp` |
+| `Messaging:WhatsApp:OpenWa:ApiKey` | – | **Secret** |
+| `Messaging:WhatsApp:OpenWa:TimeoutSeconds` | 10 | |
+| `Messaging:Worker:Enabled` / `PollSeconds` | true / 5 | WhatsApp outbox worker |
+
+Every worker section uses the same `QueueWorkerOptions` (`Enabled` default true, `PollSeconds` default 5, range 1–300). Tests turn all of them off.
 
 ---
 
@@ -660,9 +840,11 @@ flowchart LR
     end
     subgraph Integration
       F[ApiFactory<br/>one host + one Postgres container] --> T[Test classes<br/>Collection ApiCollection]
-      F --> FK1[FakePaymentGateway]
-      F --> FK2[Fault injection:<br/>StockFaults, NumberFaults, WebhookFaults]
+      F --> FK1[FakePaymentGateway<br/>intentions, void, refund, Unavailable]
+      F --> FK4[FakeWhatsAppSender]
+      F --> FK2[Fault injection:<br/>StockFaults, NumberFaults, WebhookFaults,<br/>OrderCancellationFaults, InvoiceIssuingFaults]
       F --> FK3[Real Paymob verifier<br/>with a test secret]
+      T --> K[CheckoutTestKit, PaymentTestKit<br/>scenario: product, carrier with Cairo rate, tokens]
     end
 ```
 
@@ -673,14 +855,17 @@ flowchart LR
 | **Fault injection through decorators**, registered once in the factory | Proves rollbacks: stock, document numbers, webhook handling. |
 | **Race tests** | Two requests at once: shipping twice, booking twice, invoicing twice, the same webhook processed by two workers. |
 | **Facts that depend on global data are unit-tested** | For example "which carrier is cheapest" is tested on the calculator, not through the shared database. |
-| **Workers are driven directly** | The webhook worker is disabled in tests, and tests call `ProcessNextAsync` until the queue is empty. |
+| **Workers are driven directly** | All four workers are disabled in tests (`UseSetting("<section>:Enabled","false")`); tests call `ProcessNextAsync` in a `DrainAsync` loop until the queue is empty. |
+| **Test scopes have no user** | The Showroom filter hides everything in a test's own `DbContext` scope. Assertions read with `IgnoreQueryFilters([QueryFilters.Showroom])`, otherwise "no invoice" passes for the wrong reason. |
+| **Shared fakes are reset** | `FakePaymentGateway.Reset()` clears requests, reversals, `Unavailable` and behaviors. Classes that count calls call it in their constructor. |
+| **Business vs technical faults** | `InvoiceIssuingFaults` can throw either kind, to prove compensation (refund) vs retry (no refund). |
 
 ---
 
 ## 11. CI guards
-
-`.github/workflows/ci.yml` runs on every PR and push to `main`:
-
+ 
+`.github/workflows/ci.yml` runs on every PR and push to `main`. A `changes` job (`dorny/paths-filter`) decides whether code changed (`src/**`, `tests/**`, project/lock files, `global.json`, `Directory.*.props`, the workflows); anything else, such as README or docs, skips `build-and-test`, and a skipped job still counts as passing for required checks.
+ 
 | Guard | Blocks |
 |---|---|
 | Risky logging | `EnableSensitiveDataLogging`, HTTP logging, `{@…}` destructuring |
@@ -688,21 +873,6 @@ flowchart LR
 | Stock writes | Any write to stock tables outside `StockService` |
 | Business dates | Building a `DateOnly` from a UTC `DateTime` outside `BusinessClock` |
 | Payment provider | The word "paymob" anywhere in `src` outside its own folder, the provider switch and appsettings |
+| WhatsApp provider | The word "openwa" outside `Infrastructure/Messaging/OpenWa`, the provider switch and appsettings |
 | Locked restore | `dotnet restore --locked-mode` |
 | Tests ran | Fails if zero tests executed |
-
----
-
-## 12. Known limits and backlog
-
-| Item | Notes |
-|---|---|
-| **ERP-11** | Deferred |
-| **ERP-18: confirm and pay** | In design. Needs payment on the order (today payments attach to invoices only), a step after payment success, refunds/voids and email. Waiting on a decision about how far existing code may be extended. |
-| Change or cancel a shipment on its own | Today a shipment is cancelled only with its order. |
-| Negotiated shipping price at booking | Today the price always comes from the rate table. |
-| Automatic refunds | `NeedsRefund` attempts are refunded by hand in the Paymob dashboard. |
-| Refund/void callbacks | Stored and ignored, not processed. |
-| Demo data seeder | `Seed:DemoData` exists in config, the seeder does not yet. |
-| Tests to add | Last-admin protection counts all admins, order details id mapping. |
-| Webhook payload retention | Stored forever today, with personal data (redacted only in the API). |
