@@ -65,7 +65,6 @@ global using ErpDashboard.Api.Features.Sales.Checkout;
 global using ErpDashboard.Api.Features.Notifications;
 global using ErpDashboard.Api.Features.Payments.Refunds;
 global using ErpDashboard.Api.Infrastructure.Payments;
-global using ErpDashboard.Api.Infrastructure.Messaging.OpenWa;
 global using ErpDashboard.Api.Common.Authorization;
 global using ErpDashboard.Api.Middlewares;
 

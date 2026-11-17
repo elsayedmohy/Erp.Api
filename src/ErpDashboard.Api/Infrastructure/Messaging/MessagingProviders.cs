@@ -1,3 +1,5 @@
+using ErpDashboard.Api.Infrastructure.Messaging.OpenWa;
+
 namespace ErpDashboard.Api.Infrastructure.Messaging;
 
 public static class MessagingProviders
