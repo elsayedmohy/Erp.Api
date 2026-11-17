@@ -4,6 +4,7 @@ namespace ErpDashboard.Api.Features.Sales.Checkout;
 public sealed class CheckoutExpiryProcessor(
     AppDbContext dbContext,
     IOrderCancellation orders,
+    ICheckoutNotifier notifier,
     ILogger<CheckoutExpiryProcessor> logger) : IQueueProcessor
 {
     private const string Savepoint = "expire_checkout";
@@ -40,9 +41,9 @@ public sealed class CheckoutExpiryProcessor(
 
             checkout.Status = CheckoutStatus.Expired;
             checkout.CompletedAt = now;
-            checkout.CustomerMessage = ExpiredMessage;
             checkout.ExpiryRetryAt = null;
 
+            await notifier.SetMessageAsync(checkout.Id, ExpiredMessage, sendWhatsApp: true, ct);
             await dbContext.PaymentAttempts
                 .Where(a => a.Id == checkout.PaymentAttemptId && a.Status == PaymentAttemptStatus.Pending)
                 .ExecuteUpdateAsync(s => s

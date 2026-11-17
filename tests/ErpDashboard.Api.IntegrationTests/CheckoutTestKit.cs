@@ -18,7 +18,7 @@ public class CheckoutTestKit(ApiFactory factory , HttpClient _client)
     public sealed record Scenario(
         Guid OrderId, Guid ShowroomId, Guid ProductId, Guid CarrierId,
         string Manager, string Sales, string ShowroomUser);
-        public async Task<Scenario> ScenarioAsync(int discountPercent = 0)
+        public async Task<Scenario> ScenarioAsync(int discountPercent = 0, string phone = "01000000000")
     {
         var manager = await TokenAsync(RoleIds.Manager);
         var sales = await TokenAsync(RoleIds.Sales);
@@ -34,7 +34,7 @@ public class CheckoutTestKit(ApiFactory factory , HttpClient _client)
         {
             Id = Guid.NewGuid(), Name = $"Showroom-{suffix}", Email = $"showroom-{suffix}@tests.local",
             Address = "Test address", City = "Cairo", Country = "Egypt",
-            PhoneNumber = "01000000000", TaxId = $"TAX-{suffix[..12]}"
+            PhoneNumber = phone, TaxId = $"TAX-{suffix[..12]}"
         };
         await Db(async db =>
         {
