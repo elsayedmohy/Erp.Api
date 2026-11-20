@@ -142,7 +142,7 @@ public class LowStockTests(ApiFactory factory)
         var response = await _client.PostAsJsonAsync("/api/auth/login", new { email = user.Email, password = user.Password });
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-        return (json.RootElement.GetProperty("token").GetString()!, user.Id);
+        return (json.RootElement.GetProperty("accessToken").GetString()!, user.Id);
     }
 
     private Task<HttpResponseMessage> SendAsync(HttpMethod method, string url, string token, object? body = null)

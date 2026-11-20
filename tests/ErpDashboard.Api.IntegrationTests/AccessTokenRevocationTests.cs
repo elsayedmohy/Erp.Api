@@ -77,7 +77,7 @@ public class AccessTokenRevocationTests(ApiFactory factory)
 
         using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
         return new Session(
-            json.RootElement.GetProperty("token").GetString()!,
+            json.RootElement.GetProperty("accessToken").GetString()!,
             json.RootElement.GetProperty("refreshToken").GetString()!);
     }
 

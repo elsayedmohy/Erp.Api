@@ -176,7 +176,7 @@ public class ProductValidationTests(ApiFactory factory)
         var user = await factory.CreateUserAsync(RoleIds.InventoryManager);
         var response = await _client.PostAsJsonAsync("/api/auth/login", new { email = user.Email, password = user.Password });
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        return (await ReadJsonAsync(response)).GetProperty("token").GetString()!;
+        return (await ReadJsonAsync(response)).GetProperty("accessToken").GetString()!;
     }
 
     private static async Task<JsonElement> ReadJsonAsync(HttpResponseMessage response)

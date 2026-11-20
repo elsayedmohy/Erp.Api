@@ -235,7 +235,7 @@ public class CrossWarehouseAccessTests(ApiFactory factory)
     {
         var response = await _client.PostAsJsonAsync("/api/auth/login", new { email, password });
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        return (await ReadJsonAsync(response)).GetProperty("token").GetString()!;
+        return (await ReadJsonAsync(response)).GetProperty("accessToken").GetString()!;
     }
 
     private async Task<JsonElement> GetJsonAsync(string url, string token)

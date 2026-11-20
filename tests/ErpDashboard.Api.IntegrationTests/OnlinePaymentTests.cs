@@ -170,7 +170,7 @@ public class OnlinePaymentTests : IDisposable
 
         var response = await _client.PostAsJsonAsync("/api/auth/login", new { email = user.Email, password = user.Password });
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        return (await Kit.ReadJsonAsync(response)).GetProperty("token").GetString()!;
+        return (await Kit.ReadJsonAsync(response)).GetProperty("accessToken").GetString()!;
     }
 
 

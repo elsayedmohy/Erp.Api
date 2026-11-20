@@ -5,6 +5,7 @@ using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Text;
 using System.Text.Json;
+using ErpDashboard.Api.Auth.Token;
 using ErpDashboard.Api.Data;
 using ErpDashboard.Api.Data.Entities;
 using ErpDashboard.Api.Data.Seed;
@@ -46,7 +47,7 @@ public class AuthTests(ApiFactory factory)
 
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var stored = await db.Set<RefreshToken>().SingleAsync(t => t.Token == tokens.RefreshToken);
+        var stored = await db.Set<RefreshToken>().SingleAsync(t => t.TokenHash == RefreshTokenHash.Compute(tokens.RefreshToken));
 
         var now = DateTime.UtcNow;
         Assert.InRange(stored.ExpiresAt, now.AddDays(7).AddMinutes(-1), now.AddDays(7).AddMinutes(1));
@@ -78,7 +79,7 @@ public class AuthTests(ApiFactory factory)
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             var expiredAt = DateTime.UtcNow.AddMinutes(-1);
             await db.Set<RefreshToken>()
-                .Where(t => t.Token == tokens.RefreshToken)
+                .Where(t => t.TokenHash == RefreshTokenHash.Compute(tokens.RefreshToken))
                 .ExecuteUpdateAsync(s => s.SetProperty(t => t.ExpiresAt, expiredAt));
         }
 
@@ -167,6 +168,41 @@ public class AuthTests(ApiFactory factory)
             email,
             password
         });
+    
+    
+    [Fact]
+    public async Task RefreshToken_IsStoredAsHash_NotAsTheTokenItself()
+    {
+        var tokens = await LoginAsync(ApiFactory.AdminEmail);
+
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        Assert.False(await db.Set<RefreshToken>().AnyAsync(t => t.TokenHash == tokens.RefreshToken));
+        var stored = await db.Set<RefreshToken>()
+            .SingleAsync(t => t.TokenHash == RefreshTokenHash.Compute(tokens.RefreshToken));
+        Assert.Equal(64, stored.TokenHash.Length);
+    }
+
+    [Fact]
+    public async Task StoredHash_CannotBeUsedAsARefreshToken()
+    {
+        // Someone who can read the table gets the hash, not a working session.
+        var tokens = await LoginAsync(ApiFactory.AdminEmail);
+        var hash = RefreshTokenHash.Compute(tokens.RefreshToken);
+
+        var response = await _client.PostAsJsonAsync("/api/auth/refresh", new { refreshToken = hash });
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Refresh_WithoutToken_IsValidationError()
+    {
+        var response = await _client.PostAsJsonAsync("/api/auth/refresh", new { });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
 
     private static async Task<AuthTokens> ReadTokensAsync(HttpResponseMessage response)
     {
@@ -174,7 +210,7 @@ public class AuthTests(ApiFactory factory)
         var root = json.RootElement;
 
         return new AuthTokens(
-            root.GetProperty("token").GetString()!,
+            root.GetProperty("accessToken").GetString()!,
             root.GetProperty("refreshToken").GetString()!,
             root.GetProperty("expiresAt").GetDateTime().ToUniversalTime());
     }

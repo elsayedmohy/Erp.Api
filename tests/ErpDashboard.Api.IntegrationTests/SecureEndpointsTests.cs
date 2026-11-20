@@ -206,7 +206,7 @@ public class SecureEndpointsTests(ApiFactory factory)
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
         using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-        return json.RootElement.GetProperty("token").GetString()!;
+        return json.RootElement.GetProperty("accessToken").GetString()!;
     }
 
     private async Task<JsonElement> GetJsonAsync(string url, string token)
