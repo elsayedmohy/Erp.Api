@@ -29,17 +29,17 @@ public class TokenService(IOptions<JwtSettings> settings) : ITokenService
         return new AccessToken(next,token.ValidTo) ;
     }
     
-    public RefreshToken GenerateRefreshToken()
+    public IssuedRefreshToken GenerateRefreshToken()
     {
-        byte[] randomBytes = RandomNumberGenerator.GetBytes(32);
-        var base64String=  Convert.ToBase64String(randomBytes);
-        return new RefreshToken
+        var value = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
+        var now = DateTime.UtcNow;
+
+        return new IssuedRefreshToken(value, new RefreshToken
         {
-            Token = base64String,
-            
-            CreatedAt = DateTime.UtcNow,
-            ExpiresAt = DateTime.UtcNow.AddDays(_settings.ExpiryDays)
-        };
+            TokenHash = RefreshTokenHash.Compute(value),
+            CreatedAt = now,
+            ExpiresAt = now.AddDays(_settings.ExpiryDays)
+        });
     }
     
 }

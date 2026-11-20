@@ -39,14 +39,15 @@ public class AuthService(
         AccessToken accessToken = tokenService.GenerateToken(user);
         var refreshToken = await IssueRefreshTokenAsync(user);
 
-        return new LoginDto(accessToken.Token, refreshToken.Token, "Bearer", accessToken.ExpiresAt);
+        return new LoginDto(accessToken.Token, refreshToken, accessToken.ExpiresAt);
     }
     
 public async Task<LoginDto> RefreshTokenAsync(string token)
 {
+    var tokenHash = RefreshTokenHash.Compute(token);
     var current = await dbContext.Set<RefreshToken>()
                       .AsNoTracking()
-                      .SingleOrDefaultAsync(t => t.Token == token)
+                      .SingleOrDefaultAsync(t => t.TokenHash == tokenHash)
                   ?? throw new UnauthorizedException(InvalidRefreshToken);
 
     if (current.RotatedAt is { } rotatedAt)
@@ -86,16 +87,15 @@ public async Task<LoginDto> RefreshTokenAsync(string token)
         throw new UnauthorizedException(InvalidRefreshToken);
 
     var next = tokenService.GenerateRefreshToken();
-    next.UserId = user.Id;
-    next.FamilyId = current.FamilyId;
-    dbContext.Add(next);
+    next.Entity.UserId = user.Id;
+    next.Entity.FamilyId = current.FamilyId;
+    dbContext.Add(next.Entity);
 
     await dbContext.SaveChangesAsync();
     await transaction.CommitAsync();
 
     AccessToken accessToken = tokenService.GenerateToken(user);
-    return new LoginDto(accessToken.Token, next.Token, "Bearer", accessToken.ExpiresAt);
-}
+    return new LoginDto(accessToken.Token, next.Value,accessToken.ExpiresAt);}
 
 public async Task RevokeAllSessionsAsync(ClaimsPrincipal principal)
 {
@@ -130,8 +130,9 @@ private async Task RevokeAllSessionsAsync(User user)
 
     public async Task LogoutAsync(string token)
     {
+        var tokenHash = RefreshTokenHash.Compute(token);
         var current = await dbContext.Set<RefreshToken>()
-            .SingleOrDefaultAsync(t => t.Token == token);
+            .SingleOrDefaultAsync(t => t.TokenHash == tokenHash);
 
         if (current is null || current.RevokedAt is not null) return;
 
@@ -140,13 +141,13 @@ private async Task RevokeAllSessionsAsync(User user)
     }
     
 
-    private async Task<RefreshToken> IssueRefreshTokenAsync(User user)
+    private async Task<string> IssueRefreshTokenAsync(User user)
     {
-        var token = tokenService.GenerateRefreshToken();
-        token.UserId = user.Id;
-        token.FamilyId = Guid.NewGuid();
-        dbContext.Add(token);
+        var issued = tokenService.GenerateRefreshToken();
+        issued.Entity.UserId = user.Id;
+        issued.Entity.FamilyId = Guid.NewGuid();
+        dbContext.Add(issued.Entity);
         await dbContext.SaveChangesAsync();
-        return token;
+        return issued.Value;
     }
 }

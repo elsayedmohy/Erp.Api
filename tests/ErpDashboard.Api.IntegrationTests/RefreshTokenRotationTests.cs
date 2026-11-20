@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using ErpDashboard.Api.Auth.Token;
 using ErpDashboard.Api.Data;
 using ErpDashboard.Api.Data.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -128,7 +129,7 @@ public class RefreshTokenRotationTests(ApiFactory factory)
         DateTime? rotatedAt = DateTime.UtcNow.AddMinutes(-1);
 
         await db.Set<RefreshToken>()
-            .Where(t => t.Token == refreshToken)
+            .Where(t => t.TokenHash == RefreshTokenHash.Compute(refreshToken))
             .ExecuteUpdateAsync(s => s.SetProperty(t => t.RotatedAt, rotatedAt));
     }
 
@@ -138,7 +139,7 @@ public class RefreshTokenRotationTests(ApiFactory factory)
 
         using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
         return new Session(
-            json.RootElement.GetProperty("token").GetString()!,
+            json.RootElement.GetProperty("accessToken").GetString()!,
             json.RootElement.GetProperty("refreshToken").GetString()!);
     }
 

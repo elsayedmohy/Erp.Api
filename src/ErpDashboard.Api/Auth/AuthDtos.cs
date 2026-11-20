@@ -7,7 +7,8 @@ public record AccessToken(string Token , DateTime ExpiresAt);
 public record RefreshTokenRequestDto(string RefreshToken);
 
 public record LoginDto(
-    string Token,
+    string AccessToken,
     string RefreshToken,
-    string TokenType,
     DateTime ExpiresAt);
+    
+public sealed record IssuedRefreshToken(string Value, RefreshToken Entity);
