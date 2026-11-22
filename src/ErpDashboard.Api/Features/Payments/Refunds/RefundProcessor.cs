@@ -30,6 +30,9 @@ public sealed class RefundProcessor(
 
         try
         {
+            if (attempt.RefundAttempts > 1 && await AlreadyReversedAsync(attempt, ct))
+                return true;
+            
             if (PaidToday(attempt))
             {
                 var voided = await gateway.VoidAsync(attempt.ProviderTransactionId, ct);
@@ -116,5 +119,22 @@ public sealed class RefundProcessor(
 
         if (status == PaymentAttemptStatus.RefundFailed)
             logger.LogWarning("Refund for attempt {AttemptId} needs manual handling: {Error}", attempt.Id, error);
+    }
+    
+    private async Task<bool> AlreadyReversedAsync(PaymentAttempt attempt, CancellationToken ct)
+    {
+        var state = await gateway.GetTransactionAsync(attempt.ProviderTransactionId!, ct);
+
+        if (state.IsVoided)
+            await FinishAsync(attempt, PaymentAttemptStatus.Voided, null, null, ct);
+        else if (state.RefundedAmountMinor >= attempt.AmountMinor)
+            await FinishAsync(attempt, PaymentAttemptStatus.Refunded, null, null, ct);
+        else if (state.RefundedAmountMinor > 0)
+            await FinishAsync(attempt, PaymentAttemptStatus.RefundFailed, null,
+                $"Partly refunded ({state.RefundedAmountMinor} of {attempt.AmountMinor}); finish it by hand.", ct);
+        else
+            return false;
+
+        return true;
     }
 }

@@ -3,7 +3,7 @@ namespace ErpDashboard.Api.Infrastructure.Payments.Paymob;
 public sealed class PaymobOptions
 {
     public const string Section = "Payments:Paymob";
-
+    [Required] public string ApiKey { get; init; } = "";
     [Required] public string SecretKey { get; init; } = "";
     [Required] public string PublicKey { get; init; } = "";
     [Required] public string HmacSecret { get; init; } = "";

@@ -12,4 +12,9 @@ public sealed class NotConfiguredPaymentGateway : IPaymentGateway
 
     public Task<ReversalResult> RefundAsync(string providerTransactionId, long amountMinor, CancellationToken ct) =>
         throw new PaymentProviderUnavailableException("Online payments are not configured.");
+
+    public Task<TransactionState> GetTransactionAsync(string providerTransactionId, CancellationToken ct)
+    {
+        throw new PaymentProviderUnavailableException("Online payments are not configured.");
+    }
 }

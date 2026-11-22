@@ -68,18 +68,22 @@ public sealed class PaymobGateway(HttpClient http, IOptions<PaymobOptions> optio
             : ReversalResult.Rejected($"The provider did not accept the {kind}.");
     }
 
+    private Task<HttpResponseMessage> SendAsync(string path, object body, CancellationToken ct) =>
+        SendAsync(HttpMethod.Post, path, body, $"Token {_options.SecretKey}", ct);
+
     /// Timeouts and 5xx become PaymentProviderUnavailableException; everything else is returned to the caller.
-    private async Task<HttpResponseMessage> SendAsync(string path, object body, CancellationToken ct)
+    private async Task<HttpResponseMessage> SendAsync(
+        HttpMethod method, string path, object? body, string? authorization, CancellationToken ct)
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
         timeout.CancelAfter(TimeSpan.FromSeconds(_options.TimeoutSeconds));
 
-        using var message = new HttpRequestMessage(HttpMethod.Post, new Uri(new Uri(_options.ApiBaseUrl), path))
-        {
-            Content = JsonContent.Create(body, options: Json)
-        };
-        message.Headers.TryAddWithoutValidation("Authorization", $"Token {_options.SecretKey}");
-
+        using var message = new HttpRequestMessage(method, new Uri(new Uri(_options.ApiBaseUrl), path));
+        if (body is not null)
+            message.Content = JsonContent.Create(body, options: Json);
+        if (authorization is not null)
+            message.Headers.TryAddWithoutValidation("Authorization", authorization);
+        
         HttpResponseMessage response;
         try
         {
@@ -111,6 +115,48 @@ public sealed class PaymobGateway(HttpClient http, IOptions<PaymobOptions> optio
             kind, (int)response.StatusCode, error.Length > 500 ? error[..500] : error);
     }
 
+    public async Task<TransactionState> GetTransactionAsync(string providerTransactionId, CancellationToken ct)
+    {
+        var authToken = await GetAuthTokenAsync(ct);
+
+        using var response = await SendAsync(HttpMethod.Get,
+            $"/api/acceptance/transactions/{Uri.EscapeDataString(providerTransactionId)}",
+            null, $"Bearer {authToken}", ct);
+
+        // Any failure here must stop the retry, never let it through: unknown state means "do not reverse".
+        if (!response.IsSuccessStatusCode)
+        {
+            await LogRejectionAsync("inquiry", response);
+            throw new PaymentProviderUnavailableException(
+                $"Transaction inquiry failed ({(int)response.StatusCode}).");
+        }
+
+        using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct));
+        var root = doc.RootElement;
+        var voided = root.TryGetProperty("is_voided", out var v) && v.ValueKind == JsonValueKind.True;
+        var refunded = root.TryGetProperty("refunded_amount_cents", out var r) && r.ValueKind == JsonValueKind.Number
+            ? (long)r.GetDecimal()
+            : 0;
+
+        return new TransactionState(voided, refunded);
+    }
+
+    private async Task<string> GetAuthTokenAsync(CancellationToken ct)
+    {
+        using var response = await SendAsync(HttpMethod.Post, "/api/auth/tokens",
+            new AuthTokenRequest(_options.ApiKey), null, ct);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            await LogRejectionAsync("auth", response);
+            throw new PaymentProviderUnavailableException(
+                $"The payment provider refused the API key ({(int)response.StatusCode}).");
+        }
+
+        var body = await response.Content.ReadFromJsonAsync<AuthTokenResponse>(Json, ct);
+        return body?.Token ?? throw new PaymentProviderUnavailableException("The payment provider returned no auth token.");
+    }
+
     internal sealed record VoidRequest(string TransactionId);
 
     internal sealed record RefundRequest(string TransactionId, long AmountCents);
@@ -136,4 +182,6 @@ public sealed class PaymobGateway(HttpClient http, IOptions<PaymobOptions> optio
         string Country);
 
     internal sealed record IntentionResponse(string Id, string ClientSecret);
+    internal sealed record AuthTokenRequest(string ApiKey);
+    internal sealed record AuthTokenResponse(string Token);
 }
