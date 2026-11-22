@@ -2,12 +2,12 @@ using ErpDashboard.Api.Features.Payments.Webhooks;
 
 namespace ErpDashboard.Api.UnitTests;
 
-public class WebhookRetryTests
+public class RetryScheduleTests
 {
     [Fact]
     public void Delays_GrowAndCap()
     {
-        var delays = Enumerable.Range(1, WebhookRetry.MaxAttempts + 2).Select(WebhookRetry.Delay).ToList();
+        var delays = Enumerable.Range(1, PaymentWebhookProcessor.MaxAttempts + 2).Select(RetrySchedule.Delay).ToList();
 
         Assert.Equal(TimeSpan.FromSeconds(10), delays[0]);
         Assert.True(delays.Zip(delays.Skip(1)).All(p => p.Second >= p.First));

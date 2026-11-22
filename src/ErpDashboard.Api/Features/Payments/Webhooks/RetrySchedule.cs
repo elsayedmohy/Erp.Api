@@ -1,6 +1,6 @@
 namespace ErpDashboard.Api.Features.Payments.Webhooks;
 
-public static class WebhookRetry
+public static class RetrySchedule
 {
     public const int MaxAttempts = 8;
 

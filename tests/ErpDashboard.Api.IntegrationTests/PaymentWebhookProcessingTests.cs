@@ -154,7 +154,7 @@ public class PaymentWebhookProcessingTests(ApiFactory factory) : IDisposable
         var eventId = await PostWebhookAsync(WebhookSigning.For(attemptId, amountMinor));
         factory.WebhookFaults.FailAfterHandling[eventId] = 0;
 
-        for (var i = 0; i < WebhookRetry.MaxAttempts; i++)
+        for (var i = 0; i < PaymentWebhookProcessor.MaxAttempts; i++)
         {
             await MakeDueAsync(eventId);
             await DrainAsync();
@@ -162,7 +162,7 @@ public class PaymentWebhookProcessingTests(ApiFactory factory) : IDisposable
 
         var e = await EventAsync(eventId);
         Assert.Equal(WebhookEventStatus.Failed, e.Status);
-        Assert.Equal(WebhookRetry.MaxAttempts, e.ProcessingAttempts);
+        Assert.Equal(PaymentWebhookProcessor.MaxAttempts, e.ProcessingAttempts);
         Assert.Null(e.NextAttemptAt);
     }
 

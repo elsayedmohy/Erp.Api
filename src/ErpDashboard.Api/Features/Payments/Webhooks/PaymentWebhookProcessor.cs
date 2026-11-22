@@ -8,6 +8,7 @@ public sealed class PaymentWebhookProcessor(
     ILogger<PaymentWebhookProcessor> logger): IQueueProcessor
 {
     private const string Savepoint = "handle_event";
+    public const int MaxAttempts = 8;
     
     
     public async Task<bool> ProcessNextAsync(CancellationToken ct)
@@ -49,13 +50,13 @@ public sealed class PaymentWebhookProcessor(
             dbContext.ChangeTracker.Clear();
 
             var attempts = previousAttempts + 1;
-            var giveUp = attempts >= WebhookRetry.MaxAttempts;
-            DateTime? next = giveUp ? null : DateTime.UtcNow + WebhookRetry.Delay(attempts);
+            var giveUp = attempts >= MaxAttempts;
+            DateTime? next = giveUp ? null : DateTime.UtcNow + Common.Workers.RetrySchedule.Delay(attempts);
             var status = giveUp ? WebhookEventStatus.Failed : WebhookEventStatus.Received;
             var message = ex.Message.Length > 500 ? ex.Message[..500] : ex.Message;
 
             logger.LogError(ex, "Processing payment webhook {EventId} failed (attempt {Attempt}/{Max}).",
-                claimed.Id, attempts, WebhookRetry.MaxAttempts);
+                claimed.Id, attempts, MaxAttempts);
 
             await dbContext.PaymentWebhookEvents
                 .Where(x => x.Id == claimed.Id)
