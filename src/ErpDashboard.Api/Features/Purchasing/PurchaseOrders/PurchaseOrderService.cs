@@ -2,7 +2,8 @@ using ErpDashboard.Api.Features.Inventory.Stock;
 
 namespace ErpDashboard.Api.Features.Purchasing.PurchaseOrders;
 
-public class PurchaseOrderService(AppDbContext dbContext,
+public class PurchaseOrderService(
+    AppDbContext dbContext,
     IBusinessClock clock,
     IStockService stock,
     IWarehouseScope scope) : IPurchaseOrderService
@@ -15,10 +16,6 @@ public class PurchaseOrderService(AppDbContext dbContext,
         .Default("orderDate", descending: true)
         .TieBreaker(o => o.Id);
 
-    private static readonly Dictionary<PurchaseOrderStatus, PurchaseOrderStatus[]> AllowedTransitions = new()
-    {
-        [PurchaseOrderStatus.Pending] = [PurchaseOrderStatus.Received, PurchaseOrderStatus.Cancelled],
-    };
 
     public Task<PagedResult<PurchaseOrderResponse>> ListAsync(PurchaseOrderQuery query, CancellationToken ct)
     {
@@ -73,7 +70,8 @@ public class PurchaseOrderService(AppDbContext dbContext,
         var orderDate = request.OrderDate ?? clock.Today;
 
         if (request.ExpectedDelivery < orderDate)
-            throw new RequestValidationException("expectedDelivery", "Expected delivery cannot be before the order date.");
+            throw new RequestValidationException("expectedDelivery",
+                "Expected delivery cannot be before the order date.");
 
         var order = new PurchaseOrder()
         {
@@ -103,7 +101,8 @@ public class PurchaseOrderService(AppDbContext dbContext,
             throw new ConflictException("Only pending purchase orders can be updated.");
 
         if (request.ExpectedDelivery < po.OrderDate)
-            throw new RequestValidationException("expectedDelivery", "Expected delivery cannot be before the order date.");
+            throw new RequestValidationException("expectedDelivery",
+                "Expected delivery cannot be before the order date.");
 
         var (lines, total) = await BuildLinesAsync(request.Lines, ct);
 
@@ -127,13 +126,12 @@ public class PurchaseOrderService(AppDbContext dbContext,
         if (po is null)
             throw new NotFoundException("Purchase Order", id);
 
-        if (!AllowedTransitions.TryGetValue(po.Status, out var allowed) || !allowed.Contains(request.Status))
-            throw new ConflictException(
-                $"Cannot change purchase order status from '{po.Status}' to '{request.Status}'.");
+        PurchaseOrderStatuses.Machine.EnsureCanMove(po.Status, request.Status);
+
 
         if (request.Status == PurchaseOrderStatus.Received && !await scope.CanAccessAsync(po.WarehouseId, ct))
             throw new ForbiddenException("You do not have access to this purchase order's warehouse.");
-        
+
         await using var transaction = await dbContext.Database.BeginTransactionAsync(ct);
 
         var claimed = await dbContext.PurchaseOrders
@@ -147,7 +145,9 @@ public class PurchaseOrderService(AppDbContext dbContext,
         {
             foreach (var line in po.PurchaseLines)
                 await stock.TryApplyAsync(new StockChange(
-                    po.WarehouseId, line.ProductId, line.Quantity, StockMovementType.PurchaseReceipt, userId, po.Id), ct);
+                        po.WarehouseId, line.ProductId, line.Quantity, StockMovementType.PurchaseReceipt, userId,
+                        po.Id),
+                    ct);
         }
 
         await transaction.CommitAsync(ct);

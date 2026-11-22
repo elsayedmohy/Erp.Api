@@ -13,37 +13,11 @@ public class OrderService(
         .Add("status", o => o.Status)
         .Default("orderDate", descending: true)
         .TieBreaker(o => o.Id);
-
-    private static readonly Dictionary<OrderStatus, OrderStatus[]> Transitions = new()
-    {
-        [OrderStatus.Draft] = [OrderStatus.PendingApproval, OrderStatus.Confirmed, OrderStatus.Cancelled],
-        [OrderStatus.PendingApproval] = [OrderStatus.Confirmed, OrderStatus.Cancelled],
-        [OrderStatus.Confirmed] = [OrderStatus.Preparing, OrderStatus.Cancelled],
-        [OrderStatus.Preparing] = [OrderStatus.Shipped, OrderStatus.Cancelled],
-        [OrderStatus.Shipped] = [OrderStatus.Delivered],
-        [OrderStatus.Delivered] = [],
-        [OrderStatus.Cancelled] = []
-    };
+    
 
     private static readonly OrderStatus[] OperationalTargets =
         [OrderStatus.Preparing, OrderStatus.Shipped, OrderStatus.Delivered];
 
-    private static void EnsureTransition(OrderStatus from, OrderStatus to)
-    {
-        var allowed = Transitions[from];
-        if (allowed.Contains(to)) return;
-
-        throw new ConflictException(
-            allowed.Length == 0
-                ? $"An order that is {from} cannot change status."
-                : $"Cannot change an order from {from} to {to}. Allowed: {string.Join(", ", allowed)}.",
-            code: "invalid_transition",
-            extensions: new Dictionary<string, object?>
-            {
-                ["currentStatus"] = from.ToString(),
-                ["allowedTransitions"] = allowed.Select(s => s.ToString()).ToArray()
-            });
-    }
 
     private async Task ClaimAsync(Guid id, uint expectedVersion, OrderStatus from, OrderStatus to, CancellationToken ct)
     {
@@ -234,7 +208,7 @@ public class OrderService(
             throw new ConflictException(
                 $"Use the dedicated endpoint to move an order to {request.Status}.",
                 code: "invalid_transition");
-        EnsureTransition(current, request.Status);
+        OrderStatuses.Machine.EnsureCanMove(current, request.Status);
 
         await using var transaction = await dbContext.Database.BeginTransactionAsync(ct);
         await ClaimAsync(id, expectedVersion, current, request.Status, ct);
@@ -263,7 +237,7 @@ public class OrderService(
         var order = await LoadAsync(id, ct);
         EnsureVersion(order, expectedVersion);
         var target = RequiresApproval(order.OrderLines) ? OrderStatus.PendingApproval : OrderStatus.Confirmed;
-        EnsureTransition(order.Status, target);
+        OrderStatuses.Machine.EnsureCanMove(order.Status, target);
 
         await using var transaction = await dbContext.Database.BeginTransactionAsync(ct);
         await ClaimAsync(id, expectedVersion, order.Status, target, ct);
@@ -341,7 +315,7 @@ public class OrderService(
     {
         var order = await LoadAsync(id, ct);
         EnsureVersion(order, expectedVersion);
-        EnsureTransition(order.Status, OrderStatus.Cancelled);
+        OrderStatuses.Machine.EnsureCanMove(order.Status, OrderStatus.Cancelled);
 
         await using var transaction = await dbContext.Database.BeginTransactionAsync(ct);
         await ClaimAsync(id, expectedVersion, order.Status, OrderStatus.Cancelled, ct);
@@ -361,7 +335,7 @@ public class OrderService(
             .AsNoTracking()
             .Include(o => o.OrderLines)
             .SingleOrDefaultAsync(o => o.Id == orderId, ct);
-        if (order is null || !Transitions[order.Status].Contains(OrderStatus.Cancelled))
+        if (order is null || !OrderStatuses.Machine.CanMove(order.Status, OrderStatus.Cancelled))
             return false;
 
         // Same claim as a user cancel, minus the version: only wins if the status is still what we read.

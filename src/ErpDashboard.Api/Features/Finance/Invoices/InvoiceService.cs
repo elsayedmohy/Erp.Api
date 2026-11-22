@@ -22,11 +22,6 @@ public sealed class InvoiceService(
         .Default("invoiceDate", descending: true)
         .TieBreaker(i => i.Id);
 
-    private static readonly Dictionary<InvoiceStatus, InvoiceStatus[]> AllowedTransitions = new()
-    {
-        [InvoiceStatus.Draft] = [InvoiceStatus.Issued]
-    };
-
 
     public Task<PagedResult<InvoiceResponse>> ListAsync(InvoiceQuery query, CancellationToken ct)
     {
@@ -198,7 +193,7 @@ public async Task<Invoice> IssueForCheckoutAsync(Guid orderId, CancellationToken
     {
         var invoice = await FindAsync(id, ct);
         EnsureManual(invoice, "issued manually");
-        EnsureTransition(invoice, InvoiceStatus.Issued);
+        InvoiceStatuses.Machine.EnsureCanMove(invoice.Status, InvoiceStatus.Issued);
 
         await using var transaction = await dbContext.Database.BeginTransactionAsync(ct);
 
@@ -368,12 +363,6 @@ public async Task<Invoice> IssueForCheckoutAsync(Guid orderId, CancellationToken
         if (invoice.OrderId is not null)
             throw new ConflictException(
                 $"Invoices generated from an order cannot be {action}. Manage it through the order instead.");
-    }
-
-    private static void EnsureTransition(Invoice invoice, InvoiceStatus target)
-    {
-        if (!AllowedTransitions[invoice.Status].Contains(target))
-            throw new ConflictException($"Cannot change invoice status from {invoice.Status} to {target}.");
     }
 
 
