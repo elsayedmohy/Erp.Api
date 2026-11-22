@@ -33,16 +33,11 @@ public class ShowroomService(AppDbContext dbContext) : IShowroomService
         return ToResponse(showroom);
     }
 
-    public Task<ShowroomResponse> CreateAsync(ShowroomRequest request, CancellationToken ct)
+    public async Task<ShowroomResponse> CreateAsync(ShowroomRequest request, CancellationToken ct)
     {
-        var existingShowroom = dbContext.Showrooms
-            .AnyAsync(c => c.Email == request.Email ||
-                           c.TaxId == request.TaxId, cancellationToken: ct);
+        await EnsureUniqueAsync(request, exceptId: null, ct);
 
-        if (existingShowroom != null)
-            throw new ConflictException("Showroom already exists");
-
-        Showroom showroom = new Showroom
+        var showroom = new Showroom
         {
             Name = request.Name,
             Email = request.Email,
@@ -54,14 +49,15 @@ public class ShowroomService(AppDbContext dbContext) : IShowroomService
         };
 
         dbContext.Showrooms.Add(showroom);
-        return Task.FromResult(ToResponse(showroom));
+        await dbContext.SaveChangesAsync(ct);
+        return ToResponse(showroom);
     }
 
     public async Task<ShowroomResponse> UpdateAsync(Guid id, ShowroomRequest request, CancellationToken ct)
     {
-        Showroom? showroom = await dbContext.Showrooms.FirstOrDefaultAsync(c => c.Id == id, ct);
-        if (showroom == null)
-            throw new NotFoundException("Showroom", id);
+        var showroom = await dbContext.Showrooms.FirstOrDefaultAsync(c => c.Id == id, ct)
+                       ?? throw new NotFoundException("Showroom", id);
+        await EnsureUniqueAsync(request, exceptId: id, ct);
 
         showroom.Name = request.Name;
         showroom.Email = request.Email;
@@ -84,6 +80,17 @@ public class ShowroomService(AppDbContext dbContext) : IShowroomService
         await dbContext.SaveChangesAsync(ct);
     }
 
+    private async Task EnsureUniqueAsync(ShowroomRequest request, Guid? exceptId, CancellationToken ct)
+    {
+        var others = dbContext.Showrooms.Where(s => s.Id != exceptId);
+
+        if (await others.AnyAsync(s => s.TaxId == request.TaxId, ct))
+            throw new ConflictException("A showroom with this tax ID already exists.");
+
+        if (request.Email is not null && await others.AnyAsync(s => s.Email == request.Email, ct))
+            throw new ConflictException("A showroom with this email already exists.");
+    }
+    
 
     private static ShowroomResponse ToResponse(Showroom showroom) => new ShowroomResponse(
         showroom.Id,

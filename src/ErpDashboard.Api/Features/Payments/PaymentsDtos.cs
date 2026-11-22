@@ -7,7 +7,7 @@ public sealed record CheckoutRequest(
     string Description,
     PayerDetails Payer);
 
-public sealed record PayerDetails(string Name, string Email, string Phone);
+public sealed record PayerDetails(string Name, string? Email, string Phone);
 
 public sealed record CheckoutSession(string ProviderReference, Uri CheckoutUrl);
 

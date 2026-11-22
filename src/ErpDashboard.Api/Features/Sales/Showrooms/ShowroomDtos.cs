@@ -5,7 +5,7 @@ public sealed class ShowroomQuery : PageQuery;
 public sealed record ShowroomResponse(
     Guid Id,
     string Name,
-    string Email,
+    string? Email,
     string PhoneNumber,
     string Address,
     string City,
@@ -15,7 +15,7 @@ public sealed record ShowroomResponse(
 
 public sealed record ShowroomRequest(
     string Name,
-    string Email,
+    [EmailAddress] string? Email,
     string PhoneNumber,
     string Address,
     string City,

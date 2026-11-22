@@ -1212,7 +1212,6 @@ namespace ErpDashboard.Api.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Email")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<bool>("IsDeleted")
@@ -1234,6 +1233,10 @@ namespace ErpDashboard.Api.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("Email")
+                        .IsUnique()
+                        .HasFilter("\"IsDeleted\" = false");
+
+                    b.HasIndex("TaxId")
                         .IsUnique()
                         .HasFilter("\"IsDeleted\" = false");
 
