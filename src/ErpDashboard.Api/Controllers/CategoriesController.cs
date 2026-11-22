@@ -16,6 +16,7 @@ public class CategoriesController(ICategoryService service) : ControllerBase
         => service.GetByIdAsync(id, ct);
     
     [HttpPost, HasPermission(PermissionCodes.Categories.Write)]
+    [ProducesResponseType<CategoryResponse>(StatusCodes.Status201Created)]
     public async Task<ActionResult<CategoryResponse>> Create([FromBody] CategoryRequest request, CancellationToken ct)
     {
         var result = await service.CreateAsync(request, ct);
@@ -27,6 +28,7 @@ public class CategoriesController(ICategoryService service) : ControllerBase
         => Ok(await service.UpdateAsync(id, request, ct));
 
     [HttpDelete("{id:guid}"), HasPermission(PermissionCodes.Categories.Write)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
     {
         await service.DeleteAsync(id, ct);

@@ -16,6 +16,7 @@ public class SuppliersController(ISupplierService service) : ControllerBase
         => service.GetByIdAsync(id, ct);
     
     [HttpPost, HasPermission(PermissionCodes.Suppliers.Write)]
+    [ProducesResponseType<SupplierResponse>(StatusCodes.Status201Created)]
     public async Task<ActionResult<SupplierResponse>> Create([FromBody] SupplierRequest request, CancellationToken ct)
     {
         var result = await service.CreateAsync(request, ct);
@@ -27,6 +28,7 @@ public class SuppliersController(ISupplierService service) : ControllerBase
         => Ok(await service.UpdateAsync(id, request, ct));
 
     [HttpDelete("{id:guid}"), HasPermission(PermissionCodes.Suppliers.Write)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
     {
         await service.DeleteAsync(id, ct);

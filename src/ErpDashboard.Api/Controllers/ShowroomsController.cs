@@ -16,6 +16,7 @@ public class ShowroomsController(IShowroomService service) : ControllerBase
         => service.GetByIdAsync(id, ct);
     
     [HttpPost, HasPermission(PermissionCodes.Showrooms.Write)]
+    [ProducesResponseType<ShowroomResponse>(StatusCodes.Status201Created)]
     public async Task<ActionResult<ShowroomResponse>> Create([FromBody] ShowroomRequest request, CancellationToken ct)
     {
         var result = await service.CreateAsync(request, ct);
@@ -27,6 +28,7 @@ public class ShowroomsController(IShowroomService service) : ControllerBase
         => Ok(await service.UpdateAsync(id, request, ct));
 
     [HttpDelete("{id:guid}"), HasPermission(PermissionCodes.Showrooms.Write)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
     {
         await service.DeleteAsync(id, ct);

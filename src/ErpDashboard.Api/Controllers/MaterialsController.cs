@@ -10,6 +10,7 @@ public class MaterialsController(IMaterialService service) : ControllerBase
     public Task<IReadOnlyList<MaterialResponse>> List(CancellationToken ct) => service.ListAsync(ct);
 
     [HttpPost, HasPermission(PermissionCodes.Products.Write)]
+    [ProducesResponseType<MaterialResponse>(StatusCodes.Status201Created)]
     public async Task<ActionResult<MaterialResponse>> Create([FromBody] MaterialRequest request, CancellationToken ct)
         => StatusCode(StatusCodes.Status201Created, await service.CreateAsync(request, ct));
 

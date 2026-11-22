@@ -122,6 +122,8 @@ public static class DependencyInjection
             });
 
             options.OperationFilter<AuthorizationOperationFilter>();
+            options.OperationFilter<ProblemResponsesOperationFilter>();
+            options.OperationFilter<IfMatchOperationFilter>();
         });
 
         return builder;

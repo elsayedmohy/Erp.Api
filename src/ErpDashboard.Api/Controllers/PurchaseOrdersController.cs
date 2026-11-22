@@ -14,6 +14,7 @@ public class PurchaseOrdersController(IPurchaseOrderService service) : Controlle
         => service.GetByIdAsync(id, ct);
     
     [HttpPost, HasPermission(PermissionCodes.PurchaseOrders.Write)]
+    [ProducesResponseType<PurchaseOrderDetailsResponse>(StatusCodes.Status201Created)]
     public async Task<ActionResult<PurchaseOrderDetailsResponse>> Create([FromBody] CreatePurchaseOrderRequest request, CancellationToken ct)
     {
         var result = await service.CreateAsync(request, ct);
