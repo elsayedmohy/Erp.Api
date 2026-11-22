@@ -48,6 +48,27 @@ public partial class InvoiceNumberingTests(ApiFactory factory)
             DateOnly.Parse(invoice.GetProperty("invoiceDate").GetString()!).AddDays(30),
             DateOnly.Parse(invoice.GetProperty("dueDate").GetString()!));
     }
+    
+    [Fact]
+    public async Task IssuingAnIssuedInvoice_IsAConflict_NotAServerError()
+    {
+        var accountant = await TokenAsync(RoleIds.Accountant);
+        var showroomId = await SeedShowroomAsync();
+        var draft = await ReadJsonAsync(await SendAsync(HttpMethod.Post, "/api/invoices", accountant, new
+        {
+            showroomId,
+            lines = new[] { new { description = "Delivery fee", quantity = 1, unitPrice = 500m, discount = 0m } }
+        }));
+        var url = $"/api/invoices/{draft.GetProperty("id").GetGuid()}/issue";
+        Assert.Equal(HttpStatusCode.OK, (await SendAsync(HttpMethod.Patch, url, accountant)).StatusCode);
+
+        var again = await SendAsync(HttpMethod.Patch, url, accountant);
+
+        Assert.Equal(HttpStatusCode.Conflict, again.StatusCode);
+        var problem = await ReadJsonAsync(again);
+        Assert.Equal("invalid_transition", problem.GetProperty("code").GetString());
+        Assert.Equal("Issued", problem.GetProperty("currentStatus").GetString());
+    }
 
     [Theory]
     [InlineData(false)] // pending
