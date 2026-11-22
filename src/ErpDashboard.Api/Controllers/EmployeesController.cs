@@ -16,6 +16,7 @@ public class EmployeesController(IEmployeeService service) : ControllerBase
         => service.GetByIdAsync(id, ct);
     
     [HttpPost, HasPermission(PermissionCodes.Employees.Write)]
+    [ProducesResponseType<EmployeeResponse>(StatusCodes.Status201Created)]
     public async Task<ActionResult<EmployeeResponse>> Create([FromBody] EmployeeRequest request, CancellationToken ct)
     {
         var result = await service.CreateAsync(request, ct);
@@ -27,6 +28,7 @@ public class EmployeesController(IEmployeeService service) : ControllerBase
         => Ok(await service.UpdateAsync(id, request, ct));
 
     [HttpDelete("{id:guid}"), HasPermission(PermissionCodes.Employees.Write)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
     {
         await service.DeleteAsync(id, ct);

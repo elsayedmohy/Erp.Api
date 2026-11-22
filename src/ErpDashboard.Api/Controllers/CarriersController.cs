@@ -12,6 +12,7 @@ public sealed class CarriersController(ICarrierService service) : ControllerBase
     public Task<CarrierResponse> GetById(Guid id, CancellationToken ct) => service.GetByIdAsync(id, ct);
 
     [HttpPost, HasPermission(PermissionCodes.Carriers.Write)]
+    [ProducesResponseType<CarrierResponse>(StatusCodes.Status201Created)]
     public async Task<ActionResult<CarrierResponse>> Create([FromBody] CreateCarrierRequest request, CancellationToken ct)
         => StatusCode(StatusCodes.Status201Created, await service.CreateAsync(request, ct));
 
@@ -25,6 +26,7 @@ public sealed class CarriersController(ICarrierService service) : ControllerBase
         => service.SetRateAsync(id, governorate, request, ct);
 
     [HttpDelete("{id:guid}/rates/{governorate}"), HasPermission(PermissionCodes.Carriers.Write)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
     public async Task<IActionResult> RemoveRate(Guid id, Governorate governorate, CancellationToken ct)
     {
         await service.RemoveRateAsync(id, governorate, ct);

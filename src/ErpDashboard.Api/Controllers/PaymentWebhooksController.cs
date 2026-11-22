@@ -12,6 +12,7 @@ public class PaymentWebhooksController(
     private const int MaxBodyBytes = 64 * 1024;
 
     [HttpPost("webhook"), AllowAnonymous, PublicWebhook, RequestSizeLimit(MaxBodyBytes)]
+    [ApiExplorerSettings(IgnoreApi = true)]
     public async Task<IActionResult> Receive(CancellationToken ct)
     {
         if (Request.ContentLength > MaxBodyBytes)

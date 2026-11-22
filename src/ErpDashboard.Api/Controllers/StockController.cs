@@ -12,6 +12,7 @@ public class StockController(
         => reconciliation.ReconcileAsync(ct);
     
     [HttpPost("transfers"), HasPermission(PermissionCodes.Products.AdjustStock)]
+    [ProducesResponseType<StockTransferResponse>(StatusCodes.Status201Created)]
     public async Task<ActionResult<StockTransferResponse>> Dispatch([FromBody] TransferStockRequest request, CancellationToken ct)
         => StatusCode(StatusCodes.Status201Created, await transfers.DispatchAsync(request, User.GetUserId(), ct));
 

@@ -4,6 +4,7 @@ namespace ErpDashboard.Api.Controllers;
 public sealed class ShipmentsController(IShipmentService service) : ControllerBase
 {
     [HttpPost("api/orders/{orderId:guid}/shipment"), HasPermission(PermissionCodes.Shipments.Book)]
+    [ProducesResponseType<ShipmentResponse>(StatusCodes.Status201Created)]
     public async Task<ActionResult<ShipmentResponse>> Book(
         Guid orderId, [FromBody] BookShipmentRequest request, CancellationToken ct)
         => StatusCode(StatusCodes.Status201Created, await service.BookAsync(orderId, request, User.GetUserId(), ct));

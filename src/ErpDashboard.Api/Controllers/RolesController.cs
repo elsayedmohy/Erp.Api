@@ -15,6 +15,7 @@ public class RolesController(IRoleService service) : ControllerBase
         => service.GetByIdAsync(id, ct);
 
     [HttpPost, HasPermission(PermissionCodes.Roles.Write)]
+    [ProducesResponseType<RoleResponse>(StatusCodes.Status201Created)]
     public async Task<ActionResult<RoleResponse>> Create([FromBody] CreateRoleRequest request, CancellationToken ct)
     {
         var result = await service.CreateAsync(request, User.GetUserId(),ct);
@@ -26,6 +27,7 @@ public class RolesController(IRoleService service) : ControllerBase
         => Ok(await service.UpdateAsync(request, id, User.GetUserId(),ct));
 
     [HttpDelete("{id:guid}"), HasPermission(PermissionCodes.Roles.Write)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
     {
         await service.DeleteAsync(id, ct);
@@ -33,5 +35,6 @@ public class RolesController(IRoleService service) : ControllerBase
     }
 
     [HttpGet("permissions"), HasPermission(PermissionCodes.Roles.Read)]
+    [ProducesResponseType<IReadOnlyList<string>>(StatusCodes.Status200OK)]
     public IActionResult GetPermissions() => Ok(PermissionCodes.All);
 }

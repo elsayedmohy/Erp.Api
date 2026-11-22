@@ -6,6 +6,7 @@ public class ProfileController(IProfileService profileService) : ControllerBase
 {
     [Authorize]
     [HttpGet("me")]
+    [ProducesResponseType<ProfileResponse>(StatusCodes.Status200OK)]
     public async Task<IActionResult> GetMine()
     {
         var result = await profileService.GetMineAsync(User.GetUserId());

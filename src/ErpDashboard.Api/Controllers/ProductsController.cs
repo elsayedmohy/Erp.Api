@@ -14,6 +14,7 @@ public class ProductsController(IProductService service) : ControllerBase
         => service.GetByIdAsync(id, ct);
 
     [HttpPost, HasPermission(PermissionCodes.Products.Write)]
+    [ProducesResponseType<ProductResponse>(StatusCodes.Status201Created)]
     public async Task<ActionResult<ProductResponse>> Create([FromBody] ProductRequest request, CancellationToken ct)
     {
         var result = await service.CreateAsync(request, ct);
@@ -30,6 +31,7 @@ public class ProductsController(IProductService service) : ControllerBase
         => service.GetPriceHistoryAsync(id, ct);
     
     [HttpDelete("{id:guid}"), HasPermission(PermissionCodes.Products.Write)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
     {
         await service.DeleteAsync(id, ct);

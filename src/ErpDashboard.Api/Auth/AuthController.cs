@@ -6,6 +6,8 @@ public class AuthController(IAuthService service): ControllerBase
 {
     [AllowAnonymous]
     [HttpPost("login")]
+    [ProducesResponseType<LoginDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status401Unauthorized, "application/problem+json")]
     public async Task<IActionResult> Login(LoginRequestDto dto)
     {
         var result = await service.LoginAsync(dto);
@@ -14,6 +16,8 @@ public class AuthController(IAuthService service): ControllerBase
 
     [AllowAnonymous]
     [HttpPost("refresh")]
+    [ProducesResponseType<LoginDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status401Unauthorized, "application/problem+json")]
     public async Task<IActionResult> Refresh(RefreshTokenRequestDto dto)
     {
       var result =   await service.RefreshTokenAsync(dto.RefreshToken);
@@ -21,6 +25,7 @@ public class AuthController(IAuthService service): ControllerBase
     }
     [Authorize]
     [HttpPost("logout")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
     public async Task<IActionResult> Logout(RefreshTokenRequestDto dto)
     {
         await service.LogoutAsync(dto.RefreshToken);
@@ -29,6 +34,7 @@ public class AuthController(IAuthService service): ControllerBase
     
     [Authorize]
     [HttpPost("revoke-all-sessions")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
     public async Task<IActionResult> RevokeAllSessions()
     {
         await service.RevokeAllSessionsAsync(User);

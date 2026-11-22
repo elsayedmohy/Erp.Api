@@ -13,6 +13,7 @@ public class WarehousesController(IWarehouseService service) : ControllerBase
         => service.GetByIdAsync(id, ct);
 
     [HttpPost, HasPermission(PermissionCodes.Warehouses.Write)]
+    [ProducesResponseType<WarehouseResponse>(StatusCodes.Status201Created)]
     public async Task<ActionResult<WarehouseResponse>> Create([FromBody] WarehouseRequest request, CancellationToken ct)
         => StatusCode(StatusCodes.Status201Created, await service.CreateAsync(request, User.GetUserId(),ct));
 
