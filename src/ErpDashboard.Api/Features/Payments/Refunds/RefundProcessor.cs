@@ -1,3 +1,5 @@
+using RetrySchedule = ErpDashboard.Api.Common.Workers.RetrySchedule;
+
 namespace ErpDashboard.Api.Features.Payments.Refunds;
 
 public sealed class RefundProcessor(
@@ -57,7 +59,7 @@ public sealed class RefundProcessor(
             }
             else
             {
-                var next = DateTime.UtcNow + WebhookRetry.Delay(attempt.RefundAttempts);
+                var next = DateTime.UtcNow + RetrySchedule.Delay(attempt.RefundAttempts);
                 await dbContext.PaymentAttempts.Where(a => a.Id == attempt.Id)
                     .ExecuteUpdateAsync(s => s
                         .SetProperty(a => a.NextRefundAt, next)

@@ -1,3 +1,5 @@
+using RetrySchedule = ErpDashboard.Api.Common.Workers.RetrySchedule;
+
 namespace ErpDashboard.Api.Features.Notifications;
 
 public sealed class NotificationProcessor(
@@ -28,7 +30,7 @@ public sealed class NotificationProcessor(
             }
             else
             {
-                var next = DateTime.UtcNow + WebhookRetry.Delay(n.Attempts);
+                var next = DateTime.UtcNow + RetrySchedule.Delay(n.Attempts);
                 await dbContext.Notifications.Where(x => x.Id == n.Id)
                     .ExecuteUpdateAsync(s => s
                         .SetProperty(x => x.NextAttemptAt, next)
