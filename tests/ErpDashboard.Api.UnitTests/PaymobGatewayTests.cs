@@ -33,6 +33,7 @@ public class PaymobGatewayTests
         new(new HttpClient(handler) { Timeout = Timeout.InfiniteTimeSpan },
             Options.Create(new PaymobOptions
             {
+                ApiKey = "api_test",
                 SecretKey = "sk_test",
                 PublicKey = "pk test+1",
                 HmacSecret = "hmac",
@@ -110,6 +111,36 @@ public class PaymobGatewayTests
             () => Gateway(handler).CreateCheckoutAsync(Request, caller.Token));
 
         Assert.IsNotType<PaymentProviderUnavailableException>(ex);
+    }
+    
+    [Fact]
+    public async Task Inquiry_GetsAuthToken_ThenReadsTheTransactionWithBearer()
+    {
+        var seen = new List<(HttpMethod Method, string Path, string? Auth)>();
+        var handler = new StubHandler((req, _) =>
+        {
+            seen.Add((req.Method, req.RequestUri!.AbsolutePath, req.Headers.Authorization?.ToString()));
+            return Task.FromResult(req.RequestUri!.AbsolutePath == "/api/auth/tokens"
+                ? Json(HttpStatusCode.Created, """{"token":"auth_abc"}""")
+                : Json(HttpStatusCode.OK, """{"id":123,"is_voided":false,"refunded_amount_cents":11400}"""));
+        });
+
+        var state = await Gateway(handler).GetTransactionAsync("123", CancellationToken.None);
+
+        Assert.Equal(new TransactionState(false, 11400), state);
+        Assert.Equal((HttpMethod.Post, "/api/auth/tokens", (string?)null), seen[0]);
+        Assert.Equal((HttpMethod.Get, "/api/acceptance/transactions/123", "Bearer auth_abc"), seen[1]);
+    }
+
+    [Fact]
+    public async Task Inquiry_NotFound_IsTreatedAsUnknown_NotAsNothingHappened()
+    {
+        var handler = new StubHandler((req, _) => Task.FromResult(req.RequestUri!.AbsolutePath == "/api/auth/tokens"
+            ? Json(HttpStatusCode.Created, """{"token":"auth_abc"}""")
+            : Json(HttpStatusCode.NotFound, """{"detail":"Not found."}""")));
+
+        await Assert.ThrowsAsync<PaymentProviderUnavailableException>(
+            () => Gateway(handler).GetTransactionAsync("123", CancellationToken.None));
     }
 
     [Theory]

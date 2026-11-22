@@ -69,7 +69,7 @@ public class RefundProcessorTests(ApiFactory factory) : IDisposable
         var attempt = await AttemptAsync(c.AttemptId);
         Assert.Equal(PaymentAttemptStatus.RefundFailed, attempt.Status);
         Assert.Equal(RefundProcessor.ManualMessage, await MessageAsync(c.CheckoutId));
-        Assert.Single(Kinds(c), k => k == "refund");                     // 4xx: no retry
+        Assert.Single(Kinds(c), k => k == "refund"); // 4xx: no retry
     }
 
     [Fact]
@@ -130,11 +130,73 @@ public class RefundProcessorTests(ApiFactory factory) : IDisposable
                 .SetProperty(a => a.NextRefundAt, DateTime.UtcNow.AddMinutes(1))));
 
         await DrainAsync();
-        Assert.Equal(PaymentAttemptStatus.NeedsRefund, (await AttemptAsync(c.AttemptId)).Status);   // lease still held
+        Assert.Equal(PaymentAttemptStatus.NeedsRefund, (await AttemptAsync(c.AttemptId)).Status); // lease still held
 
         await MakeDueAsync(c.AttemptId);
         await DrainAsync();
         Assert.Equal(PaymentAttemptStatus.Voided, (await AttemptAsync(c.AttemptId)).Status);
+    }
+
+    [Fact]
+    public async Task RefundAnswerLost_IsNotSentTwice()
+    {
+        var c = await NeedsRefundAsync();
+        factory.Payments.VoidBehavior = FakePaymentGateway.ReversalBehavior.Reject;
+        factory.Payments.RefundBehavior = FakePaymentGateway.ReversalBehavior.AcceptThenUnavailable;
+
+        await DrainAsync();
+        Assert.Equal(PaymentAttemptStatus.NeedsRefund, (await AttemptAsync(c.AttemptId)).Status);
+
+        factory.Payments.RefundBehavior = FakePaymentGateway.ReversalBehavior.Accept;
+        await MakeDueAsync(c.AttemptId);
+        await DrainAsync();
+
+        Assert.Equal(PaymentAttemptStatus.Refunded, (await AttemptAsync(c.AttemptId)).Status);
+        Assert.Single(Kinds(c), k => k == "refund");
+    }
+
+    [Fact]
+    public async Task VoidAnswerLost_IsRecordedAsVoided_WithoutCallingAgain()
+    {
+        var c = await NeedsRefundAsync();
+        factory.Payments.VoidBehavior = FakePaymentGateway.ReversalBehavior.AcceptThenUnavailable;
+
+        await DrainAsync();
+        factory.Payments.VoidBehavior = FakePaymentGateway.ReversalBehavior.Accept;
+        await MakeDueAsync(c.AttemptId);
+        await DrainAsync();
+
+        Assert.Equal(PaymentAttemptStatus.Voided, (await AttemptAsync(c.AttemptId)).Status);
+        Assert.Equal(RefundProcessor.VoidedMessage, await MessageAsync(c.CheckoutId));
+        Assert.Equal(["void"], Kinds(c));
+    }
+
+    [Fact]
+    public async Task InquiryDown_SendsNothing_AndRetries()
+    {
+        var c = await NeedsRefundAsync();
+        factory.Payments.VoidBehavior = FakePaymentGateway.ReversalBehavior.Unavailable;
+        await DrainAsync();
+
+        factory.Payments.VoidBehavior = FakePaymentGateway.ReversalBehavior.Accept;
+        factory.Payments.InquiryUnavailable = true;
+        await MakeDueAsync(c.AttemptId);
+        await DrainAsync();
+
+        var attempt = await AttemptAsync(c.AttemptId);
+        Assert.Equal(PaymentAttemptStatus.NeedsRefund, attempt.Status);
+        Assert.Equal(2, attempt.RefundAttempts);
+        Assert.Equal(["void"], Kinds(c)); // only the first, failed void
+    }
+
+    [Fact]
+    public async Task FirstLease_DoesNotInquire()
+    {
+        var c = await NeedsRefundAsync();
+
+        await DrainAsync();
+
+        Assert.DoesNotContain(c.TransactionId, factory.Payments.Inquiries);
     }
 
     // ---------- helpers ----------
@@ -185,6 +247,7 @@ public class RefundProcessorTests(ApiFactory factory) : IDisposable
             if (!await scope.ServiceProvider.GetRequiredService<T>().ProcessNextAsync(CancellationToken.None))
                 return;
         }
+
         Assert.Fail($"{typeof(T).Name} queue did not drain.");
     }
 }
