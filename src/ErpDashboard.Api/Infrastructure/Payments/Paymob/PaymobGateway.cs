@@ -20,7 +20,7 @@ public sealed class PaymobGateway(HttpClient http, IOptions<PaymobOptions> optio
             Currency: request.Currency,
             PaymentMethods: [_options.IntegrationId],
             Items: [new IntentionItem(request.Description, request.AmountMinor, 1)],
-            BillingData: new BillingData(request.Payer.Name, "NA", request.Payer.Email, request.Payer.Phone, "EG"),
+            BillingData: new BillingData(request.Payer.Name, "NA", request.Payer.Email ?? "NA", request.Payer.Phone, "EG"),
             SpecialReference: request.AttemptId.ToString("N"),
             NotificationUrl: _options.NotificationUrl,
             RedirectionUrl: _options.RedirectionUrl);
