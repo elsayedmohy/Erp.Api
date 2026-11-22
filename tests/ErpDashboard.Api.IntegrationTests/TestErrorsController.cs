@@ -8,7 +8,8 @@ namespace ErpDashboard.Api.IntegrationTests;
 [ApiController]
 [AllowAnonymous]
 [Route("__test")]
-public sealed class TestErrorsController : ControllerBase
+[ApiExplorerSettings(IgnoreApi = true)]
+public class TestErrorsController : ControllerBase
 {
     [HttpGet("ok")]
     public IActionResult Ok_() => Ok();
