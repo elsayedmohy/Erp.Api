@@ -9,6 +9,8 @@ public interface IPaymentGateway
 
     /// Returns money after settlement.
     Task<ReversalResult> RefundAsync(string providerTransactionId, long amountMinor, CancellationToken ct);
+    
+    Task<TransactionState> GetTransactionAsync(string providerTransactionId, CancellationToken ct);
 }
 
 public sealed record ReversalResult(bool Succeeded, string? ProviderReference, string? Message)
@@ -16,3 +18,4 @@ public sealed record ReversalResult(bool Succeeded, string? ProviderReference, s
     public static ReversalResult Ok(string? reference) => new(true, reference, null);
     public static ReversalResult Rejected(string message) => new(false, null, message);
 }
+public sealed record TransactionState(bool IsVoided, long RefundedAmountMinor);
