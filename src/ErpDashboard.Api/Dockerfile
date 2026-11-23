@@ -1,6 +1,7 @@
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS base
-USER $APP_UID
 WORKDIR /app
+RUN mkdir -p /app/exports && chown $APP_UID /app/exports
+USER $APP_UID
 EXPOSE 8080
 EXPOSE 8081
 

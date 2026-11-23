@@ -36,10 +36,15 @@
       Cors__AllowedOrigins__0: http://localhost:4200
       Finance__DefaultTaxRate: 14
       Finance__DefaultDueDays: 30
+      Exports__Directory: /app/exports
     ports:
       - "5013:8080"
+    
+    volumes:
+      - exports-data:/app/exports
   
   
   
 volumes:
   postgres-data:
+  exports-data:

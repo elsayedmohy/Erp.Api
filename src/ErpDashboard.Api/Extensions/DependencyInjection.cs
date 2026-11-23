@@ -1,5 +1,7 @@
 
 
+using ErpDashboard.Api.Features.Exports;
+
 namespace ErpDashboard.Api.Extensions;
 
 public static class DependencyInjection
@@ -189,6 +191,13 @@ public static class DependencyInjection
         builder.Services.AddPaymentProvider(builder.Configuration);
         builder.Services.AddWhatsAppProvider(builder.Configuration);
 
+        builder.Services.AddOptions<ExportOptions>()
+            .Bind(builder.Configuration.GetSection("Exports"))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+        builder.Services.AddScoped<IExportService, ExportService>();
+        builder.Services.AddScoped<InvoiceExport>();
+        builder.Services.AddQueueWorker<ExportProcessor>(builder.Configuration, "Exports:Worker");
 
         builder.Services.AddScoped<IPaymentNotificationHandler, PaymentNotificationHandler>();
         builder.Services.AddQueueWorker<PaymentWebhookProcessor>(builder.Configuration, "Payments:Webhooks");
