@@ -16,6 +16,13 @@ builder.AddPersistence()
 var app = builder.Build();
 await DbSeeder.SeedAsync(app.Services);
 
+if (args.Contains("seed-demo"))
+{
+    await DemoDataSeeder.RunAsync(app.Services, app.Environment);
+    return;
+}
+
+
 if (!app.Environment.IsProduction())
 {
     app.UseSwagger();
