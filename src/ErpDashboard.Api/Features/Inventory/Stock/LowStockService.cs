@@ -20,7 +20,7 @@ public sealed class LowStockService(AppDbContext dbContext, IWarehouseScope scop
 
         var q = dbContext.WarehouseStocks.AsNoTracking()
             .Where(s => accessible.Contains(s.WarehouseId))
-            .Where(s => s.Product.ReorderLevel > 0 && s.Quantity - s.Reserved < s.Product.ReorderLevel);
+            .Where(LowStockRules.BelowReorderLevel);
         if (query.WarehouseId is { } warehouseId)
             q = q.Where(s => s.WarehouseId == warehouseId);
 
@@ -29,17 +29,7 @@ public sealed class LowStockService(AppDbContext dbContext, IWarehouseScope scop
                              EF.Functions.ILike(s.Product.Sku, p, @"\"));
 
         return Sorts.Apply(q, query.SortBy, query.SortDir)
-            .Select(s => new LowStockItem(
-                s.WarehouseId,
-                s.Warehouse.Code,
-                s.ProductId,
-                s.Product.Name,
-                s.Product.Sku,
-                s.Quantity,
-                s.Reserved,
-                s.Quantity - s.Reserved,
-                s.Product.ReorderLevel,
-                s.Product.ReorderLevel - (s.Quantity - s.Reserved)))
+            .Select(LowStockRules.ToItem)
             .ToPagedResultAsync(query, ct);
     }
 }

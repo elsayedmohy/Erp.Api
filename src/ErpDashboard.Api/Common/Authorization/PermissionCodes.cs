@@ -115,6 +115,11 @@ public static class PermissionCodes
         public const string Book = "shipments.book";
     }
     
+    public static class Dashboard
+    {
+        public const string Read = "dashboard.read";
+    }
+    
     public static readonly IReadOnlyList<string> All = typeof(PermissionCodes)
         .GetNestedTypes(BindingFlags.Public)
         .SelectMany(t => t.GetFields(BindingFlags.Public | BindingFlags.Static))

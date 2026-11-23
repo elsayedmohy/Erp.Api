@@ -30,7 +30,8 @@ public static class RolePermissions
         Carriers.Write,
         Shipments.Read,
         Shipments.Book,
-        ShippingQuotes.Read
+        ShippingQuotes.Read,
+        Dashboard.Read
         );
 
     public static List<string> InventoryManager => Sorted(

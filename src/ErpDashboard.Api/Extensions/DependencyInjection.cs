@@ -1,3 +1,4 @@
+using ErpDashboard.Api.Features.Dashboard;
 using ErpDashboard.Api.Infrastructure.Messaging;
 using Microsoft.AspNetCore.Mvc.Formatters;
 
@@ -239,6 +240,7 @@ public static class DependencyInjection
         builder.Services.AddScoped<ICheckoutService, CheckoutService>();
         builder.Services.AddScoped<ICheckoutCompletion, CheckoutCompletion>();
         builder.Services.AddScoped<ICheckoutNotifier, CheckoutNotifier>();
+        builder.Services.AddScoped<IDashboardService, DashboardService>();
         return builder;
     }
 
