@@ -132,6 +132,7 @@ public class ProductCostVisibilityTests(ApiFactory factory)
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         seed(db);
         await db.SaveChangesAsync();
+        await factory.BumpCatalogAsync();
     }
 
     private async Task<string> TokenAsync(Guid roleId)

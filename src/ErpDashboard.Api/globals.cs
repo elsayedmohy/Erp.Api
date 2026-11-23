@@ -70,7 +70,11 @@ global using ErpDashboard.Api.Features.Payments.Refunds;
 global using ErpDashboard.Api.Infrastructure.Payments;
 global using ErpDashboard.Api.Common.Authorization;
 global using ErpDashboard.Api.Middlewares;
-
+global using ErpDashboard.Api.Common.Caching;
+global using ErpDashboard.Api.Features.Dashboard;
+global using ErpDashboard.Api.Infrastructure.Messaging;
+global using Microsoft.AspNetCore.Mvc.Formatters;
+global using Microsoft.Extensions.Caching.Hybrid;
 
 
 

@@ -1,6 +1,10 @@
+using System.ComponentModel;
+
 namespace ErpDashboard.Api.Features.Dashboard;
 
+[ImmutableObject(true)]
 public sealed record DashboardResponse(
+    DateTime GeneratedAt,
     DateOnly From,
     DateOnly To,
     IReadOnlyList<MonthlySales> MonthlySales,

@@ -74,7 +74,7 @@ public static class DemoDataSeeder
         var invoices = BuildInvoices(rng, size, today, taxRate, dueDays, orders, showrooms);
         await NumberAsync(db, invoices, clock, ct);
         await InsertAsync(db, invoices, ct);
-
+        await scope.ServiceProvider.GetRequiredService<ICacheVersions>().BumpAsync(ProductCatalog.VersionKey, ct);
         await db.Database.ExecuteSqlRawAsync("ANALYZE", ct);   // fresh planner statistics before anyone measures
 
         logger.LogInformation(

@@ -1,6 +1,4 @@
-using ErpDashboard.Api.Features.Dashboard;
-using ErpDashboard.Api.Infrastructure.Messaging;
-using Microsoft.AspNetCore.Mvc.Formatters;
+
 
 namespace ErpDashboard.Api.Extensions;
 
@@ -198,7 +196,10 @@ public static class DependencyInjection
         builder.Services.AddQueueWorker<RefundProcessor>(builder.Configuration, "Payments:Refunds");
         builder.Services.AddQueueWorker<NotificationProcessor>(builder.Configuration, "Messaging:Worker");
 
-
+        builder.Services.AddHybridCache();
+        builder.Services.AddScoped<ICacheVersions, CacheVersions>();
+        builder.Services.AddScoped<IProductCatalog, ProductCatalog>();
+        
         builder.Services.AddScoped<IAuthService, AuthService>();
         builder.Services.AddScoped<ITokenService, TokenService>();
         builder.Services.AddScoped<IUserService, UserService>();

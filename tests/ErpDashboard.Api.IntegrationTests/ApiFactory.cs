@@ -1,8 +1,10 @@
+using ErpDashboard.Api.Common.Caching;
 using ErpDashboard.Api.Data;
 using ErpDashboard.Api.Data.Entities;
 using ErpDashboard.Api.Data.Seed;
 using ErpDashboard.Api.Features.Finance.Invoices;
 using ErpDashboard.Api.Features.Finance.Invoices.DocumentNumber;
+using ErpDashboard.Api.Features.Inventory.Products;
 using ErpDashboard.Api.Features.Inventory.Stock;
 using ErpDashboard.Api.Features.Notifications;
 using ErpDashboard.Api.Features.Payments;
@@ -71,7 +73,7 @@ public class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
                 new FaultInjectingInvoiceIssuing(sp.GetRequiredService<InvoiceService>(), InvoiceFaults));
             services.AddSingleton<IWhatsAppSender>(WhatsApp);
         });
-
+        builder.UseSetting("Dashboard:CacheSeconds", "0");
         builder.UseEnvironment("Testing");
 
         builder.UseSetting("ConnectionStrings:DefaultConnection", _db.GetConnectionString());
@@ -113,6 +115,13 @@ public class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         await db.SaveChangesAsync();
 
         return new TestUser(email, password, user.Id);
+    }
+    
+    public async Task BumpCatalogAsync()
+    {
+        using var scope = Services.CreateScope();
+        await scope.ServiceProvider.GetRequiredService<ICacheVersions>()
+            .BumpAsync(ProductCatalog.VersionKey, CancellationToken.None);
     }
 }
 

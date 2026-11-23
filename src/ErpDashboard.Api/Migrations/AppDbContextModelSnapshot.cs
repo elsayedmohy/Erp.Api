@@ -23,6 +23,20 @@ namespace ErpDashboard.Api.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("ErpDashboard.Api.Data.Entities.CacheVersion", b =>
+                {
+                    b.Property<string>("Key")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<long>("Version")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Key");
+
+                    b.ToTable("CacheVersions");
+                });
+
             modelBuilder.Entity("ErpDashboard.Api.Data.Entities.Carrier", b =>
                 {
                     b.Property<Guid>("Id")

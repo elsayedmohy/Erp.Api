@@ -204,6 +204,7 @@ public class ProductQueryTests(ApiFactory factory)
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         seed(db);
         await db.SaveChangesAsync();
+        await factory.BumpCatalogAsync();
     }
 
     private async Task<string> TokenAsync()

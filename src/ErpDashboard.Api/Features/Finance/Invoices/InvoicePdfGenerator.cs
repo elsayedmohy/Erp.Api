@@ -1,8 +1,3 @@
-using System.Globalization;
-using QuestPDF.Fluent;
-using QuestPDF.Helpers;
-using QuestPDF.Infrastructure;
-
 namespace ErpDashboard.Api.Features.Finance.Invoices;
 
 public interface IInvoicePdfGenerator
