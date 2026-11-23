@@ -23,11 +23,12 @@ public sealed class OnlinePaymentService(AppDbContext dbContext, IPaymentAttempt
         if (invoice.Status != InvoiceStatus.Issued)
             throw new ConflictException("Only issued invoices can be paid online.");
 
-        var balance = InvoiceBalance.Remaining(invoice);
-        if (balance <= 0)
+        var balance = InvoicePaymentRules.BalanceOf(invoice);
+        var remaining = InvoicePaymentRules.Remaining(balance);
+        if (remaining <= 0)
             throw new ConflictException("This invoice has nothing left to pay.");
 
-        var amountMinor = Money.ToMinorUnits(balance);
+        var amountMinor = Money.ToMinorUnits(remaining);
 
         var reusable = await dbContext.PaymentAttempts.AsNoTracking()
             .Where(a => a.InvoiceId == invoiceId
@@ -38,7 +39,7 @@ public sealed class OnlinePaymentService(AppDbContext dbContext, IPaymentAttempt
             .OrderByDescending(a => a.CreatedAt)
             .FirstOrDefaultAsync(ct);
         if (reusable is not null)
-            return new StartOnlinePaymentResponse(reusable.Id, new Uri(reusable.CheckoutUrl!), balance, Currency);
+            return new StartOnlinePaymentResponse(reusable.Id, new Uri(reusable.CheckoutUrl!), remaining, Currency);
 
         var showroom = await dbContext.Showrooms
             .IgnoreQueryFilters([QueryFilters.Showroom])
@@ -58,6 +59,6 @@ public sealed class OnlinePaymentService(AppDbContext dbContext, IPaymentAttempt
         };
 
         var session = await starter.StartAsync(attempt, $"Invoice {invoice.Number}", showroom, ct);
-        return new StartOnlinePaymentResponse(attempt.Id, session.CheckoutUrl, balance, Currency);
+        return new StartOnlinePaymentResponse(attempt.Id, session.CheckoutUrl, remaining, Currency);
     }
 }

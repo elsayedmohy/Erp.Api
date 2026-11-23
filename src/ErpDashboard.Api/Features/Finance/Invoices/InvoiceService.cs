@@ -23,7 +23,7 @@ public sealed class InvoiceService(
         .TieBreaker(i => i.Id);
 
 
-    public Task<PagedResult<InvoiceResponse>> ListAsync(InvoiceQuery query, CancellationToken ct)
+    public async Task<PagedResult<InvoiceResponse>> ListAsync(InvoiceQuery query, CancellationToken ct)
     {
         if (query.From > query.To)
             throw new RequestValidationException("from", "'from' must be before or equal to 'to'.");
@@ -37,51 +37,15 @@ public sealed class InvoiceService(
         if (query.From is { } from) q = q.Where(i => i.InvoiceDate >= from);
         if (query.To is { } to) q = q.Where(i => i.InvoiceDate <= to);
 
-        if (query.PaymentStatus is { } ps)
-            q = ps switch
-            {
-                InvoicePaymentStatus.Paid => q.Where(i => i.Status == InvoiceStatus.Issued
-                                                          && i.Payments.Sum(p => (decimal?)p.Amount) >= i.TotalAmount),
-                InvoicePaymentStatus.Overdue => q.Where(i => i.Status == InvoiceStatus.Issued
-                                                             && ((i.Payments.Sum(p => (decimal?)p.Amount) ?? 0) +
-                                                                 (i.CreditNotes.Sum(c => (decimal?)c.TotalAmount) ??
-                                                                  0)) < i.TotalAmount
-                                                             && today > i.DueDate),
-                InvoicePaymentStatus.PartiallyPaid => q.Where(i => i.Status == InvoiceStatus.Issued
-                                                                   && ((i.Payments.Sum(p => (decimal?)p.Amount) ?? 0) +
-                                                                       (i.CreditNotes.Sum(c =>
-                                                                           (decimal?)c.TotalAmount) ?? 0)) > 0
-                                                                   && ((i.Payments.Sum(p => (decimal?)p.Amount) ?? 0) +
-                                                                       (i.CreditNotes.Sum(c =>
-                                                                           (decimal?)c.TotalAmount) ?? 0)) <
-                                                                   i.TotalAmount
-                                                                   && today <= i.DueDate),
-                _ => q.Where(i => i.Status == InvoiceStatus.Issued
-                                  && !i.Payments.Any()
-                                  && today <= i.DueDate)
-            };
+        var balances = Sorts.Apply(q, query.SortBy, query.SortDir).WithBalance();
 
-        return Sorts.Apply(q, query.SortBy, query.SortDir)
-            .Select(i => new
-            {
-                Invoice = i,
-                Paid = (i.Payments.Sum(p => (decimal?)p.Amount) ?? 0) +
-                       (i.CreditNotes.Sum(c => (decimal?)c.TotalAmount) ?? 0m),
-                Credited = i.CreditNotes.Sum(c => c.TotalAmount)
-            })
-            .Select(x => new InvoiceResponse(
-                x.Invoice.Id, x.Invoice.OrderId, x.Invoice.ShowroomId, x.Invoice.InvoiceDate, x.Invoice.DueDate,
-                x.Invoice.Status, x.Invoice.TotalAmount, x.Invoice.Number,
-                x.Paid,
-                x.Credited,
-                x.Invoice.TotalAmount - x.Paid,
-                Math.Max(0, x.Invoice.TotalAmount - x.Paid),
-                x.Invoice.Status != InvoiceStatus.Issued ? null
-                : x.Paid + x.Credited >= x.Invoice.TotalAmount ? InvoicePaymentStatus.Paid
-                : today > x.Invoice.DueDate ? InvoicePaymentStatus.Overdue
-                : x.Paid + x.Credited > 0 ? InvoicePaymentStatus.PartiallyPaid
-                : InvoicePaymentStatus.Due))
-            .ToPagedResultAsync(query, ct);
+        if (query.PaymentStatus is { } ps)
+            balances = balances.Where(InvoicePaymentRules.HasStatus(ps, today));
+
+        var page = await balances.ToPagedResultAsync(query, ct);
+
+        return new PagedResult<InvoiceResponse>(
+            page.Items.Select(b => ToSummary(b, today)).ToList(), page.Page, page.PageSize, page.Total);
     }
 
     public async Task<InvoiceDetailsResponse> GetByIdAsync(Guid id, CancellationToken ct)
@@ -207,7 +171,7 @@ public async Task<Invoice> IssueForCheckoutAsync(Guid orderId, CancellationToken
         await dbContext.SaveChangesAsync(ct);
 
         await transaction.CommitAsync(ct);
-        return ToSummary(invoice);
+        return ToSummary(InvoicePaymentRules.BalanceOf(invoice), clock.Today);
     }
 
     public async Task<InvoiceDetailsResponse> RecordPaymentAsync(
@@ -240,10 +204,11 @@ public async Task<Invoice> IssueForCheckoutAsync(Guid orderId, CancellationToken
         if (paymentDate > clock.Today)
             throw new RequestValidationException("paymentDate", "Payment date cannot be in the future.");
 
-        var balance = InvoiceBalance.Remaining(invoice);
-        if (request.Amount > balance)
+        var balance = InvoicePaymentRules.BalanceOf(invoice);
+        var remaining = InvoicePaymentRules.Remaining(balance);
+        if (request.Amount > remaining)
             throw new ConflictException(
-                $"Payment of {request.Amount:0.00} exceeds the remaining balance of {balance:0.00}.");
+                $"Payment of {request.Amount:0.00} exceeds the remaining balance of {remaining:0.00}.");
 
         var payment = new InvoicePayment
         {
@@ -410,14 +375,6 @@ public async Task<Invoice> IssueForCheckoutAsync(Guid orderId, CancellationToken
             l.TaxRate ?? _finance.DefaultTaxRate,
             l.Discount)).ToList();
 
-    private (decimal Paid, decimal Credited, decimal Balance, InvoicePaymentStatus? Status) PaymentState(Invoice i)
-    {
-        var paid = i.Payments.Sum(p => p.Amount);
-        var credited = i.CreditNotes.Sum(c => c.TotalAmount);
-        var status =
-            InvoicePaymentStatusCalculator.Compute(i.Status, i.TotalAmount, paid, credited, i.DueDate, clock.Today);
-        return (paid, credited, i.TotalAmount - paid - credited, status);
-    }
 
     private static CreditNoteResponse ToCreditNoteResponse(CreditNote c)
     {
@@ -426,12 +383,13 @@ public async Task<Invoice> IssueForCheckoutAsync(Guid orderId, CancellationToken
         return new CreditNoteResponse(c.Id, c.Number, c.InvoiceId, c.CreditDate, c.Reason, net, tax, c.TotalAmount);
     }
 
-    private InvoiceResponse ToSummary(Invoice i)
+    private static InvoiceResponse ToSummary(InvoiceBalance b, DateOnly today)
     {
-        var (paid, creditedAmount, balance, status) = PaymentState(i);
+        var i = b.Invoice;
+        var remaining = InvoicePaymentRules.Remaining(b);
         return new InvoiceResponse(
             i.Id, i.OrderId, i.ShowroomId, i.InvoiceDate, i.DueDate, i.Status, i.TotalAmount, i.Number,
-            paid, creditedAmount, balance, Math.Max(0, -balance), status);
+            b.Paid, b.Credited, remaining, Math.Max(0, -remaining), InvoicePaymentRules.StatusOf(b, today));
     }
 
     private InvoiceDetailsResponse ToDetails(Invoice i, string showroomName)
@@ -453,8 +411,8 @@ public async Task<Invoice> IssueForCheckoutAsync(Guid orderId, CancellationToken
 
         var creditNotes = i.CreditNotes.OrderBy(c => c.Number).Select(ToCreditNoteResponse).ToList();
 
-        var (paid, creditedAmount, balance, status) = PaymentState(i);
-
+        var balance = InvoicePaymentRules.BalanceOf(i);
+        var remaining = InvoicePaymentRules.Remaining(balance);
         return new InvoiceDetailsResponse(
             i.Id, i.OrderId, i.ShowroomId, showroomName,
             i.InvoiceDate, i.DueDate, i.Status,
@@ -463,11 +421,11 @@ public async Task<Invoice> IssueForCheckoutAsync(Guid orderId, CancellationToken
             TaxAmount: lines.Sum(x => x.LineTax),
             TotalAmount: i.TotalAmount,
             Number: i.Number,
-            AmountPaid: paid,
-            CreditedAmount: creditedAmount,
-            Balance: balance,
-            RefundDue: Math.Max(0, -balance),
-            PaymentStatus: status,
+            AmountPaid: balance.Paid,
+            CreditedAmount: balance.Credited,
+            Balance: remaining,
+            RefundDue: Math.Max(0, -remaining),
+            PaymentStatus: InvoicePaymentRules.StatusOf(balance, clock.Today),
             Lines: lines,
             Payments: payments,
             CreditNotes: creditNotes);

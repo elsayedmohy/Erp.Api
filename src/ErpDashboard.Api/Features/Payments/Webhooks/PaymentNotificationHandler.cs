@@ -88,9 +88,10 @@ public sealed class PaymentNotificationHandler(AppDbContext dbContext,
             return await NeedsRefundAsync(attempt, $"Invoice is {invoice.Status}.", ct);
 
         var amount = Money.FromMinorUnits(e.AmountMinor.Value);
-        var balance = InvoiceBalance.Remaining(invoice);
-        if (amount > balance)
-            return await NeedsRefundAsync(attempt, $"Paid {amount:0.00} but only {balance:0.00} was due.", ct);
+        var balance = InvoicePaymentRules.BalanceOf(invoice);
+        var remaining = InvoicePaymentRules.Remaining(balance);
+        if (amount > remaining)
+            return await NeedsRefundAsync(attempt, $"Paid {amount:0.00} but only {remaining:0.00} was due.", ct);
 
         dbContext.InvoicePayments.Add(new InvoicePayment
         {
