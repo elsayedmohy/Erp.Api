@@ -785,6 +785,44 @@ namespace ErpDashboard.Api.Migrations
                     b.ToTable("OrderStatusChanges");
                 });
 
+            modelBuilder.Entity("ErpDashboard.Api.Data.Entities.OverdueReminder", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("date");
+
+                    b.Property<int>("InvoiceCount")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("NotificationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateOnly>("OldestDueDate")
+                        .HasColumnType("date");
+
+                    b.Property<Guid>("ShowroomId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NotificationId")
+                        .IsUnique();
+
+                    b.HasIndex("ShowroomId", "Date")
+                        .IsUnique();
+
+                    b.ToTable("OverdueReminders");
+                });
+
             modelBuilder.Entity("ErpDashboard.Api.Data.Entities.PaymentAttempt", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1149,6 +1187,25 @@ namespace ErpDashboard.Api.Migrations
                     b.HasIndex("UserId");
 
                     b.ToTable("RefreshToken");
+                });
+
+            modelBuilder.Entity("ErpDashboard.Api.Data.Entities.ReminderRun", b =>
+                {
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("date");
+
+                    b.Property<int>("Showrooms")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Skipped")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("StartedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Date");
+
+                    b.ToTable("ReminderRuns");
                 });
 
             modelBuilder.Entity("ErpDashboard.Api.Data.Entities.Role", b =>
@@ -1847,6 +1904,21 @@ namespace ErpDashboard.Api.Migrations
                     b.HasOne("ErpDashboard.Api.Data.Entities.Order", null)
                         .WithMany()
                         .HasForeignKey("OrderId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ErpDashboard.Api.Data.Entities.OverdueReminder", b =>
+                {
+                    b.HasOne("ErpDashboard.Api.Data.Entities.Notification", null)
+                        .WithMany()
+                        .HasForeignKey("NotificationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ErpDashboard.Api.Data.Entities.Showroom", null)
+                        .WithMany()
+                        .HasForeignKey("ShowroomId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });

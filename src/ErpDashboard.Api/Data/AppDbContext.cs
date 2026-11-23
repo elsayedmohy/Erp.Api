@@ -50,6 +50,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentShowro
     public DbSet<Notification> Notifications => Set<Notification>();
     public DbSet<CacheVersion> CacheVersions => Set<CacheVersion>();
     public DbSet<ExportJob> ExportJobs => Set<ExportJob>();
+    public DbSet<OverdueReminder> OverdueReminders => Set<OverdueReminder>();
+    public DbSet<ReminderRun> ReminderRuns => Set<ReminderRun>();
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -61,6 +63,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentShowro
             i => ShowroomAccessAll || i.ShowroomId == ScopedShowroomId);
         modelBuilder.Entity<Showroom>().HasQueryFilter(QueryFilters.Showroom,
             s => ShowroomAccessAll || s.Id == ScopedShowroomId);
+        
+        modelBuilder.Entity<OverdueReminder>().HasQueryFilter(QueryFilters.Showroom,
+            r => ShowroomAccessAll || r.ShowroomId == ScopedShowroomId);
     }
     
     public override int SaveChanges(bool acceptAllChangesOnSuccess)
