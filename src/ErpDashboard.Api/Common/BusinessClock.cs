@@ -3,7 +3,7 @@ namespace ErpDashboard.Api.Common;
 public interface IBusinessClock
 {
     DateOnly Today { get; }
-    
+    DateTime LocalNow { get; }
     DateTime StartOfDayUtc(DateOnly date);
 }
 
@@ -18,8 +18,8 @@ public sealed class BusinessClock : IBusinessClock
         _zone = TimeZoneInfo.FindSystemTimeZoneById(company.Value.TimeZone);
     }
 
-    public DateOnly Today =>
-        DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(_time.GetUtcNow(), _zone).DateTime);
+    public DateTime LocalNow => TimeZoneInfo.ConvertTime(_time.GetUtcNow(), _zone).DateTime;
+    public DateOnly Today => DateOnly.FromDateTime(LocalNow);
 
     public DateTime StartOfDayUtc(DateOnly date)
     {

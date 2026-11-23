@@ -90,6 +90,7 @@ public class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         builder.UseSetting("Checkout:Expiry:Enabled", "false");
         builder.UseSetting("Payments:Refunds:Enabled", "false");
         builder.UseSetting("Messaging:Worker:Enabled", "false");
+        builder.UseSetting("Reminders:Worker:Enabled", "false");
     }
 
     public async Task<TestUser> CreateUserAsync(Guid? roleId = null, IEnumerable<Guid>? warehouseIds = null)

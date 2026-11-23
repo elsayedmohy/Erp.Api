@@ -1,6 +1,7 @@
 
 
 using ErpDashboard.Api.Features.Exports;
+using ErpDashboard.Api.Features.Notifications.Reminders;
 
 namespace ErpDashboard.Api.Extensions;
 
@@ -208,6 +209,13 @@ public static class DependencyInjection
         builder.Services.AddHybridCache();
         builder.Services.AddScoped<ICacheVersions, CacheVersions>();
         builder.Services.AddScoped<IProductCatalog, ProductCatalog>();
+        
+        builder.Services.AddOptions<ReminderOptions>()
+            .Bind(builder.Configuration.GetSection(ReminderOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+        builder.Services.AddScoped<IOverdueReminders, OverdueReminders>();
+        builder.Services.AddQueueWorker<OverdueReminderProcessor>(builder.Configuration, "Reminders:Worker");
         
         builder.Services.AddScoped<IAuthService, AuthService>();
         builder.Services.AddScoped<ITokenService, TokenService>();
