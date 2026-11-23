@@ -71,7 +71,13 @@ public class CreditNoteTests
     [InlineData(1140, 100, InvoicePaymentStatus.Paid)]  // over-covered: refund due
     public void PaymentStatus_CountsCredits(decimal paid, decimal credited, InvoicePaymentStatus expected)
     {
-        Assert.Equal(expected, InvoicePaymentStatusCalculator.Compute(
-            InvoiceStatus.Issued, 1140m, paid, credited, new DateOnly(2026, 12, 31), new DateOnly(2026, 12, 1)));
+        var balance = new InvoiceBalance
+        {
+            Invoice = new Invoice { Status = InvoiceStatus.Issued, TotalAmount = 1140m, DueDate = new DateOnly(2026, 12, 31) },
+            Paid = paid,
+            Credited = credited
+        };
+
+        Assert.Equal(expected, InvoicePaymentRules.StatusOf(balance, new DateOnly(2026, 12, 1)));
     }
 }
