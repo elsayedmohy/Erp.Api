@@ -21,6 +21,29 @@ public static class InvoicePaymentRules
             Paid = i.Payments.Sum(p => (decimal?)p.Amount) ?? 0m,
             Credited = i.CreditNotes.Sum(c => (decimal?)c.TotalAmount) ?? 0m
         });
+    
+    public static IQueryable<InvoiceBalance> AllBalances(this AppDbContext db)
+    {
+        var paid = db.InvoicePayments
+            .GroupBy(p => p.InvoiceId)
+            .Select(g => new { InvoiceId = g.Key, Amount = g.Sum(p => p.Amount) });
+        var credited = db.CreditNotes
+            .GroupBy(c => c.InvoiceId)
+            .Select(g => new { InvoiceId = g.Key, Amount = g.Sum(c => c.TotalAmount) });
+
+        return
+            from i in db.Invoices.AsNoTracking()
+            join p in paid on i.Id equals p.InvoiceId into ps
+            from p in ps.DefaultIfEmpty()
+            join c in credited on i.Id equals c.InvoiceId into cs
+            from c in cs.DefaultIfEmpty()
+            select new InvoiceBalance
+            {
+                Invoice = i,
+                Paid = (decimal?)p.Amount ?? 0m,
+                Credited = (decimal?)c.Amount ?? 0m
+            };
+    }
 
     /// For SQL: b => Rule(b, today) == status, with the rule written into the query.
     public static Expression<Func<InvoiceBalance, bool>> HasStatus(InvoicePaymentStatus status, DateOnly today)

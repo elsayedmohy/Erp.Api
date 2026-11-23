@@ -5,7 +5,7 @@ public class InvoicePaymentConfiguration : IEntityTypeConfiguration<InvoicePayme
     public void Configure(EntityTypeBuilder<InvoicePayment> b)
     {
         b.Property(p => p.Reference).HasMaxLength(100);
-        b.HasIndex(p => p.InvoiceId);
+        b.HasIndex(p => p.InvoiceId).IncludeProperties(p => p.Amount);
         b.ToTable(t => t.HasCheckConstraint("CK_InvoicePayments_Amount", "\"Amount\" > 0"));
         
         b.HasOne<PaymentAttempt>().WithMany()

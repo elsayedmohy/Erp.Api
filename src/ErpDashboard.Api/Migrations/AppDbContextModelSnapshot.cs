@@ -150,6 +150,8 @@ namespace ErpDashboard.Api.Migrations
 
                     b.HasIndex("InvoiceId");
 
+                    NpgsqlIndexBuilderExtensions.IncludeProperties(b.HasIndex("InvoiceId"), new[] { "TotalAmount" });
+
                     b.HasIndex("Number")
                         .IsUnique();
 
@@ -396,6 +398,8 @@ namespace ErpDashboard.Api.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("InvoiceId");
+
+                    NpgsqlIndexBuilderExtensions.IncludeProperties(b.HasIndex("InvoiceId"), new[] { "Amount" });
 
                     b.HasIndex("PaymentAttemptId")
                         .IsUnique()
