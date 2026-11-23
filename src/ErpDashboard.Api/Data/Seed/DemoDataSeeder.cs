@@ -55,7 +55,9 @@ public static class DemoDataSeeder
             logger.LogWarning("Demo data is already in this database; nothing was written.");
             return;
         }
-
+        var stock = scope.ServiceProvider.GetRequiredService<IStockService>();   // same scope: same DbContext
+        var actorId = await db.Users.Where(u => u.RoleId == RoleIds.Admin)
+            .OrderBy(u => u.Email).Select(u => u.Id).FirstAsync(ct);
         var taxRate = config.GetValue<decimal>("Finance:DefaultTaxRate");
         var dueDays = config.GetValue<int>("Finance:DefaultDueDays");
         var today = clock.Today;
@@ -64,7 +66,7 @@ public static class DemoDataSeeder
 
         db.ChangeTracker.AutoDetectChangesEnabled = false;
 
-        var products = await SeedCatalogAsync(db, rng, size, today, ct);
+        var products = await SeedCatalogAsync(db, stock, actorId, rng, size, ct);
         var showrooms = await SeedShowroomsAsync(db, rng, size, ct);
         var orders = BuildOrders(rng, size, today, products, showrooms);
         await InsertAsync(db, orders, ct);
@@ -83,21 +85,21 @@ public static class DemoDataSeeder
     // ---------- catalog and stock ----------
 
     private static async Task<List<Product>> SeedCatalogAsync(
-        AppDbContext db, Random rng, DemoDataSize size, DateOnly today, CancellationToken ct)
+        AppDbContext db, IStockService stock, Guid actorId, Random rng, DemoDataSize size, CancellationToken ct)
     {
         var categories = Categories.Select(n => new Category { Id = Guid.NewGuid(), Name = $"Demo {n}" }).ToList();
         db.Categories.AddRange(categories);
 
         var products = new List<Product>(size.Products);
-        var openedAt = DateTime.SpecifyKind(today.AddMonths(-size.Months).ToDateTime(TimeOnly.MinValue), DateTimeKind.Utc);
+        var openings = new List<(Guid ProductId, int Quantity)>(size.Products);
 
         for (var i = 1; i <= size.Products; i++)
         {
             var category = categories[rng.Next(categories.Count)];
             var price = Math.Round((decimal)(1_500 + rng.NextDouble() * 43_500), 0);
             var reorderLevel = rng.Next(5, 31);
-            // About 8% end up below their reorder level, so the low-stock report has something to show.
-            var quantity = rng.NextDouble() < 0.08 ? rng.Next(0, reorderLevel) : rng.Next(reorderLevel, 220);
+            // About 8% end up below their reorder level. At least 1: a zero change is not a stock movement.
+            var quantity = rng.NextDouble() < 0.08 ? rng.Next(1, reorderLevel) : rng.Next(reorderLevel, 220);
 
             var product = new Product
             {
@@ -110,24 +112,20 @@ public static class DemoDataSeeder
                 ReorderLevel = reorderLevel
             };
             products.Add(product);
-
-            db.WarehouseStocks.Add(new WarehouseStock
-            {
-                WarehouseId = WarehouseIds.Main, ProductId = product.Id, Quantity = quantity, Reserved = 0
-            });
-            // The ledger must add up to the balance, or stock reconciliation reports every demo product.
-            if (quantity > 0)
-                db.StockMovements.Add(new StockMovement
-                {
-                    Id = Guid.NewGuid(), WarehouseId = WarehouseIds.Main, ProductId = product.Id,
-                    Type = StockMovementType.OpeningBalance, Quantity = quantity,
-                    Reason = "Demo data", CreatedAt = openedAt
-                });
+            openings.Add((product.Id, quantity));
         }
 
         db.Products.AddRange(products);
         await db.SaveChangesAsync(ct);
         db.ChangeTracker.Clear();
+
+        // Stock changes only through IStockService (CI enforces it); it writes the balance and the ledger together.
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        foreach (var (productId, quantity) in openings)
+            await stock.TryApplyAsync(new StockChange(
+                WarehouseIds.Main, productId, quantity, StockMovementType.OpeningBalance, actorId, Reason: "Demo data"), ct);
+        await transaction.CommitAsync(ct);
+
         return products;
     }
 
