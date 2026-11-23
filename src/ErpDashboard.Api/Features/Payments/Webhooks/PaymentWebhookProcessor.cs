@@ -1,5 +1,3 @@
-using ErpDashboard.Api.Common.Workers;
-
 namespace ErpDashboard.Api.Features.Payments.Webhooks;
 
 public sealed class PaymentWebhookProcessor(
@@ -51,7 +49,7 @@ public sealed class PaymentWebhookProcessor(
 
             var attempts = previousAttempts + 1;
             var giveUp = attempts >= MaxAttempts;
-            DateTime? next = giveUp ? null : DateTime.UtcNow + Common.Workers.RetrySchedule.Delay(attempts);
+            DateTime? next = giveUp ? null : DateTime.UtcNow + RetrySchedule.Delay(attempts);
             var status = giveUp ? WebhookEventStatus.Failed : WebhookEventStatus.Received;
             var message = ex.Message.Length > 500 ? ex.Message[..500] : ex.Message;
 

@@ -1,5 +1,3 @@
-using RetrySchedule = ErpDashboard.Api.Common.Workers.RetrySchedule;
-
 namespace ErpDashboard.Api.Features.Notifications;
 
 public sealed class NotificationProcessor(
