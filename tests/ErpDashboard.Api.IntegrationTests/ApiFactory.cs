@@ -36,6 +36,7 @@ public class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
     public const string AdminEmail = "admin@tests.local";
     public const string AdminPassword = "Test-only-Passw0rd!";
     public const string JwtKey = "test-only-key-with-at-least-32-characters";
+    public string ExportsDirectory { get; } = Path.Combine(Path.GetTempPath(), "erp-tests-exports", Guid.NewGuid().ToString("N"));
     public string ConnectionString => _db.GetConnectionString();
     public TestLogSink Logs { get; } = new();
 
@@ -75,7 +76,8 @@ public class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         });
         builder.UseSetting("Dashboard:CacheSeconds", "0");
         builder.UseEnvironment("Testing");
-
+        builder.UseSetting("Exports:Worker:Enabled", "false");
+        builder.UseSetting("Exports:Directory", ExportsDirectory);
         builder.UseSetting("ConnectionStrings:DefaultConnection", _db.GetConnectionString());
         builder.UseSetting("Jwt:Key", JwtKey);
         builder.UseSetting("Jwt:Issuer", "erp-tests");

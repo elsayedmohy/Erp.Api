@@ -57,7 +57,10 @@ public static class RolePermissions
     public static List<string> Accountant => Sorted(
         Showrooms.Read,
         Orders.Read,
-        Invoices.Read, Invoices.Write, Invoices.Pay,
+        Invoices.Read, 
+        Invoices.Write, 
+        Invoices.Pay,
+        Invoices.Export,
         Departments.Read,
         Employees.Read,
         Employees.ViewSalary,

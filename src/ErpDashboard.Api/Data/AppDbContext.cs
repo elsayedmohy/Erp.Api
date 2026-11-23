@@ -49,6 +49,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentShowro
     
     public DbSet<Notification> Notifications => Set<Notification>();
     public DbSet<CacheVersion> CacheVersions => Set<CacheVersion>();
+    public DbSet<ExportJob> ExportJobs => Set<ExportJob>();
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
