@@ -76,9 +76,34 @@ public class ShowroomService(AppDbContext dbContext) : IShowroomService
         if (showroom == null)
             throw new NotFoundException("Showroom", id);
 
+        var openOrders = await dbContext.Orders.IgnoreQueryFilters([QueryFilters.Showroom])
+            .CountAsync(o => o.ShowroomId == id && OpenOrderStatuses.Contains(o.Status), ct);
+        var unpaidInvoices = await dbContext.Invoices.IgnoreQueryFilters([QueryFilters.Showroom])
+            .Where(i => i.ShowroomId == id && i.Status == InvoiceStatus.Issued)
+            .WithBalance()
+            .CountAsync(b => b.Paid + b.Credited < b.Invoice.TotalAmount, ct);
+
+        if (openOrders > 0 || unpaidInvoices > 0)
+            throw new ConflictException(
+                $"The showroom has {openOrders} open order(s) and {unpaidInvoices} unpaid invoice(s). " +
+                "Finish or cancel the orders and settle the invoices before deleting it.",
+                code: "showroom_has_open_business",
+                extensions: new Dictionary<string, object?>
+                {
+                    ["openOrders"] = openOrders,
+                    ["unpaidInvoices"] = unpaidInvoices
+                });
+
         dbContext.Remove(showroom);
         await dbContext.SaveChangesAsync(ct);
     }
+
+
+    private static readonly OrderStatus[] OpenOrderStatuses =
+    [
+        OrderStatus.Draft, OrderStatus.PendingApproval, OrderStatus.Confirmed, OrderStatus.Preparing, OrderStatus.Shipped
+    ];
+
 
     private async Task EnsureUniqueAsync(ShowroomRequest request, Guid? exceptId, CancellationToken ct)
     {

@@ -49,9 +49,8 @@ public sealed class OverdueReminders(
             .ToListAsync(ct);
 
         var ids = owing.Select(o => o.ShowroomId).ToList();
-        // Showroom has no soft-delete query filter (see bug #28), so deleted showrooms are excluded here.
-        var showrooms = await dbContext.Showrooms.IgnoreQueryFilters([QueryFilters.Showroom]).AsNoTracking()
-            .Where(s => ids.Contains(s.Id) && !s.IsDeleted)
+        var showrooms = await dbContext.Showrooms
+            .IgnoreQueryFilters([QueryFilters.Showroom]).AsNoTracking()
             .Select(s => new { s.Id, s.Name, s.PhoneNumber })
             .ToDictionaryAsync(s => s.Id, ct);
 

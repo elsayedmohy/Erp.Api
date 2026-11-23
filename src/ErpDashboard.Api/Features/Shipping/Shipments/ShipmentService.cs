@@ -98,7 +98,7 @@ public sealed class ShipmentService(
     }
 
     public Task<List<AwaitingShipmentResponse>> AwaitingAsync(CancellationToken ct) =>
-        dbContext.Orders.AsNoTracking()
+        dbContext.Orders.IgnoreQueryFilters([QueryFilters.SoftDelete]).AsNoTracking()
             .Where(o => BookableStatuses.Contains(o.Status))
             .Where(o => !dbContext.Shipments.Any(s => s.OrderId == o.Id))
             .OrderBy(o => o.OrderDate).ThenBy(o => o.Id)
