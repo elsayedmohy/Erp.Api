@@ -5,13 +5,33 @@ public interface IDashboardService
     Task<DashboardResponse> GetAsync(CancellationToken ct);
 }
 
-public sealed class DashboardService(AppDbContext dbContext, IBusinessClock clock) : IDashboardService
+public sealed class DashboardService(
+    AppDbContext dbContext,
+    IBusinessClock clock,
+    HybridCache cache,
+    ICurrentShowroom showroom,
+    IConfiguration config) : IDashboardService
 {
     private const int Months = 12;
     private const int TopCount = 10;
     private const int LowStockItems = 20;
 
     public async Task<DashboardResponse> GetAsync(CancellationToken ct)
+    {
+        var seconds = config.GetValue("Dashboard:CacheSeconds", 60);
+
+        if (seconds <= 0 || showroom.Current.Kind != ShowroomAccessKind.AccessAll)
+            return await BuildAsync(ct);
+
+        var lifetime = TimeSpan.FromSeconds(seconds);
+        return await cache.GetOrCreateAsync(
+            "dashboard:all",
+            async token => await BuildAsync(token),
+            new HybridCacheEntryOptions { Expiration = lifetime, LocalCacheExpiration = lifetime },
+            cancellationToken: ct);
+    }
+
+    private async Task<DashboardResponse> BuildAsync(CancellationToken ct)
     {
         var today = clock.Today;
         var from = new DateOnly(today.Year, today.Month, 1).AddMonths(-(Months - 1));
@@ -24,7 +44,8 @@ public sealed class DashboardService(AppDbContext dbContext, IBusinessClock cloc
         var overdue = await OverdueAsync(today, ct);
         var lowStock = await BelowReorderLevelAsync(ct);
 
-        return new DashboardResponse(from, today, monthly, topProducts, topShowrooms, overdue, lowStock);
+        return new DashboardResponse(DateTime.UtcNow, from, today, monthly, topProducts, topShowrooms, overdue,
+            lowStock);
     }
 
     private IQueryable<SalesEntry> SalesEntries(DateOnly start, DateOnly end)
@@ -89,7 +110,8 @@ public sealed class DashboardService(AppDbContext dbContext, IBusinessClock cloc
             .Where(p => ids.Contains(p.Id))
             .ToDictionaryAsync(p => p.Id, p => new { p.Name, p.Sku }, ct);
 
-        return top.Select(x => new TopProduct(x.ProductId, products[x.ProductId].Name, products[x.ProductId].Sku, x.Net))
+        return top
+            .Select(x => new TopProduct(x.ProductId, products[x.ProductId].Name, products[x.ProductId].Sku, x.Net))
             .ToList();
     }
 

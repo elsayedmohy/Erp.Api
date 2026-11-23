@@ -1,8 +1,12 @@
 namespace ErpDashboard.Api.Features.Inventory.Products;
 
-public class ProductService(AppDbContext dbContext , IWarehouseScope scope , ICurrentUserPermissions permissions) : IProductService
+public class ProductService(
+    AppDbContext dbContext,
+    IWarehouseScope scope,
+    ICurrentUserPermissions permissions,
+    IProductCatalog catalog,
+    ICacheVersions versions) : IProductService
 {
-    
     private bool CanViewCost => permissions.Has(PermissionCodes.Products.ViewCost);
 
     private void EnsureCanWriteCost(decimal? cost)
@@ -10,49 +14,53 @@ public class ProductService(AppDbContext dbContext , IWarehouseScope scope , ICu
         if (cost is not null && !CanViewCost)
             throw new ForbiddenException("You do not have permission to set product cost.");
     }
-    
-    private static readonly SortMap<Product> Sorts = new SortMap<Product>()
+
+    private static readonly SortMap<CatalogItem> Sorts = new SortMap<CatalogItem>()
         .Add("name", c => c.Name)
         .Add("sku", c => c.Sku)
         .Add("unitPrice", c => c.UnitPrice)
         .Default("name")
         .TieBreaker(c => c.Id);
 
-    public Task<PagedResult<ProductResponse>> ListAsync(ProductQuery query, CancellationToken ct)
+    public async Task<PagedResult<ProductResponse>> ListAsync(ProductQuery query, CancellationToken ct)
     {
-        var canViewCost = CanViewCost;
-        var q = dbContext.Products.AsNoTracking();
-        var accessible = scope.AccessibleWarehouseIds();
-        if (query.GetSearchPattern() is { } p)
-            q = q.Where(product =>
-                EF.Functions.ILike(product.Name, p, @"\") ||
-                EF.Functions.ILike(product.Sku, p, @"\")
-                );
+        IEnumerable<CatalogItem> items = (await catalog.GetAsync(ct)).Items;
 
-        if (query.MinPrice is { } min) q = q.Where(p => p.UnitPrice >= min);
-        if (query.MaxPrice is { } max) q = q.Where(p => p.UnitPrice <= max);
-        if (query.CategoryId is { } categoryId)  q = q.Where(o => o.CategoryId == categoryId);
-        if (query.MaterialId is { } materialId) q = q.Where(p => p.MaterialId == materialId);
-        
-        return Sorts.Apply(q, query.SortBy, query.SortDir)
-            .Select(product => new ProductResponse(
-                product.Id,
-                product.Name,
-                product.CategoryId,
-                product.Sku,
-                canViewCost ? product.CostPrice : null,
-                product.UnitPrice,
-                dbContext.WarehouseStocks
-                    .Where(s => s.ProductId == product.Id && accessible.Contains(s.WarehouseId))
-                    .Sum(s => (int?)s.Quantity - s.Reserved) ?? 0,
-                product.ReorderLevel,
-                product.LengthCm,
-                product.WidthCm,
-                product.HeightCm,
-                product.WeightKg, 
-                product.MaterialId
-                ))
-            .ToPagedResultAsync(query, ct);
+        if (!string.IsNullOrWhiteSpace(query.Search))
+        {
+            var term = query.Search.Trim();
+            items = items.Where(p => p.Name.Contains(term, StringComparison.OrdinalIgnoreCase)
+                                     || p.Sku.Contains(term, StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (query.MinPrice is { } min) items = items.Where(p => p.UnitPrice >= min);
+        if (query.MaxPrice is { } max) items = items.Where(p => p.UnitPrice <= max);
+        if (query.CategoryId is { } categoryId) items = items.Where(p => p.CategoryId == categoryId);
+        if (query.MaterialId is { } materialId) items = items.Where(p => p.MaterialId == materialId);
+
+        var sorted = Sorts.Apply(items.AsQueryable(), query.SortBy, query.SortDir);
+        var total = sorted.Count();
+        var page = sorted.Skip((query.Page - 1) * query.PageSize).Take(query.PageSize).ToList();
+
+        // Stock changes with every order: read live, and only for the products on this page.
+        var ids = page.Select(p => p.Id).ToList();
+        var accessible = scope.AccessibleWarehouseIds();
+        var stock = await dbContext.WarehouseStocks.AsNoTracking()
+            .Where(s => ids.Contains(s.ProductId) && accessible.Contains(s.WarehouseId))
+            .GroupBy(s => s.ProductId)
+            .Select(g => new { ProductId = g.Key, Available = g.Sum(s => s.Quantity - s.Reserved) })
+            .ToDictionaryAsync(x => x.ProductId, x => x.Available, ct);
+
+        // One cached copy for everyone: cost is removed here, per request, not per cache entry.
+        var canViewCost = CanViewCost;
+        return new PagedResult<ProductResponse>(
+            page.Select(p => new ProductResponse(
+                p.Id, p.Name, p.CategoryId, p.Sku,
+                canViewCost ? p.CostPrice : null,
+                p.UnitPrice,
+                stock.GetValueOrDefault(p.Id),
+                p.ReorderLevel, p.LengthCm, p.WidthCm, p.HeightCm, p.WeightKg, p.MaterialId)).ToList(),
+            query.Page, query.PageSize, total);
     }
 
     public async Task<ProductDetailsResponse> GetByIdAsync(Guid id, CancellationToken ct)
@@ -60,7 +68,7 @@ public class ProductService(AppDbContext dbContext , IWarehouseScope scope , ICu
         Product? product = await dbContext.Products.FirstOrDefaultAsync(c => c.Id == id, ct);
         if (product is null)
             throw new NotFoundException("product", id);
-        
+
         Category? category = await dbContext.Categories.FirstOrDefaultAsync(c => c.Id == product.CategoryId, ct);
         if (category is null)
             throw new NotFoundException("category", product.CategoryId);
@@ -69,7 +77,7 @@ public class ProductService(AppDbContext dbContext , IWarehouseScope scope , ICu
             ? await dbContext.Materials.Where(m => m.Id == mId)
                 .Select(m => new MaterialResponse(m.Id, m.Name)).FirstOrDefaultAsync(ct)
             : null;
-        
+
         return new ProductDetailsResponse(
             product.Id,
             product.Name,
@@ -79,12 +87,12 @@ public class ProductService(AppDbContext dbContext , IWarehouseScope scope , ICu
             product.UnitPrice,
             await GetStockQuantityAsync(product.Id, ct),
             product.ReorderLevel,
-        product.LengthCm,
-        product.WidthCm,
-        product.HeightCm,
-        product.WeightKg, 
-        material
-            );
+            product.LengthCm,
+            product.WidthCm,
+            product.HeightCm,
+            product.WeightKg,
+            material
+        );
     }
 
     public async Task<ProductResponse> CreateAsync(ProductRequest request, CancellationToken ct)
@@ -99,7 +107,7 @@ public class ProductService(AppDbContext dbContext , IWarehouseScope scope , ICu
         if (request.MaterialId is { } materialId &&
             !await dbContext.Materials.AnyAsync(m => m.Id == materialId, ct))
             throw new RequestValidationException("materialId", $"Material '{materialId}' does not exist.");
-        
+
         Product product = new Product
         {
             Name = request.Name.Trim(),
@@ -115,11 +123,11 @@ public class ProductService(AppDbContext dbContext , IWarehouseScope scope , ICu
             MaterialId = request.MaterialId
         };
         dbContext.Products.Add(product);
-        await dbContext.SaveChangesAsync(ct);
-        return ToResponse(product , 0,CanViewCost);
+        await SaveAndBumpCatalogAsync(ct);
+        return ToResponse(product, 0, CanViewCost);
     }
 
-    public async Task<ProductResponse> UpdateAsync(Guid id, ProductRequest request,Guid userId ,CancellationToken ct)
+    public async Task<ProductResponse> UpdateAsync(Guid id, ProductRequest request, Guid userId, CancellationToken ct)
     {
         var product = await dbContext.Products.FirstOrDefaultAsync(c => c.Id == id, ct)
                       ?? throw new NotFoundException("Product", id);
@@ -130,11 +138,11 @@ public class ProductService(AppDbContext dbContext , IWarehouseScope scope , ICu
 
         if (!await dbContext.Categories.AnyAsync(c => c.Id == request.CategoryId, ct))
             throw new RequestValidationException("categoryId", $"Category '{request.CategoryId}' does not exist.");
-        
+
         if (request.MaterialId is { } materialId &&
             !await dbContext.Materials.AnyAsync(m => m.Id == materialId, ct))
             throw new RequestValidationException("materialId", $"Material '{materialId}' does not exist.");
-        
+
         var oldUnitPrice = product.UnitPrice;
         var oldCostPrice = product.CostPrice;
         product.Name = request.Name.Trim();
@@ -149,7 +157,7 @@ public class ProductService(AppDbContext dbContext , IWarehouseScope scope , ICu
         product.HeightCm = request.HeightCm;
         product.WeightKg = request.WeightKg;
         product.MaterialId = request.MaterialId;
-        
+
         if (product.UnitPrice != oldUnitPrice || product.CostPrice != oldCostPrice)
         {
             dbContext.ProductPriceHistory.Add(new ProductPriceHistory
@@ -164,11 +172,11 @@ public class ProductService(AppDbContext dbContext , IWarehouseScope scope , ICu
                 ChangedAt = DateTime.UtcNow
             });
         }
-        
-        await dbContext.SaveChangesAsync(ct);
-        return ToResponse(product , await GetStockQuantityAsync(product.Id, ct) ,CanViewCost);
+
+        await SaveAndBumpCatalogAsync(ct);
+        return ToResponse(product, await GetStockQuantityAsync(product.Id, ct), CanViewCost);
     }
-    
+
     public async Task<IReadOnlyList<ProductPriceChangeResponse>> GetPriceHistoryAsync(Guid id, CancellationToken ct)
     {
         if (!await dbContext.Products.AnyAsync(p => p.Id == id, ct))
@@ -205,7 +213,7 @@ public class ProductService(AppDbContext dbContext , IWarehouseScope scope , ICu
                 po.Status == PurchaseOrderStatus.Pending &&
                 po.PurchaseLines.Any(l => l.ProductId == id), ct))
             throw new ConflictException("Cannot delete a product on a pending purchase order.");
-        
+
         if (await dbContext.StockTransfers.AnyAsync(t =>
                 t.Status == StockTransferStatus.InTransit &&
                 t.Lines.Any(l => l.ProductId == id), ct))
@@ -222,9 +230,17 @@ public class ProductService(AppDbContext dbContext , IWarehouseScope scope , ICu
             throw new ConflictException("Cannot delete a product on an open order.");
 
         dbContext.Products.Remove(product);
-        await dbContext.SaveChangesAsync(ct);
+        await SaveAndBumpCatalogAsync(ct);
     }
 
+    private async Task SaveAndBumpCatalogAsync(CancellationToken ct)
+    {
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(ct);
+        await dbContext.SaveChangesAsync(ct);
+        await versions.BumpAsync(ProductCatalog.VersionKey, ct);
+        await transaction.CommitAsync(ct);
+    }
+    
     private Task<int> GetStockQuantityAsync(Guid productId, CancellationToken ct)
     {
         var accessible = scope.AccessibleWarehouseIds();
@@ -232,7 +248,7 @@ public class ProductService(AppDbContext dbContext , IWarehouseScope scope , ICu
             .Where(s => s.ProductId == productId && accessible.Contains(s.WarehouseId))
             .SumAsync(s => s.Quantity - s.Reserved, ct);
     }
-    
+
     private static string NormalizeSku(string sku) => sku.Trim().ToUpperInvariant();
 
     private async Task EnsureSkuIsFreeAsync(string sku, Guid? excludeId, CancellationToken ct)
@@ -240,6 +256,7 @@ public class ProductService(AppDbContext dbContext , IWarehouseScope scope , ICu
         if (await dbContext.Products.AnyAsync(p => p.Sku == sku && p.Id != excludeId, ct))
             throw new ConflictException($"SKU '{sku}' is already used by another product.");
     }
+
     private static ProductResponse ToResponse(Product product, int stockQuantity, bool canViewCost) => new(
         product.Id,
         product.Name,
@@ -252,6 +269,6 @@ public class ProductService(AppDbContext dbContext , IWarehouseScope scope , ICu
         product.LengthCm,
         product.WidthCm,
         product.HeightCm,
-        product.WeightKg, 
+        product.WeightKg,
         product.MaterialId);
 }

@@ -219,6 +219,17 @@
           "Microsoft.Extensions.Primitives": "10.0.0"
         }
       },
+      "Microsoft.Extensions.Caching.Hybrid": {
+        "type": "Transitive",
+        "resolved": "10.0.0",
+        "contentHash": "xvhmF2dlwC3e8KKSuWOjJkjQdKG80991CUqjDnqzV1Od0CgMqbDw49kGJ9RiGrp3nbLTYCSb3c+KYo6TcENYRw==",
+        "dependencies": {
+          "Microsoft.Extensions.Caching.Abstractions": "10.0.0",
+          "Microsoft.Extensions.Caching.Memory": "10.0.0",
+          "Microsoft.Extensions.Logging.Abstractions": "10.0.0",
+          "Microsoft.Extensions.Options": "10.0.0"
+        }
+      },
       "Microsoft.Extensions.Caching.Memory": {
         "type": "Transitive",
         "resolved": "10.0.0",
@@ -829,6 +840,7 @@
           "Microsoft.AspNetCore.Authentication.JwtBearer": "[10.0.0, )",
           "Microsoft.AspNetCore.Identity.EntityFrameworkCore": "[10.0.0, )",
           "Microsoft.AspNetCore.OpenApi": "[10.0.12, )",
+          "Microsoft.Extensions.Caching.Hybrid": "[10.0.0, )",
           "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.0, )",
           "QuestPDF": "[2026.9.1, )",
           "Serilog.AspNetCore": "[10.0.0, )",

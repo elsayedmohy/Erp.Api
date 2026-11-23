@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
-# Times GET /api/dashboard against the running API: 2 warm-up calls, then RUNS timed calls.
+# Times a GET against the running API: 2 warm-up calls, then RUNS timed calls.
 # Usage (from the repo root, API running on :5013 with demo data seeded):
-#   ./measure-dashboard.sh            # 20 runs
-#   RUNS=50 ./measure-dashboard.sh
+#   ./measure.sh                                   # GET /api/dashboard, 20 runs
+#   URL_PATH="/api/products?pageSize=20" ./measure.sh
+#   RUNS=50 ./measure.sh
 set -euo pipefail
 
 BASE="${BASE:-http://localhost:5013}"
 RUNS="${RUNS:-20}"
+URL_PATH="${URL_PATH:-/api/dashboard}"
 set -a; source .env; set +a
 EMAIL="${ADMIN_EMAIL:-admin@company.com}"
 
@@ -14,7 +16,7 @@ TOKEN=$(curl -s -X POST "$BASE/api/auth/login" -H 'Content-Type: application/jso
   -d "{\"email\":\"$EMAIL\",\"password\":\"$ADMIN_PASSWORD\"}" | jq -r .accessToken)
 [ -n "$TOKEN" ] && [ "$TOKEN" != "null" ] || { echo "Login failed"; exit 1; }
 
-call() { curl -s -o /dev/null -w '%{http_code} %{time_total}\n' -H "Authorization: Bearer $TOKEN" "$BASE/api/dashboard"; }
+call() { curl -s -o /dev/null -w '%{http_code} %{time_total}\n' -H "Authorization: Bearer $TOKEN" "$BASE$URL_PATH"; }
 
 call >/dev/null; call >/dev/null   # warm-up: JIT, connection pool, EF query cache
 
