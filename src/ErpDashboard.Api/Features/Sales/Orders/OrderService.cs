@@ -37,7 +37,7 @@ public class OrderService(
         if (query.From > query.To)
             throw new RequestValidationException("from", "'from' must be before or equal to 'to'.");
 
-        var q = dbContext.Orders.IgnoreQueryFilters([QueryFilters.SoftDelete]).Include(o => o.Showroom).AsNoTracking();
+        var q = dbContext.Orders.IgnoreQueryFilters([QueryFilters.SoftDelete]).AsNoTracking();
 
         if (query.GetSearchPattern() is { } p)
             q = q.Where(o =>
@@ -50,19 +50,7 @@ public class OrderService(
         if (query.To is { } to) q = q.Where(o => o.OrderDate <= to);
 
         return Sorts.Apply(q, query.SortBy, query.SortDir)
-            .Select(o => new OrderResponse(
-                o.Id,
-                o.Version,
-                o.ShowroomId,
-                o.WarehouseId,
-                o.Showroom.Name,
-                o.OrderDate,
-                o.Status,
-                o.PaymentMethod,
-                o.ShippingAddress,
-                o.ShippingGovernorate,
-                o.TotalAmount
-            ))
+            .Select(OrderMappings.AsResponse)
             .ToPagedResultAsync(query, ct);
     }
 
@@ -76,7 +64,7 @@ public class OrderService(
         if (order is null)
             throw new NotFoundException("Order", id);
 
-        return ToDetailedResponse(order);
+        return order.ToDetailsResponse();
     }
 
 
@@ -176,7 +164,7 @@ public class OrderService(
         await dbContext.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
 
-        return ToDetailedResponse(order);
+        return order.ToDetailsResponse();
     }
 
     public async Task<OrderResponse> UpdateAsync(Guid id, UpdateOrderRequest request, uint expectedVersion,
@@ -195,7 +183,7 @@ public class OrderService(
         order.Notes = string.IsNullOrWhiteSpace(request.Notes) ? null : request.Notes.Trim();
         await dbContext.SaveChangesAsync(ct);
         order.Version = await CurrentVersionAsync(id, ct);
-        return ToResponse(order);
+        return order.ToResponse();
     }
 
     public async Task<OrderResponse> UpdateStatusAsync(
@@ -229,7 +217,7 @@ public class OrderService(
         await transaction.CommitAsync(ct);
         order.Version = await CurrentVersionAsync(id, ct);
         order.Status = request.Status;
-        return ToResponse(order);
+        return order.ToResponse();
     }
 
     public async Task<OrderResponse> SubmitAsync(Guid id, uint expectedVersion, Guid userId, CancellationToken ct)
@@ -246,7 +234,7 @@ public class OrderService(
         await transaction.CommitAsync(ct);
         order.Version = await CurrentVersionAsync(id, ct);
         order.Status = target;
-        return ToResponse(order);
+        return order.ToResponse();
     }
 
     public async Task<OrderResponse> ApproveAsync(Guid id, uint expectedVersion, Guid reviewerId, CancellationToken ct)
@@ -262,7 +250,7 @@ public class OrderService(
         await transaction.CommitAsync(ct);
         order.Version = await CurrentVersionAsync(id, ct);
         order.Status = OrderStatus.Confirmed;
-        return ToResponse(order);
+        return order.ToResponse();
     }
 
     public async Task<OrderResponse> RejectAsync(
@@ -285,7 +273,7 @@ public class OrderService(
         await transaction.CommitAsync(ct);
         order.Version = await CurrentVersionAsync(id, ct);
         order.Status = OrderStatus.Cancelled;
-        return ToResponse(order);
+        return order.ToResponse();
     }
 
     public async Task<IReadOnlyList<OrderStatusChangeResponse>> GetHistoryAsync(Guid id, CancellationToken ct)
@@ -325,7 +313,7 @@ public class OrderService(
 
         order.Version = await CurrentVersionAsync(id, ct);
         order.Status = OrderStatus.Cancelled;
-        return ToResponse(order);
+        return order.ToResponse();
     }
 
     public async Task<bool> CancelBySystemAsync(Guid orderId, string reason, CancellationToken ct)
@@ -438,43 +426,7 @@ public class OrderService(
             Reason = reason
         });
 
-    private static OrderDetailsResponse ToDetailedResponse(Order o) =>
-        new(
-            o.Id,
-            o.Version,
-            o.ShowroomId,
-            o.WarehouseId,
-            o.Invoice?.Id,
-            o.Showroom.Name,
-            o.OrderDate,
-            o.Status,
-            o.PaymentMethod,
-            o.ShippingAddress,
-            o.ShippingGovernorate,
-            o.Notes,
-            o.TotalAmount,
-            o.OrderLines.Select(l => new OrderLineResponse(
-                l.Id,
-                l.ProductId,
-                l.ProductName,
-                l.Sku,
-                l.Quantity,
-                l.UnitPrice,
-                l.Discount)).ToList());
 
-    private static OrderResponse ToResponse(Order o) =>
-        new OrderResponse(
-            o.Id,
-            o.Version,
-            o.ShowroomId,
-            o.WarehouseId,
-            o.Showroom.Name,
-            o.OrderDate,
-            o.Status,
-            o.PaymentMethod,
-            o.ShippingAddress,
-            o.ShippingGovernorate,
-            o.TotalAmount);
 
     private Task<uint> CurrentVersionAsync(Guid id, CancellationToken ct) =>
         dbContext.Orders.Where(o => o.Id == id).Select(o => o.Version).SingleAsync(ct);

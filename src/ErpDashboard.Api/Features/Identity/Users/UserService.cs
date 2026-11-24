@@ -20,13 +20,7 @@ public class UserService(AppDbContext dbContext, UserManager<User> userManager ,
                 EF.Functions.ILike(c.Email, p, @"\"));
 
         return Sorts.Apply(q, query.SortBy, query.SortDir)
-            .Select(c => new UserResponse(
-                c.Id,
-                new RoleSummeryResponse(c.Role.Id, c.Role.Name),
-                c.FirstName,
-                c.LastName,
-                c.Email,
-                c.ShowroomId)).ToPagedResultAsync(query, ct);
+            .Select(UserMappings.AsResponse).ToPagedResultAsync(query, ct);
     }
 
     public async Task<UserResponse> GetByIdAsync(Guid id, CancellationToken ct)
@@ -35,7 +29,7 @@ public class UserService(AppDbContext dbContext, UserManager<User> userManager ,
         if (user is null)
             throw new NotFoundException("User", id);
 
-        return ToResponse(user);
+        return user.ToResponse();
     }
 
     public async Task<UserResponse> CreateAsync(UserRequest request, CancellationToken ct)
@@ -62,7 +56,7 @@ public class UserService(AppDbContext dbContext, UserManager<User> userManager ,
         {
             throw result.ToValidationException();
         }
-        return ToResponse(user);
+        return user.ToResponse();
     }
 
     public async Task<UserResponse> UpdateAsync(UpdateUserRequest request, Guid id, CancellationToken ct)
@@ -91,7 +85,7 @@ public class UserService(AppDbContext dbContext, UserManager<User> userManager ,
         {
             throw result.ToValidationException();
         }
-        return ToResponse(user);
+        return user.ToResponse();
     }
 
     public async Task DeleteUserAsync(Guid id, CancellationToken ct)
@@ -170,10 +164,5 @@ public class UserService(AppDbContext dbContext, UserManager<User> userManager ,
         if (showroomId is { } id && !await dbContext.Showrooms.AnyAsync(s => s.Id == id, ct))
             throw new RequestValidationException("showroomId", $"Showroom '{id}' does not exist.");
     }
-    
-    private static UserResponse ToResponse(User user) =>
-        new UserResponse(user.Id,
-            new RoleSummeryResponse(user.Role.Id, user.Role.Name),
-            user.FirstName, user.LastName, user.Email,
-            user.ShowroomId);
+
 }

@@ -1,5 +1,3 @@
-using ErpDashboard.Api.Features.Inventory.Stock;
-
 namespace ErpDashboard.Api.Features.Purchasing.PurchaseOrders;
 
 public class PurchaseOrderService(
@@ -30,15 +28,7 @@ public class PurchaseOrderService(
         if (query.To is { } to) q = q.Where(o => o.OrderDate <= to);
 
         return Sorts.Apply(q, query.SortBy, query.SortDir)
-            .Select(o => new PurchaseOrderResponse(
-                o.Id,
-                o.SupplierId,
-                o.WarehouseId,
-                o.OrderDate,
-                o.ExpectedDelivery,
-                o.Status,
-                o.TotalAmount
-            ))
+            .Select(PurchaseOrderMappings.AsResponse)
             .ToPagedResultAsync(query, ct);
     }
 
@@ -50,7 +40,7 @@ public class PurchaseOrderService(
         if (order is null)
             throw new NotFoundException("Purchase Order", id);
 
-        return ToDetailedResponse(order);
+        return order.ToDetailsResponse();
     }
 
 
@@ -86,7 +76,7 @@ public class PurchaseOrderService(
 
         dbContext.PurchaseOrders.Add(order);
         await dbContext.SaveChangesAsync(ct);
-        return ToDetailedResponse(order);
+        return order.ToDetailsResponse();
     }
 
     public async Task<PurchaseOrderDetailsResponse> UpdateAsync(Guid id, UpdatePurchaseOrderRequest request,
@@ -113,7 +103,7 @@ public class PurchaseOrderService(
         po.TotalAmount = total;
 
         await dbContext.SaveChangesAsync(ct);
-        return ToDetailedResponse(po);
+        return po.ToDetailsResponse();
     }
 
     public async Task<PurchaseOrderResponse> UpdateStatusAsync(Guid id, UpdatePurchaseOrderStatusRequest request,
@@ -153,35 +143,11 @@ public class PurchaseOrderService(
         await transaction.CommitAsync(ct);
 
         po.Status = request.Status;
-        return ToResponse(po);
+        return po.ToResponse();
     }
 
 
-    private static PurchaseOrderDetailsResponse ToDetailedResponse(PurchaseOrder o) =>
-        new PurchaseOrderDetailsResponse(
-            o.Id,
-            o.SupplierId,
-            o.WarehouseId,
-            o.OrderDate,
-            o.ExpectedDelivery,
-            o.Status,
-            o.TotalAmount,
-            o.PurchaseLines.Select(l => new PurchaseLineResponse(
-                l.Id,
-                l.ProductId,
-                l.Quantity,
-                l.UnitCost
-            )).ToList());
 
-    private static PurchaseOrderResponse ToResponse(PurchaseOrder o) =>
-        new PurchaseOrderResponse(
-            o.Id,
-            o.SupplierId,
-            o.WarehouseId,
-            o.OrderDate,
-            o.ExpectedDelivery,
-            o.Status,
-            o.TotalAmount);
 
     private async Task<(List<PurchaseLine> Lines, decimal Total)> BuildLinesAsync(
         List<PurchaseLineRequest> requestLines, CancellationToken ct)
