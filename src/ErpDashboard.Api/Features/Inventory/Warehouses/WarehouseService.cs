@@ -29,7 +29,7 @@ public sealed class WarehouseService(AppDbContext dbContext,
             q = q.Where(w => EF.Functions.ILike(w.Code, p, @"\") || EF.Functions.ILike(w.Name, p, @"\"));
 
         return Sorts.Apply(q, query.SortBy, query.SortDir)
-            .Select(w => new WarehouseResponse(w.Id, w.Code, w.Name))
+            .Select(WarehouseMappings.AsResponse)
             .ToPagedResultAsync(query, ct);
     }
 
@@ -38,7 +38,7 @@ public sealed class WarehouseService(AppDbContext dbContext,
         await EnsureAccessibleAsync(id, ct);
        return await dbContext.Warehouses.AsNoTracking()
                 .Where(w => w.Id == id)
-                .Select(w => new WarehouseResponse(w.Id, w.Code, w.Name))
+                .Select(WarehouseMappings.AsResponse)
                 .SingleOrDefaultAsync(ct)
             ?? throw new NotFoundException("Warehouse", id);
     }
@@ -55,7 +55,7 @@ public sealed class WarehouseService(AppDbContext dbContext,
             dbContext.UserWarehouses.Add(new UserWarehouse { UserId = createdById, WarehouseId = warehouse.Id });
         await dbContext.SaveChangesAsync(ct);
 
-        return new WarehouseResponse(warehouse.Id, warehouse.Code, warehouse.Name);
+        return warehouse.ToResponse();
     }
 
     public async Task<WarehouseResponse> UpdateAsync(Guid id, WarehouseRequest request, CancellationToken ct)
@@ -71,7 +71,7 @@ public sealed class WarehouseService(AppDbContext dbContext,
         warehouse.Name = request.Name.Trim();
         await dbContext.SaveChangesAsync(ct);
 
-        return new WarehouseResponse(warehouse.Id, warehouse.Code, warehouse.Name);
+        return warehouse.ToResponse();
     }
 
     public async Task<PagedResult<WarehouseStockResponse>> ListStockAsync(

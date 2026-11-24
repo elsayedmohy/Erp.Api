@@ -69,7 +69,7 @@ public sealed class StockTransferService(AppDbContext dbContext, IStockService s
         await dbContext.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
 
-        return ToResponse(transfer);
+        return transfer.ToResponse();
     }
 
     public async Task<StockTransferResponse> ReceiveAsync(Guid id, Guid userId, CancellationToken ct)
@@ -95,7 +95,7 @@ public sealed class StockTransferService(AppDbContext dbContext, IStockService s
         transfer.Status = StockTransferStatus.Received;
         transfer.ReceivedById = userId;
         transfer.ReceivedAt = now;
-        return ToResponse(transfer);
+        return transfer.ToResponse();
     }
 
     public async Task<StockTransferResponse> CancelAsync(
@@ -125,11 +125,11 @@ public sealed class StockTransferService(AppDbContext dbContext, IStockService s
         transfer.CancelledById = userId;
         transfer.CancelledAt = now;
         transfer.CancelReason = reason;
-        return ToResponse(transfer);
+        return transfer.ToResponse();
     }
 
     public async Task<StockTransferResponse> GetByIdAsync(Guid id, CancellationToken ct) =>
-        ToResponse(await LoadVisibleAsync(id, ct));
+        (await LoadVisibleAsync(id, ct)).ToResponse();
 
     public Task<PagedResult<StockTransferResponse>> ListAsync(StockTransferQuery query, CancellationToken ct)
     {
@@ -143,11 +143,7 @@ public sealed class StockTransferService(AppDbContext dbContext, IStockService s
             q = q.Where(t => t.FromWarehouseId == warehouseId || t.ToWarehouseId == warehouseId);
 
         return q.OrderByDescending(t => t.DispatchedAt).ThenByDescending(t => t.Id)
-            .Select(t => new StockTransferResponse(
-                t.Id, t.FromWarehouseId, t.ToWarehouseId, t.Status, t.Reason,
-                t.DispatchedById, t.DispatchedAt, t.ReceivedById, t.ReceivedAt,
-                t.CancelledById, t.CancelledAt, t.CancelReason,
-                t.Lines.Select(l => new TransferLineResponse(l.ProductId, l.Quantity)).ToList()))
+            .Select(StockTransferMappings.AsResponse)
             .ToPagedResultAsync(query, ct);
     }
 
@@ -174,9 +170,4 @@ public sealed class StockTransferService(AppDbContext dbContext, IStockService s
             throw new ConflictException("The transfer was already received or cancelled.");
     }
 
-    private static StockTransferResponse ToResponse(StockTransfer t) => new(
-        t.Id, t.FromWarehouseId, t.ToWarehouseId, t.Status, t.Reason,
-        t.DispatchedById, t.DispatchedAt, t.ReceivedById, t.ReceivedAt,
-        t.CancelledById, t.CancelledAt, t.CancelReason,
-        t.Lines.Select(l => new TransferLineResponse(l.ProductId, l.Quantity)).ToList());
 }

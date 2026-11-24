@@ -2,8 +2,8 @@ namespace ErpDashboard.Api.Features.Hr.Employees;
 
 public sealed class EmployeeQuery : PageQuery
 {
-    public Guid DepartmentId;
-    public string Position;
+    public Guid? DepartmentId { get; set; }
+    public string? Position { get; set; }
 }
 
 public sealed record EmployeeResponse(

@@ -45,7 +45,7 @@ public sealed class InvoiceService(
         var page = await balances.ToPagedResultAsync(query, ct);
 
         return new PagedResult<InvoiceResponse>(
-            page.Items.Select(b => ToSummary(b, today)).ToList(), page.Page, page.PageSize, page.Total);
+            page.Items.Select(b => b.ToResponse(today)).ToList(), page.Page, page.PageSize, page.Total);
     }
 
     public async Task<InvoiceDetailsResponse> GetByIdAsync(Guid id, CancellationToken ct)
@@ -57,7 +57,8 @@ public sealed class InvoiceService(
                           .FirstOrDefaultAsync(i => i.Id == id, ct)
                       ?? throw new NotFoundException(nameof(Invoice), id);
 
-        return ToDetails(invoice, await GetShowroomNameAsync(invoice.ShowroomId, invoice, ct));
+        var showroomName = await GetShowroomNameAsync(invoice.ShowroomId, invoice, ct);
+        return invoice.ToDetailsResponse(showroomName, clock.Today);
     }
 
 
@@ -74,16 +75,16 @@ public sealed class InvoiceService(
         var dueDate = request.DueDate ?? invoiceDate.AddDays(_finance.DefaultDueDays);
         InvoiceFactory.ValidateDates(invoiceDate, dueDate);
 
-        var ShowroomId = request.ShowroomId!.Value;
-        var ShowroomName = await GetActiveShowroomNameAsync(ShowroomId, ct);
+        var showroomId = request.ShowroomId!.Value;
+        var showroomName = await GetActiveShowroomNameAsync(showroomId, ct);
         await EnsureProductsExistAsync(request.Lines, ct);
 
-        var invoice = InvoiceFactory.CreateDraft(ShowroomId, invoiceDate, dueDate, ToInputs(request.Lines));
+        var invoice = InvoiceFactory.CreateDraft(showroomId, invoiceDate, dueDate, ToInputs(request.Lines));
 
         dbContext.Invoices.Add(invoice);
         await dbContext.SaveChangesAsync(ct);
 
-        return ToDetails(invoice, ShowroomName);
+        return invoice.ToDetailsResponse(showroomName, clock.Today);
     }
 
     public async Task<InvoiceDetailsResponse> UpdateAsync(Guid id, UpdateInvoiceRequest request, CancellationToken ct)
@@ -101,13 +102,13 @@ public sealed class InvoiceService(
         var dueDate = request.DueDate!.Value;
         InvoiceFactory.ValidateDates(invoiceDate, dueDate);
 
-        var ShowroomId = request.ShowroomId!.Value;
-        var ShowroomName = await GetActiveShowroomNameAsync(ShowroomId, ct);
+        var showroomId = request.ShowroomId!.Value;
+        var showroomName = await GetActiveShowroomNameAsync(showroomId, ct);
         await EnsureProductsExistAsync(request.Lines, ct);
 
         var newLines = InvoiceFactory.BuildLines(ToInputs(request.Lines));
 
-        invoice.ShowroomId = ShowroomId;
+        invoice.ShowroomId = showroomId;
         invoice.InvoiceDate = invoiceDate;
         invoice.DueDate = dueDate;
 
@@ -116,7 +117,7 @@ public sealed class InvoiceService(
         invoice.TotalAmount = InvoiceFactory.CalculateTotal(invoice.InvoiceLines);
 
         await dbContext.SaveChangesAsync(ct);
-        return ToDetails(invoice, ShowroomName);
+        return invoice.ToDetailsResponse(showroomName, clock.Today);
     }
 
 public async Task<InvoiceDetailsResponse> IssueFromOrderAsync(Guid orderId, Guid userId, CancellationToken ct)
@@ -135,7 +136,7 @@ public async Task<InvoiceDetailsResponse> IssueFromOrderAsync(Guid orderId, Guid
     await using var transaction = await dbContext.Database.BeginTransactionAsync(ct);
     var invoice = await CreateOrderInvoiceAsync(order, userId, ct);
     await transaction.CommitAsync(ct);
-    return ToDetails(invoice, showroomName);
+    return invoice.ToDetailsResponse(showroomName, clock.Today);
 }
 
 public async Task<Invoice> IssueForCheckoutAsync(Guid orderId, CancellationToken ct)
@@ -171,7 +172,7 @@ public async Task<Invoice> IssueForCheckoutAsync(Guid orderId, CancellationToken
         await dbContext.SaveChangesAsync(ct);
 
         await transaction.CommitAsync(ct);
-        return ToSummary(InvoicePaymentRules.BalanceOf(invoice), clock.Today);
+        return InvoicePaymentRules.BalanceOf(invoice).ToResponse(clock.Today);
     }
 
     public async Task<InvoiceDetailsResponse> RecordPaymentAsync(
@@ -225,8 +226,8 @@ public async Task<Invoice> IssueForCheckoutAsync(Guid orderId, CancellationToken
 
         await dbContext.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
-
-        return ToDetails(invoice, await GetShowroomNameAsync(invoice.ShowroomId, invoice, ct));
+        var showroomName = await GetShowroomNameAsync(invoice.ShowroomId, invoice, ct);
+        return invoice.ToDetailsResponse(showroomName, clock.Today);
     }
 
     public async Task<CreditNoteResponse> IssueCreditNoteAsync(
@@ -275,7 +276,7 @@ public async Task<Invoice> IssueForCheckoutAsync(Guid orderId, CancellationToken
         await dbContext.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
 
-        return ToCreditNoteResponse(creditNote);
+        return creditNote.ToResponse();
     }
 
     public async Task DeleteAsync(Guid id, CancellationToken ct)
@@ -375,59 +376,4 @@ public async Task<Invoice> IssueForCheckoutAsync(Guid orderId, CancellationToken
             l.TaxRate ?? _finance.DefaultTaxRate,
             l.Discount)).ToList();
 
-
-    private static CreditNoteResponse ToCreditNoteResponse(CreditNote c)
-    {
-        var net = c.Lines.Sum(l => l.NetAmount);
-        var tax = c.Lines.Sum(CreditNoteFactory.LineTax);
-        return new CreditNoteResponse(c.Id, c.Number, c.InvoiceId, c.CreditDate, c.Reason, net, tax, c.TotalAmount);
-    }
-
-    private static InvoiceResponse ToSummary(InvoiceBalance b, DateOnly today)
-    {
-        var i = b.Invoice;
-        var remaining = InvoicePaymentRules.Remaining(b);
-        return new InvoiceResponse(
-            i.Id, i.OrderId, i.ShowroomId, i.InvoiceDate, i.DueDate, i.Status, i.TotalAmount, i.Number,
-            b.Paid, b.Credited, remaining, Math.Max(0, -remaining), InvoicePaymentRules.StatusOf(b, today));
-    }
-
-    private InvoiceDetailsResponse ToDetails(Invoice i, string showroomName)
-    {
-        var lines = i.InvoiceLines.Select(l =>
-        {
-            var gross = InvoiceFactory.LineGross(l);
-            var net = InvoiceFactory.LineNet(l);
-            var tax = InvoiceFactory.LineTax(l);
-            return new InvoiceLineResponse(l.Id, l.ProductId, l.Description, l.Quantity,
-                l.UnitPrice, gross, l.Discount, l.TaxRate, net, tax, net + tax);
-        }).ToList();
-
-        var payments = i.Payments
-            .OrderBy(p => p.PaymentDate).ThenBy(p => p.RecordedAt)
-            .Select(p => new InvoicePaymentResponse(
-                p.Id, p.Amount, p.PaymentDate, p.Method, p.Reference, p.RecordedById, p.RecordedAt))
-            .ToList();
-
-        var creditNotes = i.CreditNotes.OrderBy(c => c.Number).Select(ToCreditNoteResponse).ToList();
-
-        var balance = InvoicePaymentRules.BalanceOf(i);
-        var remaining = InvoicePaymentRules.Remaining(balance);
-        return new InvoiceDetailsResponse(
-            i.Id, i.OrderId, i.ShowroomId, showroomName,
-            i.InvoiceDate, i.DueDate, i.Status,
-            Subtotal: lines.Sum(x => x.LineGross),
-            DiscountTotal: lines.Sum(x => x.Discount),
-            TaxAmount: lines.Sum(x => x.LineTax),
-            TotalAmount: i.TotalAmount,
-            Number: i.Number,
-            AmountPaid: balance.Paid,
-            CreditedAmount: balance.Credited,
-            Balance: remaining,
-            RefundDue: Math.Max(0, -remaining),
-            PaymentStatus: InvoicePaymentRules.StatusOf(balance, clock.Today),
-            Lines: lines,
-            Payments: payments,
-            CreditNotes: creditNotes);
-    }
 }

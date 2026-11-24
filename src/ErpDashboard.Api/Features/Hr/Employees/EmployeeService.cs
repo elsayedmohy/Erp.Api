@@ -26,7 +26,7 @@ public class EmployeeService(AppDbContext dbContext,
         var q = dbContext.Employees.AsNoTracking();
 
         if (query.DepartmentId is { } departmentId) q = q.Where(e => e.DepartmentId == departmentId);
-
+        if (!string.IsNullOrWhiteSpace(query.Position)) q = q.Where(e => e.Position == query.Position);
         if (query.GetSearchPattern() is { } p)
             q = q.Where(e =>
                 EF.Functions.ILike(e.FirstName + " " + e.LastName, p, @"\") ||
@@ -34,16 +34,7 @@ public class EmployeeService(AppDbContext dbContext,
                 EF.Functions.ILike(e.PhoneNumber, p, @"\"));
 
         return Sorts.Apply(q, query.SortBy, query.SortDir)
-            .Select(e => new EmployeeResponse(
-                e.Id,
-                e.FirstName,
-                e.LastName,
-                e.Email,
-                e.PhoneNumber,
-                e.DepartmentId,
-                e.Position,
-                e.HireDate,
-                canViewSalary ? e.Salary : null))
+            .Select(EmployeeMappings.AsResponse(canViewSalary))
             .ToPagedResultAsync(query, ct);
     }
 
@@ -53,7 +44,7 @@ public class EmployeeService(AppDbContext dbContext,
         if (employee is null)
             throw new NotFoundException("Employee", id);
 
-        return ToResponse(employee,canViewSalary:CanViewSalary);
+        return employee.ToResponse(CanViewSalary);
     }
 
     public async Task<EmployeeResponse> CreateAsync(EmployeeRequest request, CancellationToken ct)
@@ -86,7 +77,7 @@ public class EmployeeService(AppDbContext dbContext,
 
         dbContext.Employees.Add(employee);
         await dbContext.SaveChangesAsync(ct);
-        return ToResponse(employee , canViewSalary:CanViewSalary);
+        return employee.ToResponse(CanViewSalary);
     }
 
     public async Task<EmployeeResponse> UpdateAsync(Guid id, UpdateEmployeeRequest request, CancellationToken ct)
@@ -116,7 +107,7 @@ public class EmployeeService(AppDbContext dbContext,
             employee.Salary = salary;
         
         await dbContext.SaveChangesAsync(ct);
-        return ToResponse(employee ,canViewSalary:CanViewSalary);
+        return employee.ToResponse(CanViewSalary);
     }
 
     public async Task DeleteAsync(Guid id, CancellationToken ct)
@@ -129,15 +120,4 @@ public class EmployeeService(AppDbContext dbContext,
         await dbContext.SaveChangesAsync(ct);
     }
 
-
-    public static EmployeeResponse ToResponse(Employee employee,bool canViewSalary) => new EmployeeResponse(
-        employee.Id,
-        employee.FirstName,
-        employee.LastName,
-        employee.Email,
-        employee.PhoneNumber,
-        employee.DepartmentId,
-        employee.Position,
-        employee.HireDate,
-        canViewSalary ? employee.Salary : null);
 }
