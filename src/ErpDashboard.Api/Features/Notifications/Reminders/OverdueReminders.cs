@@ -51,6 +51,7 @@ public sealed class OverdueReminders(
         var ids = owing.Select(o => o.ShowroomId).ToList();
         var showrooms = await dbContext.Showrooms
             .IgnoreQueryFilters([QueryFilters.Showroom]).AsNoTracking()
+            .Where(s => ids.Contains(s.Id))
             .Select(s => new { s.Id, s.Name, s.PhoneNumber })
             .ToDictionaryAsync(s => s.Id, ct);
 

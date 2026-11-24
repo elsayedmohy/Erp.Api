@@ -68,7 +68,7 @@ public class OrderService(
 
     public async Task<OrderDetailsResponse> GetByIdAsync(Guid id, CancellationToken ct)
     {
-        Order? order = await dbContext.Orders.IgnoreQueryFilters([QueryFilters.SoftDelete])
+        Order? order = await dbContext.Orders.IgnoreQueryFilters([QueryFilters.SoftDelete]).AsNoTracking()
             .Include(o => o.Showroom)
             .Include(o => o.Invoice)
             .Include(o => o.OrderLines)
