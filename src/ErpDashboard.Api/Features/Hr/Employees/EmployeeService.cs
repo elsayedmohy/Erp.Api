@@ -26,7 +26,7 @@ public class EmployeeService(AppDbContext dbContext,
         var q = dbContext.Employees.AsNoTracking();
 
         if (query.DepartmentId is { } departmentId) q = q.Where(e => e.DepartmentId == departmentId);
-
+        if (!string.IsNullOrWhiteSpace(query.Position)) q = q.Where(e => e.Position == query.Position);
         if (query.GetSearchPattern() is { } p)
             q = q.Where(e =>
                 EF.Functions.ILike(e.FirstName + " " + e.LastName, p, @"\") ||
