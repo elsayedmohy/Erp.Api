@@ -42,7 +42,7 @@ public sealed class OnlinePaymentService(AppDbContext dbContext, IPaymentAttempt
             return new StartOnlinePaymentResponse(reusable.Id, new Uri(reusable.CheckoutUrl!), remaining, Currency);
 
         var showroom = await dbContext.Showrooms
-            .IgnoreQueryFilters([QueryFilters.Showroom])
+            .IgnoreQueryFilters([QueryFilters.Showroom, QueryFilters.SoftDelete])
             .Where(s => s.Id == invoice.ShowroomId)
             .Select(s => new PayerDetails(s.Name, s.Email, s.PhoneNumber))
             .SingleAsync(ct);

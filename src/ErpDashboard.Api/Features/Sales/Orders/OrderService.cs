@@ -37,7 +37,7 @@ public class OrderService(
         if (query.From > query.To)
             throw new RequestValidationException("from", "'from' must be before or equal to 'to'.");
 
-        var q = dbContext.Orders.Include(o => o.Showroom).AsNoTracking();
+        var q = dbContext.Orders.IgnoreQueryFilters([QueryFilters.SoftDelete]).Include(o => o.Showroom).AsNoTracking();
 
         if (query.GetSearchPattern() is { } p)
             q = q.Where(o =>
@@ -68,7 +68,7 @@ public class OrderService(
 
     public async Task<OrderDetailsResponse> GetByIdAsync(Guid id, CancellationToken ct)
     {
-        Order? order = await dbContext.Orders.AsNoTracking()
+        Order? order = await dbContext.Orders.IgnoreQueryFilters([QueryFilters.SoftDelete]).AsNoTracking()
             .Include(o => o.Showroom)
             .Include(o => o.Invoice)
             .Include(o => o.OrderLines)
@@ -365,7 +365,7 @@ public class OrderService(
     }
 
     private async Task<Order> LoadAsync(Guid id, CancellationToken ct) =>
-        await dbContext.Orders
+        await dbContext.Orders.IgnoreQueryFilters([QueryFilters.SoftDelete])
             .Include(o => o.Showroom)
             .Include(o => o.Invoice)
             .Include(o => o.OrderLines)
@@ -383,7 +383,7 @@ public class OrderService(
 
     private async Task<Order> GetForReviewAsync(Guid id, Guid reviewerId, CancellationToken ct)
     {
-        var order = await dbContext.Orders
+        var order = await dbContext.Orders.IgnoreQueryFilters([QueryFilters.SoftDelete])
                         .Include(o => o.Showroom)
                         .Include(o => o.OrderLines)
                         .Include(o => o.Invoice)

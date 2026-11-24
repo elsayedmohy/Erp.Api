@@ -79,7 +79,7 @@ public sealed class CheckoutService(
         dbContext.OrderCheckouts.Add(checkout);
 
         var payer = await dbContext.Showrooms
-            .IgnoreQueryFilters([QueryFilters.Showroom])
+            .IgnoreQueryFilters([QueryFilters.Showroom, QueryFilters.SoftDelete])
             .Where(s => s.Id == order.ShowroomId)
             .Select(s => new PayerDetails(s.Name, s.Email, s.PhoneNumber))
             .SingleAsync(ct);
