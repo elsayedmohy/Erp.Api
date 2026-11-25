@@ -134,10 +134,11 @@ public static class DependencyInjection
     public static WebApplicationBuilder AddLogging(this WebApplicationBuilder builder)
     {
         builder.Services.AddSerilog((services, logger) => logger
-            .ReadFrom.Configuration(builder.Configuration)
-            .ReadFrom.Services(services)
-            .Enrich.FromLogContext()
-            .WriteTo.Console(new CompactJsonFormatter()));
+                .ReadFrom.Configuration(builder.Configuration)
+                .ReadFrom.Services(services)
+                .Enrich.FromLogContext()
+                .WriteTo.Console(new CompactJsonFormatter()),
+            preserveStaticLogger: true);
         return builder;
     }
 

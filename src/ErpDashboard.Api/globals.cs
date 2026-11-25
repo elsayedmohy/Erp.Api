@@ -13,6 +13,8 @@ global using Microsoft.AspNetCore.Authorization;
 global using Microsoft.Extensions.Diagnostics.HealthChecks;
 global using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 global using Microsoft.OpenApi;
+global using System.Threading.RateLimiting;
+global using Microsoft.AspNetCore.RateLimiting;
 global using System.Reflection;
 global using System.Linq.Expressions;
 global using System.Text.Json.Serialization;
