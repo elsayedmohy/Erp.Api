@@ -1,3 +1,6 @@
+using ErpDashboard.Api.Common.Security;
+using Microsoft.AspNetCore.HttpOverrides;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
@@ -10,8 +13,22 @@ builder.AddPersistence()
     .AddApiDocs()
     .AddFeatureServices()
     .AddCors()
-    .AddHealth();
+    .AddHealth()
+    .AddRateLimits();
 
+builder.WebHost.ConfigureKestrel(o =>
+{
+    o.AddServerHeader = false;
+    o.Limits.MaxRequestBodySize = 1 * 1024 * 1024; // 1 MB; the webhook keeps its own smaller limit
+});
+
+builder.Services.Configure<ForwardedHeadersOptions>(o =>
+{
+    o.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    o.ForwardLimit = 1;
+    foreach (var proxy in builder.Configuration.GetSection("ForwardedHeaders:KnownProxies").Get<string[]>() ?? [])
+        o.KnownProxies.Add(IPAddress.Parse(proxy));
+});
 
 var app = builder.Build();
 await DbSeeder.SeedAsync(app.Services);
@@ -29,9 +46,12 @@ if (!app.Environment.IsProduction())
     app.UseSwaggerUI();
 }
 
+app.UseForwardedHeaders();
+app.UseMiddleware<SecurityHeadersMiddleware>();
 app.UseMiddleware<CorrelationIdMiddleware>();
 app.UseSerilogRequestLogging(options =>
 {
+    options.Logger = app.Services.GetRequiredService<Serilog.ILogger>();
     options.GetLevel = (context, _, exception) =>
         exception is not null || context.Response.StatusCode >= 500
             ? LogEventLevel.Error
@@ -42,9 +62,13 @@ app.UseSerilogRequestLogging(options =>
 app.UseExceptionHandler();
 app.UseStatusCodePages();
 
+if (app.Environment.IsProduction())
+    app.UseHsts();
+
 app.UseHttpsRedirection();
 app.UseCors("ERPPolicy");
 app.UseAuthentication();
+app.UseRateLimiter(); 
 app.UseAuthorization();
 
 app.MapControllers();

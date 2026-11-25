@@ -13,7 +13,8 @@ public class AuthService(
     private const string InvalidCredentials = "Invalid email or password.";
     private const string InvalidRefreshToken = "Invalid refresh token.";
     private static readonly TimeSpan ReuseGracePeriod = TimeSpan.FromSeconds(10);
-
+    private static readonly User TimingUser = new();
+    private static readonly string TimingHash = new PasswordHasher<User>().HashPassword(TimingUser, "timing-only-not-a-password");
 
     public async Task<LoginDto> LoginAsync(LoginRequestDto request)
     {
@@ -21,8 +22,10 @@ public class AuthService(
         var user = await dbContext.Users.Include(u => u.Role)
             .SingleOrDefaultAsync(u => u.NormalizedEmail == normalizedEmail);
         if (user == null)
+        {
+            userManager.PasswordHasher.VerifyHashedPassword(TimingUser, TimingHash, request.Password ?? "");
             throw new UnauthorizedException(InvalidCredentials);
-        
+        }
         var result = await signInManager.CheckPasswordSignInAsync(
             user,
             request.Password,

@@ -1,10 +1,12 @@
+using ErpDashboard.Api.Common.Security;
+
 namespace ErpDashboard.Api.Auth;
 
 [ApiController]
 [Route("api/auth")]
 public class AuthController(IAuthService service): ControllerBase
 {
-    [AllowAnonymous]
+    [AllowAnonymous, EnableRateLimiting(RateLimitPolicies.Login)]
     [HttpPost("login")]
     [ProducesResponseType<LoginDto>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status401Unauthorized, "application/problem+json")]
@@ -14,7 +16,7 @@ public class AuthController(IAuthService service): ControllerBase
         return Ok(result);
     }
 
-    [AllowAnonymous]
+    [AllowAnonymous, EnableRateLimiting(RateLimitPolicies.Refresh)]
     [HttpPost("refresh")]
     [ProducesResponseType<LoginDto>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status401Unauthorized, "application/problem+json")]
