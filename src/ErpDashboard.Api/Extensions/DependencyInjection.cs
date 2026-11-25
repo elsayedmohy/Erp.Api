@@ -234,9 +234,12 @@ public static class DependencyInjection
         builder.Services.AddScoped<IDepartmentService, DepartmentService>();
         builder.Services.AddScoped<ISupplierService, SupplierService>();
         builder.Services.AddScoped<IPurchaseOrderService, PurchaseOrderService>();
-        builder.Services.AddScoped<InvoiceService>();
-        builder.Services.AddScoped<IInvoiceService>(sp => sp.GetRequiredService<InvoiceService>());
-        builder.Services.AddScoped<IInvoiceIssuing>(sp => sp.GetRequiredService<InvoiceService>());
+        builder.Services.AddScoped<IInvoiceQueries, InvoiceQueries>();
+        builder.Services.AddScoped<IManualInvoices, ManualInvoices>();
+        builder.Services.AddScoped<IInvoiceSettlement, InvoiceSettlement>();
+        builder.Services.AddScoped<OrderInvoicing>();
+        builder.Services.AddScoped<IOrderInvoicing>(sp => sp.GetRequiredService<OrderInvoicing>());
+        builder.Services.AddScoped<IInvoiceIssuing>(sp => sp.GetRequiredService<OrderInvoicing>());
         builder.Services.AddScoped<IProfileService, ProfileService>();
         builder.Services.AddScoped<IAuthorizationHandler, PermissionHandler>();
         builder.Services.AddHttpContextAccessor();

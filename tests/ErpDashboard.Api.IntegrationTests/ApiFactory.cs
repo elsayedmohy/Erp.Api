@@ -71,7 +71,7 @@ public class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
             services.AddScoped<IOrderCancellation>(sp =>
                 new FaultInjectingOrderCancellation(sp.GetRequiredService<OrderWorkflow>(), CancellationFaults));
             services.AddScoped<IInvoiceIssuing>(sp =>
-                new FaultInjectingInvoiceIssuing(sp.GetRequiredService<InvoiceService>(), InvoiceFaults));
+                new FaultInjectingInvoiceIssuing(sp.GetRequiredService<OrderInvoicing>(), InvoiceFaults));
             services.AddSingleton<IWhatsAppSender>(WhatsApp);
         });
         builder.UseSetting("Dashboard:CacheSeconds", "0");
