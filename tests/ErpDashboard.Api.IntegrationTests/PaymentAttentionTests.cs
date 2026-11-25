@@ -96,22 +96,21 @@ public class PaymentAttentionTests(ApiFactory factory) : IDisposable
         var failed = await FailedRefundAsync(accountant);
         var url = $"/api/payments/refunds/{failed.AttemptId}/resolve";
 
-        var resolved = await Kit.SendAsync(HttpMethod.Post, url, accountant, new { note = "Bank transfer, ref 7781" });
+        var marker = $"ref-{Guid.NewGuid():N}";
+        var note = $"Bank transfer, {marker}";
 
+        var resolved = await Kit.SendAsync(HttpMethod.Post, url, accountant, new { note });
         Assert.Equal(HttpStatusCode.OK, resolved.StatusCode);
         var attempt = await AttemptAsync(failed.AttemptId);
         Assert.Equal(PaymentAttemptStatus.RefundedManually, attempt.Status);
         Assert.Equal(user.Id, attempt.ResolvedById);
-        Assert.Equal("Bank transfer, ref 7781", attempt.ResolutionNote);
+        Assert.Equal(note, attempt.ResolutionNote);
         Assert.NotNull(attempt.RefundedAt);
-
         var again = await Kit.SendAsync(HttpMethod.Post, url, accountant, new { note = "Again" });
         Assert.Equal(HttpStatusCode.Conflict, again.StatusCode);
         Assert.Equal("invalid_transition", (await Kit.ReadJsonAsync(again)).GetProperty("code").GetString());
-
-        // The note stays in the database, not in the logs.
         var logs = string.Join('\n', factory.Logs.Events.Select(e => e.RenderMessage()));
-        Assert.DoesNotContain("7781", logs);
+        Assert.DoesNotContain(marker, logs);
     }
 
     [Fact]

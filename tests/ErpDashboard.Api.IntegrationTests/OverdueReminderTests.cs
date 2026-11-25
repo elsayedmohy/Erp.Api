@@ -198,7 +198,8 @@ public class OverdueReminderTests : IDisposable
     public async Task Logs_HaveCounts_NotNamesOrPhones()
     {
         var token = await TokenAsync();
-        var showroom = await SeedShowroomAsync("01009876543");
+        var phone = $"010{Random.Shared.Next(10_000_000, 99_999_999)}";
+        var showroom = await SeedShowroomAsync(phone);
         await IssuedInvoiceAsync(token, showroom.Id, dueDate: Today().AddDays(-10));
 
         await SendAsync(NextSlot());
