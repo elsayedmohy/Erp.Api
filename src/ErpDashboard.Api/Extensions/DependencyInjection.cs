@@ -222,9 +222,11 @@ public static class DependencyInjection
         builder.Services.AddScoped<IUserService, UserService>();
         builder.Services.AddScoped<IRoleService, RoleService>();
         builder.Services.AddScoped<IShowroomService, ShowroomService>();
-        builder.Services.AddScoped<OrderService>();
-        builder.Services.AddScoped<IOrderService>(sp => sp.GetRequiredService<OrderService>());
-        builder.Services.AddScoped<IOrderCancellation>(sp => sp.GetRequiredService<OrderService>());
+        builder.Services.AddScoped<IOrderQueries, OrderQueries>();
+        builder.Services.AddScoped<IOrderPlacement, OrderPlacement>();
+        builder.Services.AddScoped<OrderWorkflow>();
+        builder.Services.AddScoped<IOrderWorkflow>(sp => sp.GetRequiredService<OrderWorkflow>());
+        builder.Services.AddScoped<IOrderCancellation>(sp => sp.GetRequiredService<OrderWorkflow>());
         builder.Services.AddScoped<ICategoryService, CategoryService>();
         builder.Services.AddScoped<IMaterialService, MaterialService>();
         builder.Services.AddScoped<IProductService, ProductService>();

@@ -2,7 +2,7 @@ namespace ErpDashboard.Api.Features.Sales.Checkout;
 
 public sealed class CheckoutService(
     AppDbContext dbContext,
-    IOrderService orders,
+    IOrderWorkflow orders,
     IVehiclePricer pricer,
     IPaymentAttemptStarter payments,
     IOptions<FinanceSettings> finance) : ICheckoutService

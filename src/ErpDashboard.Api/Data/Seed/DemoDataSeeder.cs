@@ -195,7 +195,7 @@ public static class DemoDataSeeder
                 PaymentMethod = methods[rng.Next(methods.Length)],
                 ShippingAddress = $"{showroom.Address}, {showroom.City}",
                 ShippingGovernorate = governorates[rng.Next(governorates.Length)],
-                TotalAmount = lines.Sum(x => x.UnitPrice * x.Quantity - x.Discount),   // same as OrderService
+                TotalAmount = lines.Sum(x => x.UnitPrice * x.Quantity - x.Discount), 
                 OrderLines = lines
             });
         }
