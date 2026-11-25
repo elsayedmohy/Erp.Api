@@ -20,35 +20,35 @@ public sealed class DashboardService(
     {
         var seconds = config.GetValue("Dashboard:CacheSeconds", 60);
 
-        if (seconds <= 0 || showroom.Current.Kind != ShowroomAccessKind.AccessAll)
-            return await BuildAsync(ct);
+        var allShowrooms = showroom.Current.Kind == ShowroomAccessKind.AccessAll;
+
+        if (seconds <= 0 || !allShowrooms)
+            return await BuildAsync(allShowrooms, ct);
 
         var lifetime = TimeSpan.FromSeconds(seconds);
         return await cache.GetOrCreateAsync(
             "dashboard:all",
-            async token => await BuildAsync(token),
+            async token => await BuildAsync(allShowrooms: true, token),
             new HybridCacheEntryOptions { Expiration = lifetime, LocalCacheExpiration = lifetime },
             cancellationToken: ct);
     }
 
-    private async Task<DashboardResponse> BuildAsync(CancellationToken ct)
+    private async Task<DashboardResponse> BuildAsync(bool allShowrooms, CancellationToken ct)
     {
         var today = clock.Today;
         var from = new DateOnly(today.Year, today.Month, 1).AddMonths(-(Months - 1));
-        var sales = SalesEntries(from, today);
+        var sales = SalesEntries(from, today, allShowrooms);
 
-        // One DbContext runs one query at a time, so these run in sequence. Each is a single SQL statement.
         var monthly = await MonthlyAsync(sales, from, ct);
         var topProducts = await TopProductsAsync(sales, ct);
         var topShowrooms = await TopShowroomsAsync(sales, ct);
-        var overdue = await OverdueAsync(today, ct);
+        var overdue = await OverdueAsync(today, allShowrooms, ct);
         var lowStock = await BelowReorderLevelAsync(ct);
 
-        return new DashboardResponse(DateTime.UtcNow, from, today, monthly, topProducts, topShowrooms, overdue,
-            lowStock);
+        return new DashboardResponse(DateTime.UtcNow, from, today, monthly, topProducts, topShowrooms, overdue, lowStock);
     }
 
-    private IQueryable<SalesEntry> SalesEntries(DateOnly start, DateOnly end)
+    private IQueryable<SalesEntry> SalesEntries(DateOnly start, DateOnly end, bool allShowrooms)
     {
         IQueryable<SalesEntry> invoiced = dbContext.Invoices.AsNoTracking()
             .Where(i => i.Status == InvoiceStatus.Issued && i.InvoiceDate >= start && i.InvoiceDate <= end)
@@ -73,7 +73,12 @@ public sealed class DashboardService(
                 Net = -x.NetAmount
             });
 
-        // Static call on purpose: .NET 10 ships AsyncEnumerable in the box, and an extension call can match both.
+        if (allShowrooms)
+        {
+            invoiced = invoiced.IgnoreQueryFilters([QueryFilters.Showroom]);
+            credited = credited.IgnoreQueryFilters([QueryFilters.Showroom]);
+        }
+
         return Queryable.Concat(invoiced, credited);
     }
 
@@ -126,7 +131,7 @@ public sealed class DashboardService(
 
         var ids = top.Select(x => x.ShowroomId).ToList();
         var names = await dbContext.Showrooms.AsNoTracking()
-            .IgnoreQueryFilters([QueryFilters.SoftDelete])
+            .IgnoreQueryFilters([QueryFilters.SoftDelete, QueryFilters.Showroom])
             .Where(s => ids.Contains(s.Id))
             .ToDictionaryAsync(s => s.Id, s => s.Name, ct);
 
@@ -134,9 +139,13 @@ public sealed class DashboardService(
     }
 
     /// Same rule as the invoice list's Overdue filter: InvoicePaymentRules.
-    private async Task<OverdueSummary> OverdueAsync(DateOnly today, CancellationToken ct)
+    private async Task<OverdueSummary> OverdueAsync(DateOnly today, bool allShowrooms, CancellationToken ct)
     {
-        var summary = await dbContext.AllBalances()
+        var balances = dbContext.AllBalances();
+        if (allShowrooms)
+            balances = balances.IgnoreQueryFilters([QueryFilters.Showroom]);
+
+        var summary = await balances
             .Where(b => b.Invoice.Status == InvoiceStatus.Issued && b.Invoice.DueDate < today)
             .Where(InvoicePaymentRules.HasStatus(InvoicePaymentStatus.Overdue, today))
             .GroupBy(_ => 1)
