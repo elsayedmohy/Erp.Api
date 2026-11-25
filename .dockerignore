@@ -27,3 +27,4 @@ compose.yaml
 .github
 tests
 **/TestResults
+deploy/

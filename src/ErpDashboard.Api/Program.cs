@@ -30,8 +30,25 @@ builder.Services.Configure<ForwardedHeadersOptions>(o =>
         o.KnownProxies.Add(IPAddress.Parse(proxy));
 });
 
+builder.Services.Configure<ForwardedHeadersOptions>(o =>
+{
+    o.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    o.ForwardLimit = 1;
+    foreach (var proxy in builder.Configuration.GetSection("ForwardedHeaders:KnownProxies").Get<string[]>() ?? [])
+        o.KnownProxies.Add(IPAddress.Parse(proxy));
+    foreach (var network in builder.Configuration.GetSection("ForwardedHeaders:KnownNetworks").Get<string[]>() ?? [])
+        o.KnownIPNetworks.Add(System.Net.IPNetwork.Parse(network));
+});
+
 var app = builder.Build();
-await DbSeeder.SeedAsync(app.Services);
+if (args.Contains("migrate"))
+{
+    await DbSeeder.SeedAsync(app.Services);
+    return;
+}
+
+if (app.Configuration.GetValue("Database:MigrateOnStartup", true))
+    await DbSeeder.SeedAsync(app.Services);
 
 if (args.Contains("seed-demo"))
 {
@@ -68,7 +85,7 @@ if (app.Environment.IsProduction())
 app.UseHttpsRedirection();
 app.UseCors("ERPPolicy");
 app.UseAuthentication();
-app.UseRateLimiter(); 
+app.UseRateLimiter();
 app.UseAuthorization();
 
 app.MapControllers();
