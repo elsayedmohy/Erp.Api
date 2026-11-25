@@ -8,6 +8,4 @@ public sealed record DepartmentResponse(
     string Name
 );
 
-public sealed record DepartmentRequest(
-    string Name
-);
+public sealed record DepartmentRequest([Required, MaxLength(100)] string Name);

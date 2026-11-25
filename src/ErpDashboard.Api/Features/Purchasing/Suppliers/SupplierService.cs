@@ -27,44 +27,46 @@ public class SupplierService(AppDbContext dbContext) : ISupplierService
 
     public async Task<SupplierResponse> GetByIdAsync(Guid id, CancellationToken ct)
     {
-        Supplier? supplier = await dbContext.Suppliers.FirstOrDefaultAsync(c => c.Id == id, ct);
-        if (supplier == null)
-            throw new NotFoundException("Supplier", id);
+        var supplier = await dbContext.Suppliers.AsNoTracking().FirstOrDefaultAsync(c => c.Id == id, ct)
+                       ?? throw new NotFoundException("Supplier", id);
 
         return ToResponse(supplier);
     }
 
-    public Task<SupplierResponse> CreateAsync(SupplierRequest request, CancellationToken ct)
+    public async Task<SupplierResponse> CreateAsync(SupplierRequest request, CancellationToken ct)
     {
-        var existingSupplier = dbContext.Suppliers
-            .AnyAsync(c => c.Email == request.Email ||
-                           c.Phone == request.Phone, cancellationToken: ct);
+        var email = request.Email.Trim();
+        var phone = request.Phone.Trim();
+        await EnsureUniqueAsync(email, phone, exceptId: null, ct);
 
-        if (existingSupplier != null)
-            throw new ConflictException("Supplier already exists");
-
-        Supplier supplier = new Supplier
+        var supplier = new Supplier
         {
-            Name = request.Name,
-            ContactName = request.ContactName,
-            Email = request.Email,
-            Phone = request.Phone,
-            PaymentTerms = request.PaymentTerms,
+            Id = Guid.NewGuid(),
+            Name = request.Name.Trim(),
+            ContactName = request.ContactName.Trim(),
+            Email = email,
+            Phone = phone,
+            PaymentTerms = request.PaymentTerms
         };
 
         dbContext.Suppliers.Add(supplier);
-        return Task.FromResult(ToResponse(supplier));
+        await dbContext.SaveChangesAsync(ct);
+        return ToResponse(supplier);
     }
 
     public async Task<SupplierResponse> UpdateAsync(Guid id, SupplierRequest request, CancellationToken ct)
     {
-        Supplier? supplier = await dbContext.Suppliers.FirstOrDefaultAsync(c => c.Id == id, ct);
-        if (supplier == null)
-            throw new NotFoundException("Supplier", id);
+        var supplier = await dbContext.Suppliers.FirstOrDefaultAsync(c => c.Id == id, ct)
+                       ?? throw new NotFoundException("Supplier", id);
 
-        supplier.ContactName = request.ContactName;
-        supplier.Email = request.Email;
-        supplier.Phone = request.Phone;
+        var email = request.Email.Trim();
+        var phone = request.Phone.Trim();
+        await EnsureUniqueAsync(email, phone, exceptId: id, ct);
+
+        supplier.Name = request.Name.Trim();
+        supplier.ContactName = request.ContactName.Trim();
+        supplier.Email = email;
+        supplier.Phone = phone;
         supplier.PaymentTerms = request.PaymentTerms;
         await dbContext.SaveChangesAsync(ct);
         return ToResponse(supplier);
@@ -72,21 +74,29 @@ public class SupplierService(AppDbContext dbContext) : ISupplierService
 
     public async Task DeleteAsync(Guid id, CancellationToken ct)
     {
-        Supplier? supplier = await dbContext.Suppliers.FirstOrDefaultAsync(c => c.Id == id, ct);
-        if (supplier == null)
-            throw new NotFoundException("Supplier", id);
+        var supplier = await dbContext.Suppliers.FirstOrDefaultAsync(c => c.Id == id, ct)
+                       ?? throw new NotFoundException("Supplier", id);
+
+        if (await dbContext.PurchaseOrders.AnyAsync(o => o.SupplierId == id, ct))
+            throw new ConflictException("The supplier has purchase orders and cannot be deleted.", code: "in_use");
 
         dbContext.Remove(supplier);
         await dbContext.SaveChangesAsync(ct);
     }
 
+    private async Task EnsureUniqueAsync(string email, string phone, Guid? exceptId, CancellationToken ct)
+    {
+        var lowered = email.ToLower();
+        if (await dbContext.Suppliers.AnyAsync(
+                s => s.Id != exceptId && (s.Email.ToLower() == lowered || s.Phone == phone), ct))
+            throw new ConflictException("A supplier with this email or phone already exists.");
+    }
 
-    private static SupplierResponse ToResponse(Supplier supplier) => new SupplierResponse(
+    private static SupplierResponse ToResponse(Supplier supplier) => new(
         supplier.Id,
         supplier.Name,
         supplier.ContactName,
         supplier.Email,
         supplier.Phone,
-        supplier.PaymentTerms
-        );
+        supplier.PaymentTerms);
 }
