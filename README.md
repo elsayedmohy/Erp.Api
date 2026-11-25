@@ -1,6 +1,8 @@
 # Erp.Api — Damietta Woodworks ERP
 
-Backend for **Damietta Woodworks**, a furniture factory in Damietta that sells wholesale to showrooms (المعارض) across Egypt. It covers the catalog, warehouses and stock, purchasing, sales orders with discount approval, shipping with company and outside trucks, invoicing with credit notes, online card payments through Paymob with automatic refunds, a one-click "confirm and pay" checkout, WhatsApp notifications, and a small HR module.
+Backend for **Damietta Woodworks**, a furniture factory in Damietta that sells wholesale to showrooms (المعارض) across Egypt. It covers the catalog, warehouses and stock, purchasing, sales orders with discount approval, shipping with company and outside trucks, invoicing with credit notes, online card payments through Paymob with automatic refunds, a one-click "confirm and pay" checkout, WhatsApp notifications, a small HR module, a management dashboard, background Excel exports, weekly overdue reminders, and a review queue for payments that need a person.
+
+It runs behind nginx with TLS in a production-like Docker Compose stack, and about 640 tests run against real PostgreSQL on every push.
 
 The frontend is a separate Angular app (`erp.app`).
 
@@ -25,12 +27,18 @@ The frontend is a separate Angular app (`erp.app`).
    - [Notifications](#69-notifications)
    - [HR](#610-hr)
    - [Identity](#611-identity)
+   - [Dashboard](#612-dashboard)
+   - [Excel exports](#613-excel-exports)
+   - [Overdue reminders](#614-overdue-reminders)
+   - [Payments that need a person](#615-payments-that-need-a-person)
 7. [API reference](#7-api-reference)
 8. [Errors](#8-errors)
 9. [Configuration](#9-configuration)
 10. [Testing](#10-testing)
-11. [CI guards](#11-ci-guards)
-12. [Known limits and backlog](#12-known-limits-and-backlog)
+11. [CI](#11-ci)
+12. [Deploy](#12-deploy)
+13. [Performance](#13-performance)
+14. [Known limits and backlog](#14-known-limits-and-backlog)
 
 ---
 
@@ -46,8 +54,11 @@ The frontend is a separate Angular app (`erp.app`).
 | Payments | Paymob Intention API + HMAC-signed webhooks, void/refund API |
 | WhatsApp | OpenWA (self-hosted gateway), behind a provider-neutral interface |
 | Background work | One generic `QueueWorker<T>` per queue, `FOR UPDATE SKIP LOCKED` |
-| Tests | xUnit, Testcontainers (real PostgreSQL), one shared `ApiFactory` |
-| Packaging | Docker, `compose.yaml` (API + Postgres) |
+| Caching | HybridCache, invalidated through a version row in the database |
+| Excel | A small streaming .xlsx writer (`ZipArchive` + `XmlWriter`), no library |
+| Rate limiting | ASP.NET Core rate limiter, sliding windows, per IP and per user |
+| Tests | xUnit, Testcontainers (real PostgreSQL), one shared `ApiFactory`, coverlet coverage |
+| Packaging | Docker; `compose.yaml` for development, `deploy/compose.prod.yaml` (nginx + TLS, migration job, backups) |
 
 ---
 
@@ -62,7 +73,6 @@ DB_PASSWORD=...
 JWT_KEY=...            # at least 32 random characters
 ADMIN_PASSWORD=...
 ADMIN_EMAIL=admin@company.com
-SEED_DEMO_DATA=false
 ```
 
 ```bash
@@ -77,7 +87,15 @@ docker compose up --build
 | Readiness (checks the DB) | `GET /health/ready` |
 | Postgres | `127.0.0.1:5433` |
 
-On start the API **applies migrations**, ensures the **system roles** exist, and creates the **admin user** from `Seed:AdminEmail` / `Seed:AdminPassword`.
+On start the API **applies migrations**, ensures the **system roles** exist, and creates the **admin user** from `Seed:AdminEmail` / `Seed:AdminPassword`. In production this runs once in its own container instead (`Database:MigrateOnStartup = false`, then `dotnet ErpDashboard.Api.dll migrate`). See [Deploy](#12-deploy).
+
+### Demo data
+
+```bash
+docker compose run --rm api seed-demo
+```
+
+Adds 300 products, 120 showrooms, 50,000 orders and 50,000 invoices over 24 months (prefix `DEMO-`, fixed random seed), then runs `ANALYZE`. It refuses to run in Production and does nothing if the demo data is already there. Use it to measure performance (see `measure.sh` and [Performance](#13-performance)).
 
 ### Locally
 
@@ -121,20 +139,26 @@ dotnet test ErpDashboard.slnx          # needs Docker for Testcontainers
 src/ErpDashboard.Api
 ├── Auth/                      login, refresh, logout, JWT
 ├── Common/                    errors, paging, sorting, Money, BusinessClock, permissions, QueueWorker
+│   ├── Caching/               CacheVersions (version stamps for invalidation)
+│   ├── Excel/                 XlsxStreamWriter
+│   └── Security/              rate limits, security headers
 ├── Controllers/               thin HTTP layer, one per resource
 ├── Data/
 │   ├── Entities/ Enums/ Configurations/
 │   ├── Seed/                  roles, permissions, fixed ids, DbSeeder
 │   └── AppDbContext.cs        named query filters, soft delete
 ├── Features/                  business logic, grouped by domain
-│   ├── Finance/Invoices       invoices, credit notes, document numbers, PDF
+│   ├── Dashboard/             management dashboard (cached)
+│   ├── Exports/               background Excel export jobs
+│   ├── Finance/Invoices       InvoiceQueries, ManualInvoices, OrderInvoicing, InvoiceSettlement,
+│   │                          InvoicePaymentRules, credit notes, document numbers, PDF
 │   ├── Hr/                    departments, employees
 │   ├── Identity/              users, roles
-│   ├── Inventory/             products, categories, materials, warehouses, stock
-│   ├── Notifications/         WhatsApp outbox, checkout messages (provider-neutral)
-│   ├── Payments/              online payments, webhook processing, refunds (provider-neutral)
+│   ├── Inventory/             products (+ cached catalog), categories, materials, warehouses, stock
+│   ├── Notifications/         WhatsApp outbox, checkout messages, Reminders/ (weekly overdue)
+│   ├── Payments/              online payments, webhook processing, refunds, Attention/ (review queue)
 │   ├── Purchasing/            suppliers, purchase orders
-│   ├── Sales/                 showrooms, orders, checkout
+│   ├── Sales/                 showrooms, checkout, Orders/ (OrderQueries, OrderPlacement, OrderWorkflow)
 │   └── Shipping/              carriers, rates, quotes, shipments
 ├── Infrastructure/
 │   ├── Payments/Paymob        Paymob client + webhook verifier (only place that names the provider)
@@ -145,17 +169,24 @@ src/ErpDashboard.Api
 tests/
 ├── ErpDashboard.Api.UnitTests
 └── ErpDashboard.Api.IntegrationTests
+deploy/                        production-like stack: compose.prod.yaml, nginx, scripts (cert, smoke, backup, restore check)
 ```
+
+Inside a feature, reads, writes and workflows are separate classes. Each response shape is defined once, in a `*Mappings` class (see Cross-cutting rules).
 
 ### Request pipeline
 
 ```mermaid
 flowchart LR
-    C[Client] --> CID[CorrelationId middleware]
+    C[Client] --> NG[nginx<br/>TLS, X-Forwarded-*]
+    NG --> FWD[Forwarded headers<br/>trusted proxies only]
+    FWD --> SEC[Security headers]
+    SEC --> CID[CorrelationId middleware]
     CID --> LOG[Serilog request log]
     LOG --> EX[Exception handler<br/>ProblemDetails]
     EX --> AUTHN[JWT authentication]
-    AUTHN --> AUTHZ[Permission check<br/>HasPermission]
+    AUTHN --> RL[Rate limiter<br/>per user / per IP]
+    RL --> AUTHZ[Permission check<br/>HasPermission]
     AUTHZ --> CTRL[Controller]
     CTRL --> SVC[Feature service]
     SVC --> DB[(PostgreSQL)]
@@ -167,11 +198,15 @@ flowchart LR
       W2[CheckoutExpiryProcessor]
       W3[RefundProcessor]
       W4[NotificationProcessor]
+      W5[ExportProcessor]
+      W6[OverdueReminderProcessor]
     end
     Workers --> DB
     W3 -. HTTP .-> PM
     W4 -. HTTP .-> WA[OpenWA]
 ```
+
+The rate limiter runs **after** authentication, so a signed-in user is counted as a user, not as an IP.
 
 ### Background work
 
@@ -183,6 +218,8 @@ Every queue is a processor with one method, `ProcessNextAsync`, run by the same 
 | Checkout expiry | `AwaitingPayment` checkouts past 30 minutes | Row lock + savepoint; failure → retry in 1 minute without blocking others |
 | Refunds | `NeedsRefund` attempts that are due | **Lease**: short committed claim, HTTP outside any transaction |
 | Notifications | `Pending` WhatsApp messages that are due | **Lease**, same as refunds |
+| Excel exports | `Pending` jobs, or `Running` jobs whose lease ran out | **Lease** 2 min, renewed every 30 s through a second connection; 3 attempts |
+| Overdue reminders | The weekly slot (Sunday 10:00 Cairo) once it is due | Claims the slot with `INSERT … ON CONFLICT DO NOTHING`; messages go to the outbox in the same transaction |
 
 All claims use `FOR UPDATE SKIP LOCKED`, so several API instances can run the same worker safely.
 
@@ -198,6 +235,10 @@ All claims use `FOR UPDATE SKIP LOCKED`, so several API instances can run the sa
 | **Messages are written with the change they describe** | A WhatsApp notification is inserted in the same transaction as the business change (outbox), so a rolled-back change never sends a message. |
 | **Responses are JSON** | The string output formatter is removed, so Swagger and clients default to `application/json`; validation errors stay `application/problem+json`. |
 | **Every request has a correlation id** | Returned in `X-Correlation-ID` and in every error body. |
+| **One rule in one place** | Rules used by several features are expressions, written once and used both in SQL and in memory: `InvoicePaymentRules` (payment status, balances), `LowStockRules`, and one `*Mappings` class per response shape. Agreement tests compute the same thing both ways. |
+| **One way to change an order's status** | `OrderWorkflow.MoveAsync`: machine check, one conditional UPDATE on id + version + status, side effects, history row, commit. Every way to Cancelled undoes the reservation through `UndoReservationAsync`. |
+| **Invoices: lock, then read** | Issue, payment and credit note lock the invoice row first and read it after, so two of them never act on the same old state. |
+| **Code outside a request has no user** | Workers, HybridCache factories and anything off the request see no `HttpContext`, so the showroom filter shows them nothing. Such code ignores the filter explicitly (`IgnoreQueryFilters([QueryFilters.Showroom])`). |
 | **Sensitive data is never logged** | No JWTs, passwords, payment keys, checkout URLs or webhook bodies in logs. CI blocks `EnableSensitiveDataLogging`, HTTP logging and `{@…}` destructuring. |
 
 ---
@@ -209,9 +250,29 @@ All claims use `FOR UPDATE SKIP LOCKED`, so several API instances can run the sa
 | Item | Value |
 |---|---|
 | Access token | JWT, 15 minutes |
-| Refresh token | 7 days, **rotated on every use** |
+| Refresh token | 7 days, **rotated on every use**, stored only as a SHA-256 hash |
 | Reuse detection | A rotated token used again after a short grace period revokes **all** of that user's sessions |
 | Logout | `POST /api/auth/logout` (this session), `POST /api/auth/revoke-all-sessions` (all mine), `POST /api/users/{id}/logout-all` (admin) |
+
+| Login probing | An unknown email does the same hashing work as a wrong password, so response time does not reveal which emails have accounts |
+| Lockout | 5 wrong passwords lock the account for 15 minutes (ASP.NET Identity) |
+
+### Rate limiting
+
+| Limit | Partition | Default |
+|---|---|---|
+| `login` | client IP | 10 per minute |
+| `refresh` | client IP | 30 per minute |
+| `webhook` | client IP | 120 per minute |
+| every request | user when signed in, else IP | 600 per minute; `/health` is not counted |
+
+Sliding windows (6 segments), no queue: a refused request is a **429** ProblemDetails with `code: rate_limited` and `Retry-After`. Counters live in each instance's memory, so with N instances a client can get N times the limit.
+
+### Headers and proxies
+
+- Every response: `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, `Content-Security-Policy: default-src 'none'; frame-ancestors 'none'` (not on Swagger), `Cache-Control: no-store` unless the endpoint set its own. HSTS in Production. No `Server` header.
+- `X-Forwarded-For` / `X-Forwarded-Proto` are trusted only from `ForwardedHeaders:KnownProxies` / `KnownNetworks`. nginx overwrites the header, so a client cannot fake its IP.
+- Request bodies are limited to 1 MB (the webhook to 64 KB).
 
 ### Authorization: permissions, not roles
 
@@ -253,12 +314,15 @@ Two tests keep this honest:
 | invoices.read | ✓ | ✓ | | ✓ | | ✓ | |
 | invoices.write / pay | ✓ | | | ✓ | | | |
 | invoices.pay-online | ✓ | | | | | ✓ | |
+| invoices.export | ✓ | | | ✓ | | | |
+| dashboard.read | ✓ | ✓ | | | | | |
 | carriers.read | ✓ | ✓ | ✓ | | | | |
 | carriers.write | ✓ | ✓ | | | | | |
 | shipping-quotes.read | ✓ | ✓ | ✓ | | ✓ | ✓ | |
 | shipments.read | ✓ | ✓ | ✓ | ✓ | ✓ | | |
 | shipments.book | ✓ | ✓ | ✓ | | | | |
-| payments.webhooks.read | ✓ | | | | | | |
+| payments.webhooks.read | ✓ | | | ✓ | | | |
+| payments.resolve | ✓ | | | ✓ | | | |
 | departments.read / employees.read | ✓ | ✓ | | ✓ | | | |
 | departments.write / employees.write | ✓ | | | | | | |
 | employees.view-salary | ✓ | | | ✓ | | | |
@@ -269,8 +333,10 @@ On top of permissions, EF Core **named query filters** limit which rows a user c
 
 | Filter | Applies to | Rule |
 |---|---|---|
-| `QueryFilters.Showroom` | Orders, Invoices, Showrooms | Users with `showrooms.access-all` see everything. A showroom user sees only rows of **their own showroom**. Anyone else (and background workers, which have no user) sees nothing. |
+| `QueryFilters.Showroom` | Orders, Invoices, Showrooms, OverdueReminders | Users with `showrooms.access-all` see everything. A showroom user sees only rows of **their own showroom**. Anyone else (and background workers, which have no user) sees nothing. |
 | `QueryFilters.SoftDelete` | Products, Showrooms, Employees | Deleted rows are hidden. `SaveChanges` turns a delete into `IsDeleted = true`. |
+
+Orders and invoices point at their showroom with a **required** relationship, so EF joins it with an INNER JOIN. Queries that include the showroom ignore the soft-delete filter, or a deleted showroom's orders and invoices would disappear from every list. A model test fails if an entity implements `ISoftDelete` without the filter, and another if an entity with a `ShowroomId` has no showroom filter.
 
 Background code that must see every row opts out explicitly, for example `IgnoreQueryFilters([QueryFilters.Showroom])` in the payment webhook handler, the checkout completion and `CancelBySystemAsync`.
 
@@ -333,7 +399,7 @@ erDiagram
     DEPARTMENT ||--o{ EMPLOYEE : employs
 ```
 
-`PaymentWebhookEvent`, `StockTransfer` and `DocumentNumberCounter` stand on their own and are described in their modules.
+`PaymentWebhookEvent`, `StockTransfer`, `DocumentNumberCounter`, `CacheVersion`, `ExportJob`, `ReminderRun` and `OverdueReminder` stand on their own and are described in their modules.
 
 ### Conventions
 
@@ -358,6 +424,7 @@ erDiagram
 - **Cost price** is returned only to users with `products.view-cost`.
 - **Price history**: every price change is recorded (`GET /api/products/{id}/price-history`).
 - Products are soft-deleted.
+- **Cached catalog.** The product list is served from a HybridCache snapshot, key `catalog:v{version}`, kept for 12 hours. Every product create, update and delete bumps the `catalog` row in `CacheVersions` **in the same transaction** (`INSERT … ON CONFLICT DO UPDATE`). A new version is a new key, so every instance reloads on its next read; no message bus is needed. Stock is never cached: the page's stock is read live, and cost is removed per request for users without `products.view-cost`.
 
 ### 6.2 Inventory
 
@@ -399,7 +466,13 @@ All stock methods require an open transaction. Tests inject failures (`StockFaul
 
 Suppliers and purchase orders. A purchase order is `Pending` → `Received` (stock enters through the ledger as `PurchaseReceipt`) or `Cancelled`.
 
+A supplier's email (case-insensitive) and phone are unique. A supplier with purchase orders cannot be deleted: 409 `in_use`.
+
 ### 6.4 Sales orders
+
+**Showrooms** are soft-deleted. A deleted showroom is not listed, cannot get new orders, invoices or users, and its tax id and email can be used again; its old orders and invoices stay visible. A showroom with open orders (not Delivered or Cancelled) or unpaid issued invoices cannot be deleted: 409 `showroom_has_open_business` with `openOrders` and `unpaidInvoices`.
+
+The order code is split by job: `OrderQueries` (reads), `OrderPlacement` (create, edit drafts, reserve stock), `OrderWorkflow` (every status change).
 
 ```mermaid
 stateDiagram-v2
@@ -470,9 +543,11 @@ sequenceDiagram
 | **Shipping lines** | From an order, each shipment vehicle becomes its own line `Shipping – {carrier} ({SHP-…})` at **0% tax**, priced at booking time. |
 | **Numbers** | `INV-yyyy-000001`, gapless, taken only when the invoice is issued. |
 | **Payments** | Partial payments allowed, never above the balance. Manual methods: Cash, CreditCard (counter). `Online` is written only by the payment processor. |
-| **Payment status** | Computed, not stored: `Due`, `PartiallyPaid`, `Paid`, `Overdue` (Overdue wins when the due date has passed with a balance). |
+| **Payment status** | Computed, not stored: `Due`, `PartiallyPaid`, `Paid`, `Overdue` (Overdue wins when the due date has passed with a balance). One rule, `InvoicePaymentRules`, used by the list filter, the dashboard, the export and the reminders. |
+| **Concurrency** | Issue, payment and credit note lock the invoice row, then read it. A double click on Issue always answers 409 `invalid_transition`. |
 | **Credit notes** | Instead of cancelling an issued invoice. Per invoice line, capped at that line's remaining net. Numbered `CN-…`. The balance may go negative (refund due). |
-| **PDF** | `GET /api/invoices/{id}/pdf`. |
+| **PDF** | `GET /api/invoices/{id}/pdf`. Built from the same details response, credit notes with their net and tax. |
+| **Code** | `InvoiceQueries`, `ManualInvoices` (draft → issue), `OrderInvoicing` (from an order or a checkout), `InvoiceSettlement` (payments, credit notes). |
 
 ```mermaid
 flowchart LR
@@ -654,6 +729,76 @@ Departments and employees, soft-deleted. Salary is returned only with `employees
 - Roles are editable sets of permission codes. System roles cannot be deleted or renamed, and Admin's permissions cannot be edited.
 - `GET /api/profile/me` returns the current user and their role.
 
+### 6.12 Dashboard
+
+`GET /api/dashboard` (`dashboard.read`: Admin, Manager) returns, for the last 12 months up to today (Cairo):
+
+| Part | Rule |
+|---|---|
+| Monthly net sales | Issued invoices' lines minus credit notes, every month present (0 when nothing was sold) |
+| Top 10 products and showrooms | By net sales in the window; deleted products and showrooms still count |
+| Overdue | Count and amount, by `InvoicePaymentRules` |
+| Below reorder level | Count and the 20 furthest below, by `LowStockRules` |
+
+Users who see every showroom get a cached copy (`dashboard:all`, `Dashboard:CacheSeconds`, default 60). The response carries `generatedAt`. The cached build ignores the showroom filter explicitly: HybridCache runs its factory without the request's context, where the filter would see no user and hide every invoice. Showroom users get their own showroom's figures, uncached.
+
+### 6.13 Excel exports
+
+```mermaid
+sequenceDiagram
+    actor A as Accountant
+    participant API
+    participant DB
+    participant W as ExportProcessor
+    A->>API: POST /exports/invoices {year}
+    API->>DB: insert ExportJob (Pending), or return the open one
+    API-->>A: 202 + Location /exports/{id}
+    W->>DB: lease the job 2 min (SKIP LOCKED), Attempts + 1
+    W->>DB: stream rows (AsAsyncEnumerable)
+    W->>W: write exports/{id}.xlsx.<random>.part, renew lease every 30 s
+    W->>W: rename to {id}.xlsx
+    W->>DB: Completed, rows, bytes
+    A->>API: GET /exports/{id} → downloadUrl
+    A->>API: GET /exports/{id}/file
+```
+
+| Rule | Detail |
+|---|---|
+| **Content** | Every numbered invoice (issued or cancelled) dated in the year: number, dates, showroom, tax id, status, payment status, total, paid, credited, balance |
+| **Memory** | Rows are streamed and written one at a time; the zip is written in Create mode. Six exports back to back (about 145,000 rows) kept the working set between 246 and 262 MB |
+| **Restart** | A job whose lease ran out is taken again by any instance. After 3 attempts it is Failed. A download never sees a half-written file |
+| **Owner only** | Another user's job is 404. The file is 409 `export_not_ready` until the job is Completed |
+| **Twice** | Asking again while a job for the same year is Pending or Running returns that job |
+| **Valid** | Tests pass the file through `OpenXmlValidator`, the schema Excel uses |
+
+Files are kept on the instance's disk (`Exports:Directory`, a Docker volume in production) and never deleted yet.
+
+### 6.14 Overdue reminders
+
+Every **Sunday at 10:00 Cairo**, each showroom with overdue invoices gets **one** WhatsApp message: how many invoices, the total owed, and the oldest due date.
+
+| Rule | Detail |
+|---|---|
+| **Once per week** | The worker polls every 5 minutes. `ReminderSchedule.DueSlot` finds the slot; inserting the slot into `ReminderRuns` with `ON CONFLICT DO NOTHING` claims it. A second instance waits on that insert and then does nothing. A unique index on `(ShowroomId, Date)` backs it up |
+| **Catch-up** | A Sunday missed while the app was down is sent on Monday; after that it is skipped (`Reminders:CatchUpDays`, default 1) |
+| **Delivery** | Through the notifications outbox, written in the same transaction as the claim. Landlines are recorded as Skipped |
+| **Who** | Not deleted showrooms only. The logs carry counts, never names or phone numbers |
+| **Why weekly** | A daily message to a showroom a month late is 30 messages, which gets a WhatsApp number reported or banned |
+
+### 6.15 Payments that need a person
+
+Some money cannot be handled automatically: a refund Paymob refused or only partly did (`RefundFailed`), or a webhook event that could not be matched (`NeedsReview`, or `Failed` after 8 tries). Accountants (`payments.resolve`) work them from:
+
+| Endpoint | Does |
+|---|---|
+| `GET /payments/attention` | `{ refundsFailed, webhookEventsToReview }`, for a badge |
+| `GET /payments/refunds?status=` | Failed refunds by default, with invoice number, amount and error |
+| `POST /payments/refunds/{id}/retry` | Back to the refund worker. It **asks Paymob for the transaction first**, so a refund already done (or partly done) is never sent again |
+| `POST /payments/refunds/{id}/resolve` `{note}` | Money returned another way: `RefundedManually`, with who, when and why |
+| `POST /payments/webhook-events/{id}/resolve` `{note}` | Closes an event: `Resolved` |
+
+Each action is one UPDATE on the status it expects, so two people acting at once cannot both succeed (the second gets 409 `invalid_transition`). Notes are stored but never logged.
+
 ---
 
 ## 7. API reference
@@ -753,6 +898,17 @@ All routes are under `/api`. Every non-anonymous route needs `Authorization: Bea
 | POST | `/invoices/{id}/online-payments` | invoices.pay-online |
 | POST | `/payments/webhook?hmac=` | anonymous, HMAC, max 64 KB |
 | GET | `/payments/webhook-events`, `/payments/webhook-events/{id}` | payments.webhooks.read |
+| POST | `/payments/webhook-events/{id}/resolve` | payments.resolve |
+| GET | `/payments/attention`, `/payments/refunds` | payments.resolve |
+| POST | `/payments/refunds/{id}/retry`, `/payments/refunds/{id}/resolve` | payments.resolve |
+| POST | `/exports/invoices` | invoices.export |
+| GET | `/exports/{id}`, `/exports/{id}/file` | invoices.export (owner only) |
+
+### Dashboard
+
+| Method | Route | Permission |
+|---|---|---|
+| GET | `/dashboard` | dashboard.read |
 
 ### HR
 
@@ -787,9 +943,15 @@ Every error is RFC 9110 ProblemDetails with `correlationId`. Some carry a `code`
 | 409 | `already_booked` | The order already has a shipment |
 | 409 | `not_checkoutable` | Checkout on an order that is not Draft or Confirmed |
 | 409 | `checkout_in_progress` | The order already has a checkout awaiting payment |
+| 409 | `showroom_has_open_business` | Deleting a showroom with open orders or unpaid invoices. Includes `openOrders`, `unpaidInvoices` |
+| 409 | `in_use` | Deleting a supplier that has purchase orders |
+| 409 | `foreign_key` | Any other change that conflicts with related records (safety net) |
+| 409 | `export_not_ready` | Downloading an export that is not Completed |
+| 409 | `invalid_transition` | Also: issuing an issued invoice, retrying or resolving a refund that did not fail, resolving an event that does not need review |
 | 409 | – | Unique violation (duplicate SKU, carrier name, …), stock shortage (structured body), concurrent update |
 | 413 | – | Webhook body over 64 KB |
 | 428 | – | `If-Match` missing on an order change |
+| 429 | `rate_limited` | Too many requests. `Retry-After` says when to try again |
 | 499 | – | The client went away |
 | 504 | – | The payment provider did not answer in time |
 
@@ -804,7 +966,7 @@ Every error is RFC 9110 ProblemDetails with `correlationId`. Some carry a `code`
 | `Jwt:DurationInMinutes` | 15 | Access token |
 | `Jwt:ExpiryDays` | 7 | Refresh token |
 | `Seed:AdminEmail`, `Seed:AdminPassword` | – | First admin, secret password |
-| `Seed:DemoData` | false | Demo data seeding (backlog) |
+| `Database:MigrateOnStartup` | true | False in production: the `migrate` container runs migrations |
 | `Cors:AllowedOrigins:0` | – | Angular app origin |
 | `Company:TimeZone` | Africa/Cairo | Business dates |
 | `Finance:DefaultTaxRate` | 14 | Percent |
@@ -826,6 +988,14 @@ Every error is RFC 9110 ProblemDetails with `correlationId`. Some carry a `code`
 | `Messaging:WhatsApp:OpenWa:ApiKey` | – | **Secret** |
 | `Messaging:WhatsApp:OpenWa:TimeoutSeconds` | 10 | |
 | `Messaging:Worker:Enabled` / `PollSeconds` | true / 5 | WhatsApp outbox worker |
+| `Dashboard:CacheSeconds` | 60 | 0 turns the cache off (the tests do) |
+| `Exports:Directory` | exports | `/app/exports` (a volume) in Docker |
+| `Exports:Worker:Enabled` / `PollSeconds` | true / 5 | Export worker |
+| `Reminders:Day` / `SendAt` / `CatchUpDays` | Sunday / 10:00 / 1 | Cairo time |
+| `Reminders:Worker:Enabled` / `PollSeconds` | true / 300 | Reminder worker |
+| `RateLimits:Enabled` | true | False in the shared test host |
+| `RateLimits:Login` / `Refresh` / `Webhook` / `PerClient` | 10 / 30 / 120 / 600 per 60 s | `PermitLimit`, `WindowSeconds` |
+| `ForwardedHeaders:KnownProxies`, `KnownNetworks` | none | Proxies whose `X-Forwarded-*` headers are trusted |
 
 Every worker section uses the same `QueueWorkerOptions` (`Enabled` default true, `PollSeconds` default 5, range 1–300). Tests turn all of them off.
 
@@ -836,7 +1006,7 @@ Every worker section uses the same `QueueWorkerOptions` (`Enabled` default true,
 ```mermaid
 flowchart LR
     subgraph Unit
-      U1[Pure logic: HMAC verifier, retry delays,<br/>quote calculator, payload redactor, money]
+      U1[Pure logic: HMAC verifier, retry delays,<br/>quote calculator, payload redactor, money,<br/>reminder schedule, token hashing]
     end
     subgraph Integration
       F[ApiFactory<br/>one host + one Postgres container] --> T[Test classes<br/>Collection ApiCollection]
@@ -855,16 +1025,23 @@ flowchart LR
 | **Fault injection through decorators**, registered once in the factory | Proves rollbacks: stock, document numbers, webhook handling. |
 | **Race tests** | Two requests at once: shipping twice, booking twice, invoicing twice, the same webhook processed by two workers. |
 | **Facts that depend on global data are unit-tested** | For example "which carrier is cheapest" is tested on the calculator, not through the shared database. |
-| **Workers are driven directly** | All four workers are disabled in tests (`UseSetting("<section>:Enabled","false")`); tests call `ProcessNextAsync` in a `DrainAsync` loop until the queue is empty. |
+| **Workers are driven directly** | All workers are disabled in tests (`UseSetting("<section>:Enabled","false")`); tests call `ProcessNextAsync` in a `DrainAsync` loop until the queue is empty. |
 | **Test scopes have no user** | The Showroom filter hides everything in a test's own `DbContext` scope. Assertions read with `IgnoreQueryFilters([QueryFilters.Showroom])`, otherwise "no invoice" passes for the wrong reason. |
 | **Shared fakes are reset** | `FakePaymentGateway.Reset()` clears requests, reversals, `Unavailable` and behaviors. Classes that count calls call it in their constructor. |
+| **A second instance** | `factory.WithWebHostBuilder(...)` builds another host on the same database, with its own DI container and cache: catalog invalidation across instances, the dashboard with the cache on, rate limits with small limits. |
+| **Production settings in at least one test** | The shared host turns the dashboard cache and rate limits off. Tests that turn them back on found the cached-dashboard bug (zero sales for every admin). |
+| **Agreement tests** | The same thing computed two ways must match: payment status in SQL and in C#, a list item and the same entity from another endpoint, Postgres SHA-256 and the app's token hash. |
+| **Model tests** | Reflection over the EF model: every showroom-owned entity has the showroom filter, every soft-deletable one the soft-delete filter. |
+| **Shared database** | Tests create their own showrooms, products and users; dashboard tests compare before and after; reminder tests use slot dates from 2001, the export test invoices from 2007. Absence checks use a unique marker, never a short number that can appear by chance. |
 | **Business vs technical faults** | `InvoiceIssuingFaults` can throw either kind, to prove compensation (refund) vs retry (no refund). |
 
 ---
 
-## 11. CI guards
- 
-`.github/workflows/ci.yml` runs on every PR and push to `main`. A `changes` job (`dorny/paths-filter`) decides whether code changed (`src/**`, `tests/**`, project/lock files, `global.json`, `Directory.*.props`, the workflows); anything else, such as README or docs, skips `build-and-test`, and a skipped job still counts as passing for required checks.
+## 11. CI
+
+`.github/workflows/ci.yml` runs on every PR and push to `main`. A `changes` job (`dorny/paths-filter`) decides whether code changed (`src/**`, `tests/**`, project/lock files, `global.json`, `Directory.*.props`, `coverage.runsettings`, the workflows); anything else, such as README or docs, skips `build-and-test`, and a skipped job still counts as passing for required checks.
+
+Tests run with coverage (`coverage.runsettings`: the API assembly only, migrations excluded). ReportGenerator writes the summary to the run's page and uploads the HTML report as the `coverage` artifact. There is no fixed threshold: a floor slightly below the measured number is the plan, so coverage cannot drop unnoticed.
  
 | Guard | Blocks |
 |---|---|
@@ -876,3 +1053,52 @@ flowchart LR
 | WhatsApp provider | The word "openwa" outside `Infrastructure/Messaging/OpenWa`, the provider switch and appsettings |
 | Locked restore | `dotnet restore --locked-mode` |
 | Tests ran | Fails if zero tests executed |
+
+---
+
+## 12. Deploy
+
+`deploy/compose.prod.yaml` runs the system on one machine the way it would run on a server.
+
+```
+browser ──► nginx :443 (TLS)  ── :80 redirects to https
+               │  backend network 172.30.240.0/24, nothing else published
+               ▼
+   migrate (one-shot) ──► api (health-checked, 512 MB, restarts) ──► postgres (no ports)
+                                                                        ▲
+                                              backup: pg_dump daily, 7 days
+```
+
+| Part | Detail |
+|---|---|
+| **nginx** | TLS 1.2/1.3, `server_tokens off`, overwrites `X-Forwarded-For`, 1 MB bodies, gzip for JSON, no query strings in its access log |
+| **migrate** | Runs migrations, roles and the admin, then exits. The api starts only if it exited with 0, so two instances never race to migrate and a failed migration never serves traffic |
+| **api** | `ASPNETCORE_ENVIRONMENT=Production` (Swagger off, HSTS on). Health check on `/health/ready` through bash `/dev/tcp` (the image has no curl). Trusts forwarded headers from the backend network only |
+| **db** | No published port |
+| **backup** | `pg_dump --format=custom` at start and every 24 h, written to `.part` then renamed, kept 7 days |
+| **logs** | json-file, 10 MB × 5 per container |
+
+```bash
+cp deploy/.env.prod.example deploy/.env.prod        # fill in the secrets
+deploy/scripts/make-cert.sh erp.local               # self-signed certificate
+echo "127.0.0.1 erp.local" | sudo tee -a /etc/hosts
+docker compose -f deploy/compose.prod.yaml --env-file deploy/.env.prod up -d --build
+
+deploy/scripts/smoke.sh                             # https redirect, ready, headers, no Server header, no Swagger, admin login, dashboard
+deploy/scripts/backup-now.sh                        # a backup before a change
+deploy/scripts/restore-check.sh deploy/backups/<file>.dump   # restores into a throwaway Postgres and counts rows
+```
+
+`deploy/.env.prod`, `deploy/certs/` and `deploy/backups/` are git-ignored.
+
+---
+
+## 13. Performance
+
+Measured on the demo data (50,000 orders and invoices) with `measure.sh` (20 runs):
+
+| What | Before | After | Change |
+|---|---|---|---|
+| `GET /api/dashboard` | 848 ms median | 292 ms median, 447 ms p95 | Overdue: correlated subqueries per invoice replaced by one set-based aggregate (620 ms → about 62 ms for that query) |
+| Indexes for the dashboard | – | none added | `EXPLAIN (ANALYZE, BUFFERS)`: all buffer hits, 58% of invoices in the 12-month window; no better access path |
+| Invoice export, a year (26,746 rows) | – | 0.3–1.0 s, 1.1 MB | Six exports back to back: working set 246 → 262 MB, the last two equal |
