@@ -13,6 +13,9 @@ exports/
 *.userosscache
 *.sln.docstates
 
+deploy/.env.prod
+deploy/certs/
+deploy/backups/
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs
 

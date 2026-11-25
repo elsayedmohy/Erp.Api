@@ -1,0 +1,130 @@
+# Production-like stack on one machine: nginx (TLS) -> api -> postgres, plus a one-shot migration
+# and a daily backup. Run from the repo root:
+name: erp-prod
+
+x-logging: &logging
+  driver: json-file
+  options: { max-size: "10m", max-file: "5" }
+
+services:
+  db:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: erp_db
+      POSTGRES_USER: erp
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in deploy/.env.prod}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks: [backend]
+    logging: *logging
+
+  # Runs the migrations and seeds roles + the admin, then exits. The api starts only if it succeeded,
+  # so two api containers never race to migrate, and a failed migration never serves traffic.
+  migrate:
+    image: erp-api:${APP_VERSION:-local}
+    build: &api-build
+      context: ..
+      dockerfile: src/ErpDashboard.Api/Dockerfile
+    command: ["migrate"]
+    restart: "no"
+    environment: &api-env
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__DefaultConnection: "Host=db;Port=5432;Database=erp_db;Username=erp;Password=${DB_PASSWORD}"
+      Jwt__Key: ${JWT_KEY:?set JWT_KEY in deploy/.env.prod}
+      Jwt__Issuer: ErpDashboard
+      Jwt__Audience: ErpDashboard
+      Seed__AdminEmail: ${ADMIN_EMAIL:?set ADMIN_EMAIL in deploy/.env.prod}
+      Seed__AdminPassword: ${ADMIN_PASSWORD:?set ADMIN_PASSWORD in deploy/.env.prod}
+      ApiSettings__BaseUrl: https://${PUBLIC_HOST:-erp.local}
+      Cors__AllowedOrigins__0: https://${PUBLIC_HOST:-erp.local}
+      Database__MigrateOnStartup: "false"
+      Exports__Directory: /app/exports
+      # nginx is the only proxy; trust X-Forwarded-* from the backend network only.
+      ForwardedHeaders__KnownNetworks__0: 172.30.240.0/24
+    depends_on:
+      db: { condition: service_healthy }
+    networks: [backend]
+    logging: *logging
+
+  api:
+    image: erp-api:${APP_VERSION:-local}
+    build: *api-build
+    restart: unless-stopped
+    environment: *api-env
+    volumes:
+      - exports-data:/app/exports
+    depends_on:
+      db: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+    # The aspnet image has no curl; bash's /dev/tcp is enough to ask /health/ready.
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8080 && printf 'GET /health/ready HTTP/1.0\\r\\nHost: localhost\\r\\n\\r\\n' >&3 && head -1 <&3 | grep -q ' 200 '"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    deploy:
+      resources:
+        limits: { memory: 512M }
+    networks: [backend]
+    logging: *logging
+
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./certs:/etc/nginx/certs:ro
+    depends_on:
+      api: { condition: service_healthy }
+    networks: [backend]
+    logging: *logging
+
+  # pg_dump once at start and then every 24 hours; keeps 7 days.
+  backup:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      PGHOST: db
+      PGDATABASE: erp_db
+      PGUSER: erp
+      PGPASSWORD: ${DB_PASSWORD}
+      KEEP_DAYS: ${BACKUP_KEEP_DAYS:-7}
+    volumes:
+      - ./backups:/backups
+    entrypoint: ["bash", "-c"]
+    command:
+      - |
+        set -euo pipefail
+        while true; do
+          file=/backups/erp-$$(date -u +%Y%m%dT%H%M%SZ).dump
+          # Written to .part first: a half-written dump never looks like a good backup.
+          pg_dump --format=custom --file="$$file.part" && mv "$$file.part" "$$file"
+          echo "backup written: $$file ($$(du -h "$$file" | cut -f1))"
+          find /backups -name 'erp-*.dump' -mtime +"$$KEEP_DAYS" -delete
+          sleep 86400
+        done
+    depends_on:
+      db: { condition: service_healthy }
+    networks: [backend]
+    logging: *logging
+
+networks:
+  backend:
+    ipam:
+      config:
+        - subnet: 172.30.240.0/24
+
+volumes:
+  postgres-data:
+  exports-data:
