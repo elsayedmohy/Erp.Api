@@ -65,7 +65,9 @@ public static class RolePermissions
         Employees.Read,
         Employees.ViewSalary,
         Showrooms.AccessAll,
-        Shipments.Read);
+        Shipments.Read,
+        Payments.Resolve,
+        Payments.WebhooksRead);
 
     public static List<string> Sales => Sorted(
         Showrooms.Read,

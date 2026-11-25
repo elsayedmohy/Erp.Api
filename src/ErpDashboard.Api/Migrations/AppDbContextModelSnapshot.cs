@@ -889,6 +889,16 @@ namespace ErpDashboard.Api.Migrations
                     b.Property<DateTime?>("RefundedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("ResolutionNote")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime?>("ResolvedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("ResolvedById")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -963,6 +973,16 @@ namespace ErpDashboard.Api.Migrations
                     b.Property<string>("RejectionReason")
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
+
+                    b.Property<string>("ResolutionNote")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime?>("ResolvedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("ResolvedById")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("Result")
                         .HasMaxLength(500)

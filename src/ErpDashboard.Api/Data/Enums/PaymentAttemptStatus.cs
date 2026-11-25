@@ -1,3 +1,3 @@
 namespace ErpDashboard.Api.Data.Enums;
 
-public enum PaymentAttemptStatus { Pending, Succeeded, Failed, NeedsRefund, Voided, Refunded, RefundFailed }
+public enum PaymentAttemptStatus { Pending, Succeeded, Failed, NeedsRefund, Voided, Refunded, RefundFailed, RefundedManually }

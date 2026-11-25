@@ -16,5 +16,6 @@ public class PaymentWebhookEventConfiguration : IEntityTypeConfiguration<Payment
         b.HasIndex(e => e.ReceivedAt);
         b.HasIndex(e => new { e.Provider, e.ProviderEventId });
         b.Property(e => e.Currency).HasMaxLength(3);
+        b.Property(a => a.ResolutionNote).HasMaxLength(500);
     }
 }
