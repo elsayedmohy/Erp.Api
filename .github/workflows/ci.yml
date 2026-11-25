@@ -29,13 +29,14 @@ jobs:
               - '**/packages.lock.json'
               - 'Directory.*.props'
               - 'global.json'
+              - 'coverage.runsettings'
               - '.github/workflows/**'
-  
+
   build-and-test:
     needs: changes
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-dotnet@v5
@@ -43,7 +44,7 @@ jobs:
           dotnet-version: '10.0.x'
           cache: true
           cache-dependency-path: '**/packages.lock.json'
-          
+
       - name: Block risky logging
         run: |
           if git grep -nE 'EnableSensitiveDataLogging|UseHttpLogging|AddHttpLogging|\{@' -- 'src/*.cs'; then
@@ -88,9 +89,15 @@ jobs:
             echo "::error::WhatsApp provider names belong in Infrastructure/Messaging/<Provider> only"
             exit 1
           fi
+
       - run: dotnet restore --locked-mode
       - run: dotnet build --no-restore -c Release
-      - run: dotnet test --no-build -c Release --logger trx --results-directory TestResults
+
+      - name: Test (with coverage)
+        run: >
+          dotnet test --no-build -c Release
+          --logger trx --results-directory TestResults
+          --settings coverage.runsettings --collect:"XPlat Code Coverage"
 
       - name: Fail if no tests ran
         run: |
@@ -100,3 +107,21 @@ jobs:
             echo "::error::No tests were executed"
             exit 1
           fi
+
+      - name: Coverage report
+        if: ${{ !cancelled() && hashFiles('TestResults/**/coverage.cobertura.xml') != '' }}
+        uses: danielpalme/ReportGenerator-GitHub-Action@5
+        with:
+          reports: TestResults/**/coverage.cobertura.xml
+          targetdir: coverage
+          reporttypes: MarkdownSummaryGithub;Html
+
+      - name: Coverage summary
+        if: ${{ !cancelled() && hashFiles('coverage/SummaryGithub.md') != '' }}
+        run: cat coverage/SummaryGithub.md >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() && hashFiles('coverage/**') != '' }}
+        with:
+          name: coverage
+          path: coverage

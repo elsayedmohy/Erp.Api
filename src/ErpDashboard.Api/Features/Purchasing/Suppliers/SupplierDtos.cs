@@ -13,9 +13,8 @@ public sealed record SupplierResponse(
 
 
 public sealed record SupplierRequest(
-    string Name,
-    string ContactName,
-    string Email,
-    string Phone,
-    PaymentTerms PaymentTerms
-);
+    [Required, MaxLength(200)] string Name,
+    [Required, MaxLength(200)] string ContactName,
+    [Required, EmailAddress, MaxLength(256)] string Email,
+    [Required, Phone, MaxLength(30)] string Phone,
+    PaymentTerms PaymentTerms);

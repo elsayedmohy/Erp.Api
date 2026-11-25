@@ -87,6 +87,20 @@ public class GlobalExceptionHandler(
                 }
             });
         }
+        
+        if (ex is DbUpdateException { InnerException: PostgresException { SqlState: PostgresErrorCodes.ForeignKeyViolation } })
+        {
+            logger.LogWarning(ex, "Foreign key violation");
+            var problem = new ProblemDetails
+            {
+                Status = StatusCodes.Status409Conflict,
+                Title = "Conflict",
+                Detail = "The change conflicts with related records."
+            };
+            problem.Extensions["code"] = "foreign_key";
+            ctx.Response.StatusCode = StatusCodes.Status409Conflict;
+            return await problemDetailsService.TryWriteAsync(new ProblemDetailsContext { HttpContext = ctx, Exception = ex, ProblemDetails = problem });
+        }
        
         if (ex is InsufficientStockException shortage)
         {
