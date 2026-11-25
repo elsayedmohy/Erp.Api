@@ -102,6 +102,7 @@ public static class PermissionCodes
     public static class Payments
     {
         public const string WebhooksRead = "payments.webhooks.read";
+        public const string Resolve = "payments.resolve";
     }
     
     public static class Carriers

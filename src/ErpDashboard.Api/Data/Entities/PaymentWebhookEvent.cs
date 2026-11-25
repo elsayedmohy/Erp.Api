@@ -23,4 +23,8 @@ public class PaymentWebhookEvent
     public DateTime? NextAttemptAt { get; set; }
     public DateTime? ProcessedAt { get; set; }
     public string? Result { get; set; }
+    
+    public Guid? ResolvedById { get; set; }
+    public DateTime? ResolvedAt { get; set; }
+    public string? ResolutionNote { get; set; }
 }

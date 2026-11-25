@@ -32,5 +32,6 @@ public class PaymentAttemptConfiguration : IEntityTypeConfiguration<PaymentAttem
         b.Property(a => a.RefundReference).HasMaxLength(100);
         b.Property(a => a.RefundError).HasMaxLength(500);
         b.HasIndex(a => new { a.Status, a.NextRefundAt });
+        b.Property(a => a.ResolutionNote).HasMaxLength(500);
     }
 }

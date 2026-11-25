@@ -83,15 +83,25 @@ public class PaymentWebhookEventsTests(ApiFactory factory) : IDisposable
     }
 
     [Theory]
-    [InlineData("00000000-0000-0000-0000-000000000004")] // Accountant: handles money, not provider callbacks
     [InlineData("00000000-0000-0000-0000-000000000006")] // ShowroomUser
-    public async Task NonAdmins_AreForbidden(string roleId)
+    [InlineData("00000000-0000-0000-0000-000000000003")] // Sales
+    public async Task NonFinanceRoles_AreForbidden(string roleId)
     {
         var token = await Kit.TokenAsync(Guid.Parse(roleId));
 
         var response = await Kit.SendAsync(HttpMethod.Get, "/api/payments/webhook-events", token);
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Accountant_CanReadEvents_ToResolveThem()
+    {
+        var token = await Kit.TokenAsync(RoleIds.Accountant);
+
+        var response = await Kit.SendAsync(HttpMethod.Get, "/api/payments/webhook-events", token);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
     // ---------- helpers ----------

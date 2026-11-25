@@ -22,4 +22,8 @@ public class PaymentAttempt
     public DateTime? RefundedAt { get; set; }
     public string? RefundReference { get; set; }
     public string? RefundError { get; set; }
+    
+    public Guid? ResolvedById { get; set; }
+    public DateTime? ResolvedAt { get; set; }
+    public string? ResolutionNote { get; set; }
 }

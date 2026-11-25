@@ -2,6 +2,7 @@
 
 using ErpDashboard.Api.Features.Exports;
 using ErpDashboard.Api.Features.Notifications.Reminders;
+using ErpDashboard.Api.Features.Payments.Attention;
 
 namespace ErpDashboard.Api.Extensions;
 
@@ -265,6 +266,7 @@ public static class DependencyInjection
         builder.Services.AddScoped<ICheckoutCompletion, CheckoutCompletion>();
         builder.Services.AddScoped<ICheckoutNotifier, CheckoutNotifier>();
         builder.Services.AddScoped<IDashboardService, DashboardService>();
+        builder.Services.AddScoped<IPaymentAttention, PaymentAttention>();
         return builder;
     }
 
